@@ -7,8 +7,10 @@ Creates worm wheel with two options:
 """
 
 import math
+from typing import Optional
 from build123d import *
 from .io import WheelParams, WormParams, AssemblyParams
+from .features import BoreFeature, KeywayFeature, add_bore_and_keyway
 
 
 class WheelGeometry:
@@ -18,6 +20,8 @@ class WheelGeometry:
     Supports two tooth types:
     - helical: Pure helical gear teeth (no throat cut) - simpler geometry
     - hobbed: Helical teeth with toroidal throat cut - attempts to match worm
+
+    Optionally adds bore and keyway features.
     """
 
     def __init__(
@@ -26,7 +30,9 @@ class WheelGeometry:
         worm_params: WormParams,
         assembly_params: AssemblyParams,
         face_width: float = None,
-        throated: bool = False
+        throated: bool = False,
+        bore: Optional[BoreFeature] = None,
+        keyway: Optional[KeywayFeature] = None
     ):
         """
         Initialize wheel geometry generator.
@@ -37,11 +43,19 @@ class WheelGeometry:
             assembly_params: Assembly parameters
             face_width: Wheel face width in mm (default: auto-calculated)
             throated: If True, apply throat cut (hobbed style); if False, pure helical
+            bore: Optional bore feature specification
+            keyway: Optional keyway feature specification (requires bore)
         """
         self.params = params
         self.worm_params = worm_params
         self.assembly_params = assembly_params
         self.throated = throated
+        self.bore = bore
+        self.keyway = keyway
+
+        # Set keyway as hub type if specified
+        if self.keyway is not None:
+            self.keyway.is_shaft = False
 
         # Calculate face width if not provided
         if face_width is None:
@@ -61,6 +75,16 @@ class WheelGeometry:
         """
         # Create helical gear (throating is built into the tooth profile)
         gear = self._create_helical_gear()
+
+        # Add bore and keyway if specified
+        if self.bore is not None or self.keyway is not None:
+            gear = add_bore_and_keyway(
+                gear,
+                part_length=self.face_width,
+                bore=self.bore,
+                keyway=self.keyway,
+                axis=Axis.Z
+            )
 
         return gear
 

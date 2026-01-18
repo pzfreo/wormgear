@@ -5,8 +5,10 @@ Creates CNC-ready worm geometry with helical threads.
 """
 
 import math
+from typing import Optional
 from build123d import *
 from .io import WormParams, AssemblyParams
+from .features import BoreFeature, KeywayFeature, add_bore_and_keyway
 
 
 class WormGeometry:
@@ -14,7 +16,7 @@ class WormGeometry:
     Generates 3D geometry for a worm.
 
     Creates worm by sweeping thread profile along helical path,
-    then unioning with core cylinder.
+    then unioning with core cylinder. Optionally adds bore and keyway.
     """
 
     def __init__(
@@ -22,7 +24,9 @@ class WormGeometry:
         params: WormParams,
         assembly_params: AssemblyParams,
         length: float = 40.0,
-        sections_per_turn: int = 36
+        sections_per_turn: int = 36,
+        bore: Optional[BoreFeature] = None,
+        keyway: Optional[KeywayFeature] = None
     ):
         """
         Initialize worm geometry generator.
@@ -32,11 +36,19 @@ class WormGeometry:
             assembly_params: Assembly parameters (for pressure angle)
             length: Total worm length in mm (default: 40)
             sections_per_turn: Number of loft sections per helix turn (default: 36)
+            bore: Optional bore feature specification
+            keyway: Optional keyway feature specification (requires bore)
         """
         self.params = params
         self.assembly_params = assembly_params
         self.length = length
         self.sections_per_turn = sections_per_turn
+        self.bore = bore
+        self.keyway = keyway
+
+        # Set keyway as shaft type if specified
+        if self.keyway is not None:
+            self.keyway.is_shaft = True
 
     def build(self) -> Part:
         """
@@ -75,14 +87,25 @@ class WormGeometry:
         )
         worm = worm & trim_box
 
-        # Ensure we return a single Solid for proper display in ocp_vscode
+        # Ensure we have a single Solid for proper display in ocp_vscode
         if hasattr(worm, 'solids'):
             solids = list(worm.solids())
             if len(solids) == 1:
-                return solids[0]
+                worm = solids[0]
             elif len(solids) > 1:
                 # Return the largest solid (should be the worm)
-                return max(solids, key=lambda s: s.volume)
+                worm = max(solids, key=lambda s: s.volume)
+
+        # Add bore and keyway if specified
+        if self.bore is not None or self.keyway is not None:
+            worm = add_bore_and_keyway(
+                worm,
+                part_length=self.length,
+                bore=self.bore,
+                keyway=self.keyway,
+                axis=Axis.Z
+            )
+
         return worm
 
     def _create_threads(self) -> Part:

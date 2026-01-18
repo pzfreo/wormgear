@@ -9,6 +9,7 @@ from pathlib import Path
 from .io import load_design_json
 from .worm import WormGeometry
 from .wheel import WheelGeometry
+from .features import BoreFeature, KeywayFeature
 
 
 def main():
@@ -32,6 +33,12 @@ Examples:
 
   # Generate only worm and view it
   wormgear-geometry design.json --worm-only --view
+
+  # Add bore holes to both parts
+  wormgear-geometry design.json --worm-bore 6 --wheel-bore 10
+
+  # Add bore and keyway (DIN 6885 standard)
+  wormgear-geometry design.json --worm-bore 8 --worm-keyway --wheel-bore 12 --wheel-keyway
         """
     )
 
@@ -105,7 +112,42 @@ Examples:
         help='Generate hobbed wheel with throated teeth (default: helical without throating)'
     )
 
+    # Bore and keyway options
+    parser.add_argument(
+        '--worm-bore',
+        type=float,
+        default=None,
+        help='Worm bore diameter in mm (default: no bore)'
+    )
+
+    parser.add_argument(
+        '--wheel-bore',
+        type=float,
+        default=None,
+        help='Wheel bore diameter in mm (default: no bore)'
+    )
+
+    parser.add_argument(
+        '--worm-keyway',
+        action='store_true',
+        help='Add keyway to worm (requires --worm-bore, uses DIN 6885 dimensions)'
+    )
+
+    parser.add_argument(
+        '--wheel-keyway',
+        action='store_true',
+        help='Add keyway to wheel (requires --wheel-bore, uses DIN 6885 dimensions)'
+    )
+
     args = parser.parse_args()
+
+    # Validate keyway requirements
+    if args.worm_keyway and args.worm_bore is None:
+        print("Error: --worm-keyway requires --worm-bore", file=sys.stderr)
+        return 1
+    if args.wheel_keyway and args.wheel_bore is None:
+        print("Error: --wheel-keyway requires --wheel-bore", file=sys.stderr)
+        return 1
 
     # Load design
     try:
@@ -124,26 +166,50 @@ Examples:
 
     # Generate worm
     if generate_worm:
-        print(f"\nGenerating worm ({design.worm.num_starts}-start, module {design.worm.module_mm}mm)...")
+        # Create bore and keyway features if specified
+        worm_bore = BoreFeature(diameter=args.worm_bore) if args.worm_bore else None
+        worm_keyway = KeywayFeature() if args.worm_keyway else None
+
+        features_desc = ""
+        if worm_bore:
+            features_desc += f", bore {args.worm_bore}mm"
+        if worm_keyway:
+            features_desc += ", keyway"
+
+        print(f"\nGenerating worm ({design.worm.num_starts}-start, module {design.worm.module_mm}mm{features_desc})...")
         worm_geo = WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=args.worm_length,
-            sections_per_turn=args.sections
+            sections_per_turn=args.sections,
+            bore=worm_bore,
+            keyway=worm_keyway
         )
         worm = worm_geo.build()
         print(f"  Volume: {worm.volume:.2f} mm³")
 
     # Generate wheel
     if generate_wheel:
+        # Create bore and keyway features if specified
+        wheel_bore = BoreFeature(diameter=args.wheel_bore) if args.wheel_bore else None
+        wheel_keyway = KeywayFeature() if args.wheel_keyway else None
+
         wheel_type_desc = "hobbed (throated)" if args.hobbed else "helical"
-        print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc})...")
+        features_desc = ""
+        if wheel_bore:
+            features_desc += f", bore {args.wheel_bore}mm"
+        if wheel_keyway:
+            features_desc += ", keyway"
+
+        print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc}{features_desc})...")
         wheel_geo = WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
             face_width=args.wheel_width,
-            throated=args.hobbed
+            throated=args.hobbed,
+            bore=wheel_bore,
+            keyway=wheel_keyway
         )
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
