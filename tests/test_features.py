@@ -151,11 +151,11 @@ class TestCalculateDefaultBore:
 
     def test_small_gear_rounds_to_half_mm(self):
         """Test small gear bore rounds to 0.5mm increments."""
-        # 24mm pitch = 6mm target, rounds to 6.0
+        # 24mm pitch = 6mm target, max_bore = 20-3 = 17mm, rounds to 6.0
         bore = calculate_default_bore(pitch_diameter=24.0, root_diameter=20.0)
         assert bore == 6.0
 
-        # 30mm pitch = 7.5mm target, rounds to 7.5
+        # 30mm pitch = 7.5mm target, max_bore = 26-3 = 23mm, rounds to 7.5
         bore = calculate_default_bore(pitch_diameter=30.0, root_diameter=26.0)
         assert bore == 7.5
 
@@ -169,22 +169,37 @@ class TestCalculateDefaultBore:
         bore = calculate_default_bore(pitch_diameter=80.0, root_diameter=72.0)
         assert bore == 20.0
 
-    def test_minimum_bore_is_6mm(self):
-        """Test minimum bore is 6mm (smallest DIN 6885 keyway)."""
-        # 16mm pitch = 4mm target, but min is 6mm
-        bore = calculate_default_bore(pitch_diameter=16.0, root_diameter=14.0)
-        assert bore == 6.0
+    def test_minimum_bore_is_2mm(self):
+        """Test minimum bore is 2mm for small gears."""
+        # 6mm pitch = 1.5mm target, but min is 2mm
+        # root 8mm gives max_bore = 5mm, so 2mm is valid
+        bore = calculate_default_bore(pitch_diameter=6.0, root_diameter=8.0)
+        assert bore == 2.0
+
+    def test_small_bore_without_keyway(self):
+        """Test small bore (< 6mm) works but won't have DIN 6885 keyway."""
+        # 12mm pitch = 3mm target, root 10mm = max 7mm
+        bore = calculate_default_bore(pitch_diameter=12.0, root_diameter=10.0)
+        assert bore == 3.0
+        # No DIN 6885 keyway for bore < 6mm
+        assert get_din_6885_keyway(bore) is None
+
+    def test_returns_none_for_very_small_gear(self):
+        """Test returns None when gear is too small for any bore."""
+        # 4mm root, max_bore = 4-3 = 1mm, which is < min_bore (2mm)
+        bore = calculate_default_bore(pitch_diameter=4.0, root_diameter=4.0)
+        assert bore is None
 
     def test_maximum_bore_respects_rim_thickness(self):
-        """Test maximum bore leaves 3mm rim from root."""
-        # 100mm pitch, 40mm root = max bore 34mm
+        """Test maximum bore leaves 1.5mm rim from root."""
+        # 100mm pitch, 40mm root = max bore 37mm
         # 25% of 100 = 25mm, which is under max
         bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=40.0)
         assert bore == 25.0
 
-        # Very small root limits the bore
-        # 100mm pitch, 15mm root = max bore 9mm
-        bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=15.0)
+        # Small root limits the bore
+        # 100mm pitch, 12mm root = max bore 9mm
+        bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=12.0)
         assert bore == 9.0  # Clamped to max_bore
 
 
