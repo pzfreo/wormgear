@@ -322,7 +322,8 @@ Examples:
                     elif worm_bore_diameter < 6.0:
                         keyway_info = " (no keyway - below DIN 6885 range)"
                     override_note = "" if args.worm_bore else " (override: --worm-bore X)"
-                    print(f"  Worm:  {worm_bore_diameter}mm{keyway_info}{override_note}")
+                    worm_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
+                    print(f"  Worm:  {worm_bore_diameter}mm{keyway_info}, rim {worm_rim:.2f}mm{override_note}")
                 else:
                     print(f"  Worm:  solid (too small for bore)")
 
@@ -335,7 +336,8 @@ Examples:
                     elif wheel_bore_diameter < 6.0:
                         keyway_info = " (no keyway - below DIN 6885 range)"
                     override_note = "" if args.wheel_bore else " (override: --wheel-bore X)"
-                    print(f"  Wheel: {wheel_bore_diameter}mm{keyway_info}{override_note}")
+                    wheel_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
+                    print(f"  Wheel: {wheel_bore_diameter}mm{keyway_info}, rim {wheel_rim:.2f}mm{override_note}")
                 else:
                     print(f"  Wheel: solid (too small for bore)")
 
