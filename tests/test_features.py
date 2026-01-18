@@ -151,41 +151,94 @@ class TestCalculateDefaultBore:
 
     def test_small_gear_rounds_to_half_mm(self):
         """Test small gear bore rounds to 0.5mm increments."""
-        # 24mm pitch = 6mm target, rounds to 6.0
-        bore = calculate_default_bore(pitch_diameter=24.0, root_diameter=20.0)
+        # 24mm pitch = 6mm target, large root gives room, rounds to 6.0
+        bore, warning = calculate_default_bore(pitch_diameter=24.0, root_diameter=20.0)
         assert bore == 6.0
+        assert warning is False
 
         # 30mm pitch = 7.5mm target, rounds to 7.5
-        bore = calculate_default_bore(pitch_diameter=30.0, root_diameter=26.0)
+        bore, warning = calculate_default_bore(pitch_diameter=30.0, root_diameter=26.0)
         assert bore == 7.5
+        assert warning is False
 
     def test_large_gear_rounds_to_whole_mm(self):
         """Test large gear bore rounds to 1mm increments."""
         # 60mm pitch = 15mm target, rounds to 15
-        bore = calculate_default_bore(pitch_diameter=60.0, root_diameter=55.0)
+        bore, warning = calculate_default_bore(pitch_diameter=60.0, root_diameter=55.0)
         assert bore == 15.0
+        assert warning is False
 
         # 80mm pitch = 20mm target, rounds to 20
-        bore = calculate_default_bore(pitch_diameter=80.0, root_diameter=72.0)
+        bore, warning = calculate_default_bore(pitch_diameter=80.0, root_diameter=72.0)
         assert bore == 20.0
+        assert warning is False
 
-    def test_minimum_bore_is_6mm(self):
-        """Test minimum bore is 6mm (smallest DIN 6885 keyway)."""
-        # 16mm pitch = 4mm target, but min is 6mm
-        bore = calculate_default_bore(pitch_diameter=16.0, root_diameter=14.0)
-        assert bore == 6.0
+    def test_minimum_bore_is_2mm(self):
+        """Test minimum bore is 2mm for small gears."""
+        # 6mm pitch = 1.5mm target, but min is 2mm
+        # root 8mm gives max_bore = 6mm, so 2mm is valid
+        bore, warning = calculate_default_bore(pitch_diameter=6.0, root_diameter=8.0)
+        assert bore == 2.0
+        # rim = (8 - 2) / 2 = 3mm, no warning
+        assert warning is False
+
+    def test_small_bore_without_keyway(self):
+        """Test small bore (< 6mm) works but won't have DIN 6885 keyway."""
+        # 12mm pitch = 3mm target, root 10mm = max ~7.5mm
+        bore, warning = calculate_default_bore(pitch_diameter=12.0, root_diameter=10.0)
+        assert bore == 3.0
+        # No DIN 6885 keyway for bore < 6mm
+        assert get_din_6885_keyway(bore) is None
+        # rim = (10 - 3) / 2 = 3.5mm, no warning
+        assert warning is False
+
+    def test_returns_none_for_very_small_gear(self):
+        """Test returns None when gear is too small for any bore."""
+        # 4mm root: min_rim = max(4*0.125, 1.0) = 1.0mm per side
+        # max_bore = 4 - 2*1 = 2mm, equals min_bore, should work
+        # But 3mm root would fail
+        bore, warning = calculate_default_bore(pitch_diameter=3.0, root_diameter=3.0)
+        assert bore is None
+        assert warning is False
 
     def test_maximum_bore_respects_rim_thickness(self):
-        """Test maximum bore leaves 3mm rim from root."""
-        # 100mm pitch, 40mm root = max bore 34mm
-        # 25% of 100 = 25mm, which is under max
-        bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=40.0)
+        """Test maximum bore leaves percentage-based rim from root."""
+        # 100mm pitch, 40mm root:
+        # min_rim = max(40*0.125, 1.0) = 5mm per side
+        # max_bore = 40 - 2*5 = 30mm
+        # target = 25mm (25% of pitch), which is under max
+        bore, warning = calculate_default_bore(pitch_diameter=100.0, root_diameter=40.0)
         assert bore == 25.0
+        # rim = (40 - 25) / 2 = 7.5mm, no warning
+        assert warning is False
 
-        # Very small root limits the bore
-        # 100mm pitch, 15mm root = max bore 9mm
-        bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=15.0)
+        # Small root limits the bore
+        # 100mm pitch, 12mm root:
+        # min_rim = max(12*0.125, 1.0) = 1.5mm per side
+        # max_bore = 12 - 2*1.5 = 9mm
+        # target = 25mm, clamped to 9mm
+        bore, warning = calculate_default_bore(pitch_diameter=100.0, root_diameter=12.0)
         assert bore == 9.0  # Clamped to max_bore
+        # rim = (12 - 9) / 2 = 1.5mm, borderline but no warning (threshold is < 1.5)
+        assert warning is False
+
+    def test_thin_rim_warning(self):
+        """Test warning is returned when rim is thin (< 1.5mm)."""
+        # 6mm pitch, 4.75mm root (like 7mm worm):
+        # min_rim = max(4.75*0.125, 1.0) = 1.0mm per side
+        # max_bore = 4.75 - 2*1 = 2.75mm
+        # target = 1.5mm, min is 2mm, so bore = 2mm
+        # rim = (4.75 - 2) / 2 = 1.375mm < 1.5mm, should warn
+        bore, warning = calculate_default_bore(pitch_diameter=6.0, root_diameter=4.75)
+        assert bore == 2.0
+        assert warning is True
+
+    def test_7mm_worm_gets_bore_with_warning(self):
+        """Test actual 7mm worm design gets a small bore with warning."""
+        # From examples/7mm.json: pitch=6.0, root=4.75
+        bore, warning = calculate_default_bore(pitch_diameter=6.0, root_diameter=4.75)
+        assert bore == 2.0
+        assert warning is True  # Thin rim warning
 
 
 class TestCreateBore:
