@@ -99,6 +99,14 @@ Examples:
         help='Rotate wheel by half tooth pitch for mesh alignment in viewer'
     )
 
+    parser.add_argument(
+        '--wheel-type',
+        type=str,
+        choices=['helical', 'hobbed'],
+        default='helical',
+        help='Wheel tooth type: helical (no throat cut) or hobbed (with throat cut) (default: helical)'
+    )
+
     args = parser.parse_args()
 
     # Load design
@@ -130,12 +138,14 @@ Examples:
 
     # Generate wheel
     if generate_wheel:
-        print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm)...")
+        wheel_type_desc = "helical" if args.wheel_type == "helical" else "hobbed (throated)"
+        print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc})...")
         wheel_geo = WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
-            face_width=args.wheel_width
+            face_width=args.wheel_width,
+            throated=(args.wheel_type == "hobbed")
         )
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")

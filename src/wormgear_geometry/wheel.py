@@ -1,9 +1,9 @@
 """
 Wheel geometry generation using build123d.
 
-Creates worm wheel using hybrid approach:
-1. Helical gear with correct tooth profile
-2. Toroidal throat cut to match worm curvature
+Creates worm wheel with two options:
+1. Helical: Pure helical gear teeth (no throat cut) - simpler, point contact
+2. Hobbed: Helical gear with toroidal throat cut - attempts to simulate hobbing
 """
 
 import math
@@ -15,9 +15,9 @@ class WheelGeometry:
     """
     Generates 3D geometry for a worm wheel.
 
-    Uses hybrid approach (Option C from spec):
-    - Creates helical gear with involute-approximation teeth
-    - Applies toroidal throat cut to match worm curvature
+    Supports two tooth types:
+    - helical: Pure helical gear teeth (no throat cut) - simpler geometry
+    - hobbed: Helical teeth with toroidal throat cut - attempts to match worm
     """
 
     def __init__(
@@ -25,7 +25,8 @@ class WheelGeometry:
         params: WheelParams,
         worm_params: WormParams,
         assembly_params: AssemblyParams,
-        face_width: float = None
+        face_width: float = None,
+        throated: bool = False
     ):
         """
         Initialize wheel geometry generator.
@@ -35,10 +36,12 @@ class WheelGeometry:
             worm_params: Worm parameters (needed for throating)
             assembly_params: Assembly parameters
             face_width: Wheel face width in mm (default: auto-calculated)
+            throated: If True, apply throat cut (hobbed style); if False, pure helical
         """
         self.params = params
         self.worm_params = worm_params
         self.assembly_params = assembly_params
+        self.throated = throated
 
         # Calculate face width if not provided
         if face_width is None:
@@ -59,10 +62,11 @@ class WheelGeometry:
         # Create helical gear
         gear = self._create_helical_gear()
 
-        # Apply toroidal throat cut
-        throated_gear = self._apply_throat_cut(gear)
+        # Optionally apply toroidal throat cut
+        if self.throated:
+            gear = self._apply_throat_cut(gear)
 
-        return throated_gear
+        return gear
 
     def _create_helical_gear(self) -> Part:
         """
@@ -150,27 +154,21 @@ class WheelGeometry:
 
                 with BuildSketch(profile_plane) as sk:
                     with BuildLine():
-                        # Create involute-like curved flanks
-                        num_flank_points = 5
-                        left_flank = []
-                        right_flank = []
+                        # Create trapezoidal tooth space profile
+                        # Inner edge (at root) is narrower, outer edge (at tip) is wider
+                        # This matches the worm's trapezoidal thread profile
 
-                        for j in range(num_flank_points):
-                            t_flank = j / (num_flank_points - 1)
-                            r_pos = inner + t_flank * (outer - inner)
+                        # Four corners of trapezoid: inner-left, inner-right, outer-right, outer-left
+                        inner_left = (inner, -half_root)
+                        inner_right = (inner, half_root)
+                        outer_right = (outer, half_tip)
+                        outer_left = (outer, -half_tip)
 
-                            linear_width = half_root + t_flank * (half_tip - half_root)
-                            curve_factor = 4 * t_flank * (1 - t_flank)
-                            bulge = curve_factor * 0.05 * (half_root - half_tip)
-                            width = linear_width + bulge
-
-                            left_flank.append((r_pos, -width))
-                            right_flank.append((r_pos, width))
-
-                        Spline(left_flank)
-                        Line(left_flank[-1], right_flank[-1])
-                        Spline(list(reversed(right_flank)))
-                        Line(right_flank[0], left_flank[0])
+                        # Draw trapezoid: bottom, right flank, top, left flank
+                        Line(inner_left, inner_right)   # Bottom (root)
+                        Line(inner_right, outer_right)  # Right flank
+                        Line(outer_right, outer_left)   # Top (tip)
+                        Line(outer_left, inner_left)    # Left flank
                     make_face()
 
                 sections.append(sk.sketch.faces()[0])
