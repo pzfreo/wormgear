@@ -9,7 +9,7 @@ from pathlib import Path
 from .io import load_design_json
 from .worm import WormGeometry
 from .wheel import WheelGeometry
-from .features import BoreFeature, KeywayFeature
+from .features import BoreFeature, KeywayFeature, calculate_default_bore, get_din_6885_keyway
 
 
 def main():
@@ -19,26 +19,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate both worm and wheel STEP files
+  # Generate with auto-calculated bores and DIN 6885 keyways (default)
   wormgear-geometry design.json
 
-  # View in OCP viewer without saving
-  wormgear-geometry design.json --view
+  # Generate solid parts without bores
+  wormgear-geometry design.json --no-bore
 
-  # Specify output directory
-  wormgear-geometry design.json -o output/
+  # Override bore sizes (keyways auto-sized to match)
+  wormgear-geometry design.json --worm-bore 8 --wheel-bore 12
+
+  # Bores but no keyways
+  wormgear-geometry design.json --no-keyway
+
+  # View in OCP viewer without saving
+  wormgear-geometry design.json --view --no-save
 
   # Custom worm length and smoother geometry
   wormgear-geometry design.json --worm-length 50 --sections 72
-
-  # Generate only worm and view it
-  wormgear-geometry design.json --worm-only --view
-
-  # Add bore holes to both parts
-  wormgear-geometry design.json --worm-bore 6 --wheel-bore 10
-
-  # Add bore and keyway (DIN 6885 standard)
-  wormgear-geometry design.json --worm-bore 8 --worm-keyway --wheel-bore 12 --wheel-keyway
         """
     )
 
@@ -112,42 +109,34 @@ Examples:
         help='Generate hobbed wheel with throated teeth (default: helical without throating)'
     )
 
-    # Bore and keyway options
+    # Bore and keyway options (defaults: auto-calculated bore with keyway)
+    parser.add_argument(
+        '--no-bore',
+        action='store_true',
+        help='Generate solid parts without bores (default: auto-calculated bores)'
+    )
+
+    parser.add_argument(
+        '--no-keyway',
+        action='store_true',
+        help='Omit keyways (default: DIN 6885 keyways added with bores)'
+    )
+
     parser.add_argument(
         '--worm-bore',
         type=float,
         default=None,
-        help='Worm bore diameter in mm (default: no bore)'
+        help='Override worm bore diameter in mm (default: auto ~25%% of pitch diameter)'
     )
 
     parser.add_argument(
         '--wheel-bore',
         type=float,
         default=None,
-        help='Wheel bore diameter in mm (default: no bore)'
-    )
-
-    parser.add_argument(
-        '--worm-keyway',
-        action='store_true',
-        help='Add keyway to worm (requires --worm-bore, uses DIN 6885 dimensions)'
-    )
-
-    parser.add_argument(
-        '--wheel-keyway',
-        action='store_true',
-        help='Add keyway to wheel (requires --wheel-bore, uses DIN 6885 dimensions)'
+        help='Override wheel bore diameter in mm (default: auto ~25%% of pitch diameter)'
     )
 
     args = parser.parse_args()
-
-    # Validate keyway requirements
-    if args.worm_keyway and args.worm_bore is None:
-        print("Error: --worm-keyway requires --worm-bore", file=sys.stderr)
-        return 1
-    if args.wheel_keyway and args.wheel_bore is None:
-        print("Error: --wheel-keyway requires --wheel-bore", file=sys.stderr)
-        return 1
 
     # Load design
     try:
@@ -166,15 +155,33 @@ Examples:
 
     # Generate worm
     if generate_worm:
-        # Create bore and keyway features if specified
-        worm_bore = BoreFeature(diameter=args.worm_bore) if args.worm_bore else None
-        worm_keyway = KeywayFeature() if args.worm_keyway else None
+        # Determine bore diameter (auto-calculate or override)
+        worm_bore = None
+        worm_keyway = None
+        worm_bore_diameter = None
 
+        if not args.no_bore:
+            if args.worm_bore is not None:
+                worm_bore_diameter = args.worm_bore
+            else:
+                # Auto-calculate bore
+                worm_bore_diameter = calculate_default_bore(
+                    design.worm.pitch_diameter_mm,
+                    design.worm.root_diameter_mm
+                )
+
+            worm_bore = BoreFeature(diameter=worm_bore_diameter)
+
+            # Add keyway unless disabled
+            if not args.no_keyway:
+                worm_keyway = KeywayFeature()
+
+        # Build description
         features_desc = ""
         if worm_bore:
-            features_desc += f", bore {args.worm_bore}mm"
-        if worm_keyway:
-            features_desc += ", keyway"
+            features_desc += f", bore {worm_bore_diameter}mm"
+            if worm_keyway:
+                features_desc += " + keyway"
 
         print(f"\nGenerating worm ({design.worm.num_starts}-start, module {design.worm.module_mm}mm{features_desc})...")
         worm_geo = WormGeometry(
@@ -190,16 +197,34 @@ Examples:
 
     # Generate wheel
     if generate_wheel:
-        # Create bore and keyway features if specified
-        wheel_bore = BoreFeature(diameter=args.wheel_bore) if args.wheel_bore else None
-        wheel_keyway = KeywayFeature() if args.wheel_keyway else None
+        # Determine bore diameter (auto-calculate or override)
+        wheel_bore = None
+        wheel_keyway = None
+        wheel_bore_diameter = None
 
+        if not args.no_bore:
+            if args.wheel_bore is not None:
+                wheel_bore_diameter = args.wheel_bore
+            else:
+                # Auto-calculate bore
+                wheel_bore_diameter = calculate_default_bore(
+                    design.wheel.pitch_diameter_mm,
+                    design.wheel.root_diameter_mm
+                )
+
+            wheel_bore = BoreFeature(diameter=wheel_bore_diameter)
+
+            # Add keyway unless disabled
+            if not args.no_keyway:
+                wheel_keyway = KeywayFeature()
+
+        # Build description
         wheel_type_desc = "hobbed (throated)" if args.hobbed else "helical"
         features_desc = ""
         if wheel_bore:
-            features_desc += f", bore {args.wheel_bore}mm"
-        if wheel_keyway:
-            features_desc += ", keyway"
+            features_desc += f", bore {wheel_bore_diameter}mm"
+            if wheel_keyway:
+                features_desc += " + keyway"
 
         print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc}{features_desc})...")
         wheel_geo = WheelGeometry(
@@ -268,6 +293,29 @@ Examples:
     print(f"  Ratio: {design.assembly.ratio}:1")
     print(f"  Centre distance: {design.assembly.centre_distance_mm:.2f} mm")
     print(f"  Pressure angle: {design.assembly.pressure_angle_deg}°")
+
+    # Bore/keyway summary with override hints
+    if not args.no_bore:
+        print(f"\nBore & keyway (auto-calculated):")
+        if generate_worm and worm_bore_diameter:
+            keyway_dims = get_din_6885_keyway(worm_bore_diameter)
+            keyway_info = ""
+            if keyway_dims and not args.no_keyway:
+                keyway_info = f", keyway {keyway_dims[0]}x{keyway_dims[2]}mm (DIN 6885)"
+            override_note = "" if args.worm_bore else " (override: --worm-bore X)"
+            print(f"  Worm:  {worm_bore_diameter}mm{keyway_info}{override_note}")
+
+        if generate_wheel and wheel_bore_diameter:
+            keyway_dims = get_din_6885_keyway(wheel_bore_diameter)
+            keyway_info = ""
+            if keyway_dims and not args.no_keyway:
+                keyway_info = f", keyway {keyway_dims[0]}x{keyway_dims[3]}mm (DIN 6885)"
+            override_note = "" if args.wheel_bore else " (override: --wheel-bore X)"
+            print(f"  Wheel: {wheel_bore_diameter}mm{keyway_info}{override_note}")
+
+        if not args.no_keyway:
+            print(f"\n  To omit keyways: --no-keyway")
+        print(f"  To generate solid parts: --no-bore")
 
     return 0
 

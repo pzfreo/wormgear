@@ -25,6 +25,7 @@ from .features import (
     BoreFeature,
     KeywayFeature,
     get_din_6885_keyway,
+    calculate_default_bore,
 )
 
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     "BoreFeature",
     "KeywayFeature",
     "get_din_6885_keyway",
+    "calculate_default_bore",
 ]

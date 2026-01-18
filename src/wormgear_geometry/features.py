@@ -33,6 +33,52 @@ DIN_6885_KEYWAYS = {
 }
 
 
+def calculate_default_bore(pitch_diameter: float, root_diameter: float) -> float:
+    """
+    Calculate a sensible default bore diameter based on gear dimensions.
+
+    Uses approximately 25% of pitch diameter, but constrained by:
+    - Minimum: 6mm (smallest DIN 6885 keyway size)
+    - Maximum: Ensures adequate rim thickness (root_diameter - 2*whole_depth margin)
+
+    The result is rounded to nice values:
+    - Below 12mm: round to nearest 0.5mm
+    - 12mm and above: round to nearest 1mm
+
+    Args:
+        pitch_diameter: Gear pitch diameter in mm
+        root_diameter: Gear root diameter in mm
+
+    Returns:
+        Recommended bore diameter in mm (rounded)
+    """
+    # Target ~25% of pitch diameter
+    target = pitch_diameter * 0.25
+
+    # Minimum bore is 6mm (smallest DIN 6885 keyway)
+    min_bore = 6.0
+
+    # Maximum bore: leave at least 3mm rim thickness from root
+    # (root_diameter - max_bore) / 2 >= 3mm
+    max_bore = root_diameter - 6.0
+
+    # Clamp to valid range
+    bore = max(min_bore, min(target, max_bore))
+
+    # Round to nice values
+    if bore < 12:
+        # Round to nearest 0.5mm for small bores
+        bore = round(bore * 2) / 2
+    else:
+        # Round to nearest 1mm for larger bores
+        bore = round(bore)
+
+    # Final clamp after rounding
+    bore = max(min_bore, min(bore, max_bore))
+
+    return bore
+
+
 def get_din_6885_keyway(bore_diameter: float) -> Optional[Tuple[float, float, float, float]]:
     """
     Look up DIN 6885 keyway dimensions for a given bore diameter.

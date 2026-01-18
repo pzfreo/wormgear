@@ -12,6 +12,7 @@ from wormgear_geometry.features import (
     BoreFeature,
     KeywayFeature,
     get_din_6885_keyway,
+    calculate_default_bore,
     create_bore,
     create_keyway,
     add_bore_and_keyway,
@@ -143,6 +144,48 @@ class TestDIN6885Lookup:
         """Test lookup outside DIN 6885 range."""
         assert get_din_6885_keyway(5.0) is None
         assert get_din_6885_keyway(100.0) is None
+
+
+class TestCalculateDefaultBore:
+    """Tests for calculate_default_bore function."""
+
+    def test_small_gear_rounds_to_half_mm(self):
+        """Test small gear bore rounds to 0.5mm increments."""
+        # 24mm pitch = 6mm target, rounds to 6.0
+        bore = calculate_default_bore(pitch_diameter=24.0, root_diameter=20.0)
+        assert bore == 6.0
+
+        # 30mm pitch = 7.5mm target, rounds to 7.5
+        bore = calculate_default_bore(pitch_diameter=30.0, root_diameter=26.0)
+        assert bore == 7.5
+
+    def test_large_gear_rounds_to_whole_mm(self):
+        """Test large gear bore rounds to 1mm increments."""
+        # 60mm pitch = 15mm target, rounds to 15
+        bore = calculate_default_bore(pitch_diameter=60.0, root_diameter=55.0)
+        assert bore == 15.0
+
+        # 80mm pitch = 20mm target, rounds to 20
+        bore = calculate_default_bore(pitch_diameter=80.0, root_diameter=72.0)
+        assert bore == 20.0
+
+    def test_minimum_bore_is_6mm(self):
+        """Test minimum bore is 6mm (smallest DIN 6885 keyway)."""
+        # 16mm pitch = 4mm target, but min is 6mm
+        bore = calculate_default_bore(pitch_diameter=16.0, root_diameter=14.0)
+        assert bore == 6.0
+
+    def test_maximum_bore_respects_rim_thickness(self):
+        """Test maximum bore leaves 3mm rim from root."""
+        # 100mm pitch, 40mm root = max bore 34mm
+        # 25% of 100 = 25mm, which is under max
+        bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=40.0)
+        assert bore == 25.0
+
+        # Very small root limits the bore
+        # 100mm pitch, 15mm root = max bore 9mm
+        bore = calculate_default_bore(pitch_diameter=100.0, root_diameter=15.0)
+        assert bore == 9.0  # Clamped to max_bore
 
 
 class TestCreateBore:
