@@ -480,55 +480,76 @@
                 updateStatus('Configuring OCP.wasm...', 'Setting up WebAssembly CAD kernel', 'loading');
                 log('Configuring micropip to use OCP.wasm package index...');
 
-                // Set package index to prioritize OCP.wasm repository
-                // This provides WebAssembly-compiled versions of OCP and dependencies
-                await pyodide.runPythonAsync(`
+                // Set package index and install dependencies in one Python block
+                const setupResult = await pyodide.runPythonAsync(`
 import micropip
+
+# Set index URLs - OCP.wasm first, then PyPI as fallback
 micropip.set_index_urls([
-    "https://yeicor.github.io/OCP.wasm",  # OCP.wasm packages (prioritized)
-    "https://pypi.org/simple"              # Fallback to PyPI
+    "https://yeicor.github.io/OCP.wasm",
+    "https://pypi.org/simple"
 ])
+
+# Install lib3mf first (required for build123d < 0.10.0)
+print("Installing lib3mf...")
+await micropip.install("lib3mf", pre=True)
+
+# Add py-lib3mf mock package
+micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": 'from lib3mf import *'})
+
+print("✓ Dependencies configured")
+"OK"
                 `);
 
-                log('Package index configured successfully', 'success');
-
-                // Install lib3mf (required for build123d <0.10.0)
-                updateStatus('Installing dependencies...', 'Loading lib3mf library', 'loading');
-                log('Installing lib3mf...');
-                await micropip.install('lib3mf');
-                log('lib3mf installed', 'success');
-
-                // Add mock package for py-lib3mf compatibility
-                await pyodide.runPythonAsync(`
-micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": '''from lib3mf import *'''})
-                `);
-                log('py-lib3mf compatibility layer added', 'success');
+                if (setupResult === 'OK') {
+                    log('✓ Package index and lib3mf configured', 'success');
+                }
 
                 // Install build123d (will get WebAssembly OCP from OCP.wasm repo)
-                updateStatus('Installing build123d...', 'This will take 2-5 minutes (50-100MB download)', 'loading');
+                updateStatus('Installing build123d...', 'Downloading ~50-100MB (takes 2-5 minutes)', 'loading');
                 log('Installing build123d with OCP.wasm...');
-                log('This is a large download - please be patient...', 'info');
+                log('⏳ Large download in progress - please be patient...', 'info');
 
-                await micropip.install(['build123d', 'sqlite3']);
+                const installResult = await pyodide.runPythonAsync(`
+print("Installing build123d and sqlite3...")
+await micropip.install(["build123d", "sqlite3"], pre=True)
+print("✓ Installation complete")
+"INSTALLED"
+                `);
 
-                log('build123d installed successfully!', 'success');
-                updateStatus('Ready to Generate', 'build123d + OCP.wasm loaded successfully', 'success');
+                if (installResult === 'INSTALLED') {
+                    log('✓ build123d installed successfully!', 'success');
+                    updateStatus('Ready to Generate', 'build123d + OCP.wasm loaded', 'success');
 
-                // Enable buttons
-                document.getElementById('generateBtn').disabled = false;
-                document.getElementById('testBtn').disabled = false;
+                    // Enable buttons
+                    document.getElementById('generateBtn').disabled = false;
+                    document.getElementById('testBtn').disabled = false;
 
-                log('System ready for geometry generation', 'success');
-                log('Click "Test build123d" to verify installation', 'info');
+                    log('System ready for geometry generation', 'success');
+                    log('💡 Click "Test build123d" to verify installation', 'info');
+                }
 
             } catch (error) {
-                log(`Error installing build123d: ${error.message}`, 'error');
-                log('Installation failed - check browser console for details', 'error');
+                log(`✗ Error: ${error.message}`, 'error');
+
+                // Try to get more details
+                try {
+                    const traceback = await pyodide.runPythonAsync(`
+import traceback
+traceback.format_exc()
+                    `);
+                    log('Python traceback:', 'error');
+                    const lines = traceback.split('\\n');
+                    lines.forEach(line => line && log(line, 'error'));
+                } catch (e) {
+                    // Ignore traceback errors
+                }
+
                 updateStatus('Installation Failed',
                     'Could not load OCP.wasm - see console for details', 'error');
-                console.error('build123d install error:', error);
+                console.error('Full error:', error);
 
-                // Still enable test button to show what's available
+                // Still enable test button
                 document.getElementById('testBtn').disabled = false;
             }
         }
@@ -547,22 +568,24 @@ micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": '''from li
                 const result = await pyodide.runPythonAsync(`
 import sys
 
+output = []
+
 # Test OCP import
 try:
     import OCP
-    print(f"✓ OCP imported successfully")
+    output.append("✓ OCP imported successfully")
     ocp_ok = True
 except ImportError as e:
-    print(f"✗ OCP import failed: {e}")
+    output.append(f"✗ OCP import failed: {e}")
     ocp_ok = False
 
 # Test build123d import
 try:
     import build123d
-    print(f"✓ build123d imported (version: {getattr(build123d, '__version__', 'unknown')})")
+    output.append(f"✓ build123d imported (version: {getattr(build123d, '__version__', 'unknown')})")
     b3d_ok = True
 except ImportError as e:
-    print(f"✗ build123d import failed: {e}")
+    output.append(f"✗ build123d import failed: {e}")
     b3d_ok = False
 
 # If both work, try to create a simple object
@@ -571,15 +594,22 @@ if ocp_ok and b3d_ok:
         from build123d import Box, Cylinder
         box = Box(10, 10, 10)
         cyl = Cylinder(5, 20)
-        print(f"✓ Created test box (volume: {box.volume:.2f} mm³)")
-        print(f"✓ Created test cylinder (volume: {cyl.volume:.2f} mm³)")
-        "SUCCESS: build123d fully functional!"
+        output.append(f"✓ Created test box (volume: {box.volume:.2f} mm³)")
+        output.append(f"✓ Created test cylinder (volume: {cyl.volume:.2f} mm³)")
+        result = "SUCCESS"
     except Exception as e:
-        print(f"✗ Geometry creation failed: {e}")
-        "PARTIAL: Libraries imported but geometry creation failed"
+        output.append(f"✗ Geometry creation failed: {e}")
+        result = "PARTIAL"
 else:
-    "FAILED: Core libraries not available"
+    result = "FAILED"
+
+"\\n".join(output) + "\\n" + result
                 `);
+
+                if (!result) {
+                    log('Test returned no result', 'error');
+                    return;
+                }
 
                 const lines = result.split('\n');
                 for (const line of lines) {
@@ -587,17 +617,19 @@ else:
                         log(line, 'success');
                     } else if (line.includes('✗')) {
                         log(line, 'error');
-                    } else if (line) {
+                    } else if (line === 'SUCCESS' || line === 'PARTIAL' || line === 'FAILED') {
+                        // Skip these, we'll handle them below
+                    } else if (line.trim()) {
                         log(line, 'info');
                     }
                 }
 
                 if (result.includes('SUCCESS')) {
-                    log('All tests passed! Ready to generate worm gears', 'success');
+                    log('✓ All tests passed! Ready to generate worm gears', 'success');
                 } else if (result.includes('PARTIAL')) {
-                    log('Partial success - some features may not work', 'warning');
+                    log('⚠ Partial success - some features may not work', 'warning');
                 } else {
-                    log('Tests failed - check installation', 'error');
+                    log('✗ Tests failed - installation incomplete', 'error');
                 }
 
             } catch (error) {
@@ -653,10 +685,37 @@ else:
         async function loadSampleDesign(name) {
             try {
                 log(`Loading sample design: ${name}...`);
-                const response = await fetch(`../examples/${name}.json`);
-                const json = await response.json();
-                jsonInput.value = JSON.stringify(json, null, 2);
-                log(`Loaded ${name} design`, 'success');
+
+                // Try both paths (for local dev and deployed versions)
+                let json = null;
+                let loaded = false;
+
+                // Try deployed path first (examples/ relative to index.html)
+                try {
+                    const response = await fetch(`examples/${name}.json`);
+                    if (response.ok) {
+                        json = await response.json();
+                        loaded = true;
+                    }
+                } catch (e) {
+                    // Fallback to local dev path
+                    try {
+                        const response = await fetch(`../examples/${name}.json`);
+                        if (response.ok) {
+                            json = await response.json();
+                            loaded = true;
+                        }
+                    } catch (e2) {
+                        // Will be caught below
+                    }
+                }
+
+                if (loaded && json) {
+                    jsonInput.value = JSON.stringify(json, null, 2);
+                    log(`✓ Loaded ${name} design`, 'success');
+                } else {
+                    log(`Could not load ${name}.json - file not found`, 'error');
+                }
             } catch (error) {
                 log(`Error loading sample: ${error.message}`, 'error');
             }
@@ -678,15 +737,40 @@ if '/home/pyodide' not in sys.path:
 
                 // Fetch and load package files
                 const packageFiles = ['__init__.py', 'io.py', 'worm.py', 'wheel.py', 'features.py'];
+                let loadedCount = 0;
+
                 for (const filename of packageFiles) {
+                    let content = null;
+
+                    // Try deployed path first (src/ relative to index.html)
                     try {
-                        const response = await fetch(`../src/wormgear_geometry/${filename}`);
-                        const content = await response.text();
+                        const response = await fetch(`src/wormgear_geometry/${filename}`);
+                        if (response.ok) {
+                            content = await response.text();
+                        }
+                    } catch (e) {
+                        // Try local dev path
+                        try {
+                            const response = await fetch(`../src/wormgear_geometry/${filename}`);
+                            if (response.ok) {
+                                content = await response.text();
+                            }
+                        } catch (e2) {
+                            // Will be caught below
+                        }
+                    }
+
+                    if (content) {
                         pyodide.FS.writeFile(`/home/pyodide/wormgear_geometry/${filename}`, content);
                         log(`  ✓ Loaded ${filename}`, 'success');
-                    } catch (error) {
-                        log(`  ✗ Failed to load ${filename}`, 'warning');
+                        loadedCount++;
+                    } else {
+                        log(`  ✗ Failed to load ${filename}`, 'error');
                     }
+                }
+
+                if (loadedCount < packageFiles.length) {
+                    log(`Warning: Only loaded ${loadedCount}/${packageFiles.length} files`, 'warning');
                 }
 
                 // Test import
@@ -695,10 +779,11 @@ import wormgear_geometry
 print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 `);
 
-                log('wormgear_geometry package ready', 'success');
+                log('✓ wormgear_geometry package ready', 'success');
                 return true;
             } catch (error) {
-                log(`Failed to load wormgear_geometry: ${error.message}`, 'error');
+                log(`✗ Failed to load wormgear_geometry: ${error.message}`, 'error');
+                console.error('Package loading error:', error);
                 return false;
             }
         }
