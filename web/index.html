@@ -766,31 +766,34 @@ if '/home/pyodide' not in sys.path:
 
                 for (const filename of packageFiles) {
                     let content = null;
+                    let loadedFrom = null;
 
-                    // Try local dev path first (../src/ when serving from project root)
+                    // Try GitHub Pages/deployed path first (src/ relative to index.html)
                     try {
-                        const response = await fetch(`../src/wormgear_geometry/${filename}`);
+                        const response = await fetch(`src/wormgear_geometry/${filename}`);
                         if (response.ok) {
                             content = await response.text();
+                            loadedFrom = 'src/';
                         }
                     } catch (e) {
-                        // Try deployed path (src/ when web/ is root)
+                        // Try local dev path (../src/ when serving from project root)
                         try {
-                            const response = await fetch(`src/wormgear_geometry/${filename}`);
+                            const response = await fetch(`../src/wormgear_geometry/${filename}`);
                             if (response.ok) {
                                 content = await response.text();
+                                loadedFrom = '../src/';
                             }
                         } catch (e2) {
-                            // Will be caught below
+                            console.error(`Failed to fetch ${filename}:`, e, e2);
                         }
                     }
 
                     if (content) {
                         pyodide.FS.writeFile(`/home/pyodide/wormgear_geometry/${filename}`, content);
-                        log(`  ✓ Loaded ${filename}`, 'success');
+                        log(`  ✓ Loaded ${filename} (from ${loadedFrom})`, 'success');
                         loadedCount++;
                     } else {
-                        log(`  ✗ Failed to load ${filename}`, 'error');
+                        log(`  ✗ Failed to load ${filename} from both paths`, 'error');
                     }
                 }
 
