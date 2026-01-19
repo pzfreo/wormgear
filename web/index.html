@@ -1139,6 +1139,9 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 const wheelWidth = wheelWidthInput ? parseFloat(wheelWidthInput) : null;
                 const throated = document.getElementById('wheelType').value === 'hobbed';
 
+                console.log(`DEBUG: wormLength input value = "${document.getElementById('wormLength').value}"`);
+                console.log(`DEBUG: wormLength parsed = ${wormLength}`);
+
                 log('Starting geometry generation...', 'info');
                 log(`Parameters:`, 'info');
                 log(`  Module: ${designData.design.worm.module_mm} mm`, 'info');
@@ -1197,6 +1200,7 @@ try:
 except (TypeError, ValueError):
     wheel_width = None
 print(f"Wheel width: {wheel_width if wheel_width else 'auto-calculated'}")
+print(f"Worm length (from JS): {worm_length}")
 
 print("✓ Parameters parsed")
 
