@@ -297,6 +297,130 @@
             background: #667eea;
             color: white;
         }
+
+        /* Tab Navigation */
+        .tab-container {
+            margin-bottom: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: white;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 1em;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+            background: #f8f9fa;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Parameter Form */
+        .param-form {
+            display: grid;
+            gap: 20px;
+        }
+
+        .param-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .param-section h3 {
+            margin: 0 0 15px 0;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .param-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .param-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .param-field label {
+            font-size: 0.9em;
+            color: #555;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .param-field label .unit {
+            color: #999;
+            font-weight: normal;
+        }
+
+        .param-field input, .param-field select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        .param-field input:focus, .param-field select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .param-help {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 3px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -316,22 +440,188 @@
                 <div class="status-detail" id="statusDetail">Loading Python runtime...</div>
             </div>
 
-            <!-- JSON Input Section -->
+            <!-- Input Section with Tabs -->
             <div class="section">
-                <h2>1. Load Design JSON</h2>
+                <h2>1. Design Input</h2>
 
-                <div class="sample-designs">
-                    <button class="sample-btn" onclick="loadSampleDesign('sample_m2_ratio30')">Sample M2 Ratio 30:1</button>
-                    <button class="sample-btn" onclick="loadSampleDesign('7mm')">7mm Design</button>
-                </div>
+                <div class="tab-container">
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('json')">JSON Input</button>
+                        <button class="tab" onclick="switchTab('params')">Parameter Input</button>
+                    </div>
 
-                <div class="file-drop-zone" id="dropZone">
-                    <div>📁 Drop JSON file here or click to browse</div>
-                    <input type="file" id="fileInput" accept=".json" style="display: none;">
-                </div>
+                    <!-- JSON Tab -->
+                    <div id="jsonTab" class="tab-content active">
+                        <div class="sample-designs">
+                            <button class="sample-btn" onclick="loadSampleDesign('sample_m2_ratio30')">Sample M2 Ratio 30:1</button>
+                            <button class="sample-btn" onclick="loadSampleDesign('7mm')">7mm Design</button>
+                        </div>
 
-                <div class="json-input-area">
-                    <textarea id="jsonInput" placeholder="Paste your design JSON from wormgearcalc here..."></textarea>
+                        <div class="file-drop-zone" id="dropZone">
+                            <div>📁 Drop JSON file here or click to browse</div>
+                            <input type="file" id="fileInput" accept=".json" style="display: none;">
+                        </div>
+
+                        <div class="json-input-area">
+                            <textarea id="jsonInput" placeholder="Paste your design JSON from wormgearcalc here..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Parameter Tab -->
+                    <div id="paramsTab" class="tab-content">
+                        <div class="param-form">
+                            <!-- Worm Parameters -->
+                            <div class="param-section">
+                                <h3>Worm Parameters</h3>
+                                <div class="param-grid">
+                                    <div class="param-field">
+                                        <label>Module <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_module" value="2.0" min="0.5" max="10" step="0.5">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Number of Starts</label>
+                                        <input type="number" id="param_worm_starts" value="1" min="1" max="4" step="1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Pitch Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_pitch_dia" value="16.29" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Tip Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_tip_dia" value="20.29" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Root Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_root_dia" value="11.29" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Lead <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_lead" value="6.283" step="0.001">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Lead Angle <span class="unit">(deg)</span></label>
+                                        <input type="number" id="param_worm_lead_angle" value="7.0" step="0.1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Addendum <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_addendum" value="2.0" step="0.1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Dedendum <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_dedendum" value="2.5" step="0.1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Thread Thickness <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_worm_thread_thickness" value="3.142" step="0.001">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Hand</label>
+                                        <select id="param_worm_hand">
+                                            <option value="RIGHT">Right</option>
+                                            <option value="LEFT">Left</option>
+                                        </select>
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Profile Shift</label>
+                                        <input type="number" id="param_worm_profile_shift" value="0.0" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Wheel Parameters -->
+                            <div class="param-section">
+                                <h3>Wheel Parameters</h3>
+                                <div class="param-grid">
+                                    <div class="param-field">
+                                        <label>Module <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_module" value="2.0" min="0.5" max="10" step="0.5">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Number of Teeth</label>
+                                        <input type="number" id="param_wheel_teeth" value="30" min="12" max="100" step="1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Pitch Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_pitch_dia" value="60.0" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Tip Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_tip_dia" value="64.0" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Root Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_root_dia" value="55.0" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Throat Diameter <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_throat_dia" value="62.0" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Helix Angle <span class="unit">(deg)</span></label>
+                                        <input type="number" id="param_wheel_helix_angle" value="83.0" step="0.1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Addendum <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_addendum" value="2.0" step="0.1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Dedendum <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_wheel_dedendum" value="2.5" step="0.1">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Profile Shift</label>
+                                        <input type="number" id="param_wheel_profile_shift" value="0.0" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Assembly Parameters -->
+                            <div class="param-section">
+                                <h3>Assembly Parameters</h3>
+                                <div class="param-grid">
+                                    <div class="param-field">
+                                        <label>Centre Distance <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_assembly_centre_distance" value="38.145" step="0.001">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Pressure Angle <span class="unit">(deg)</span></label>
+                                        <input type="number" id="param_assembly_pressure_angle" value="20.0" step="0.5">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Backlash <span class="unit">(mm)</span></label>
+                                        <input type="number" id="param_assembly_backlash" value="0.05" step="0.01">
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Hand</label>
+                                        <select id="param_assembly_hand">
+                                            <option value="RIGHT">Right</option>
+                                            <option value="LEFT">Left</option>
+                                        </select>
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Ratio</label>
+                                        <input type="number" id="param_assembly_ratio" value="30" min="1" step="1">
+                                        <div class="param-help">Wheel teeth / Worm starts</div>
+                                    </div>
+                                    <div class="param-field">
+                                        <label>Efficiency <span class="unit">(%)</span></label>
+                                        <input type="number" id="param_assembly_efficiency" value="72.3" min="0" max="100" step="0.1">
+                                    </div>
+                                    <div class="param-field" style="align-items: flex-start; flex-direction: row; align-items: center; gap: 8px;">
+                                        <input type="checkbox" id="param_assembly_self_locking" style="width: auto; margin: 0;">
+                                        <label for="param_assembly_self_locking" style="margin: 0;">Self-Locking</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <div class="form-actions">
+                                <button class="btn-secondary" onclick="paramsToJSON()">Convert to JSON</button>
+                                <button class="btn-secondary" onclick="loadParamsPreset('m2_z30')">Load M2 Z30 Preset</button>
+                                <button class="btn-secondary" onclick="loadParamsPreset('7mm')">Load 7mm Preset</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -872,7 +1162,7 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 log('⏳ Step 2/4: Preparing Python environment...', 'info');
                 pyodide.globals.set('design_json_str', JSON.stringify(designData));
                 pyodide.globals.set('worm_length', wormLength);
-                pyodide.globals.set('wheel_width_val', wheelWidth);
+                pyodide.globals.set('wheel_width_val', wheelWidth || null);  // Ensure null not undefined
                 pyodide.globals.set('throated_val', throated);
                 log('✓ Parameters passed to Python', 'success');
                 log('', 'info');
@@ -884,8 +1174,9 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 const pythonStartTime = Date.now();
                 const result = await pyodide.runPythonAsync(`
 import json
-from io import BytesIO
 import base64
+import tempfile
+import os
 from wormgear_geometry import WormGeometry, WheelGeometry
 from wormgear_geometry import WormParams, WheelParams, AssemblyParams
 
@@ -898,6 +1189,11 @@ design = design_data['design']
 worm_params = WormParams(**design['worm'])
 wheel_params = WheelParams(**design['wheel'])
 assembly_params = AssemblyParams(**design['assembly'])
+
+# Handle None wheel_width - convert JS null to Python None
+wheel_width = None if wheel_width_val is None else float(wheel_width_val)
+print(f"Wheel width: {wheel_width if wheel_width else 'auto-calculated'}")
+
 print("✓ Parameters parsed")
 
 print("")
@@ -916,10 +1212,19 @@ try:
     worm = worm_geo.build()
     print("  Exporting to STEP format...")
 
-    # Export to bytes
-    worm_buffer = BytesIO()
-    worm_geo.export_step(worm_buffer)
-    worm_step = worm_buffer.getvalue()
+    # Export to temp file (build123d doesn't support BytesIO)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.step', delete=False) as tmp:
+        temp_path = tmp.name
+
+    worm_geo.export_step(temp_path)
+
+    # Read back as bytes
+    with open(temp_path, 'rb') as f:
+        worm_step = f.read()
+
+    # Clean up temp file
+    os.unlink(temp_path)
+
     worm_b64 = base64.b64encode(worm_step).decode('utf-8')
 
     size_kb = len(worm_step) / 1024
@@ -940,17 +1245,26 @@ try:
         params=wheel_params,
         worm_params=worm_params,
         assembly_params=assembly_params,
-        face_width=wheel_width_val,
+        face_width=wheel_width,
         throated=throated_val
     )
     print("  Building 3D model (this is the slowest step)...")
     wheel = wheel_geo.build()
     print("  Exporting to STEP format...")
 
-    # Export to bytes
-    wheel_buffer = BytesIO()
-    wheel_geo.export_step(wheel_buffer)
-    wheel_step = wheel_buffer.getvalue()
+    # Export to temp file (build123d doesn't support BytesIO)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.step', delete=False) as tmp:
+        temp_path = tmp.name
+
+    wheel_geo.export_step(temp_path)
+
+    # Read back as bytes
+    with open(temp_path, 'rb') as f:
+        wheel_step = f.read()
+
+    # Clean up temp file
+    os.unlink(temp_path)
+
     wheel_b64 = base64.b64encode(wheel_step).decode('utf-8')
 
     size_kb = len(wheel_step) / 1024
@@ -1081,6 +1395,171 @@ else:
                 log(`❌ Download failed for ${filename}: ${error.message}`, 'error');
                 console.error('Download error:', error);
             }
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.getElementById('jsonTab').classList.remove('active');
+            document.getElementById('paramsTab').classList.remove('active');
+
+            if (tab === 'json') {
+                document.getElementById('jsonTab').classList.add('active');
+            } else {
+                document.getElementById('paramsTab').classList.add('active');
+            }
+        }
+
+        // Convert parameters to JSON
+        function paramsToJSON() {
+            try {
+                const design = {
+                    design: {
+                        worm: {
+                            module_mm: parseFloat(document.getElementById('param_worm_module').value),
+                            num_starts: parseInt(document.getElementById('param_worm_starts').value),
+                            pitch_diameter_mm: parseFloat(document.getElementById('param_worm_pitch_dia').value),
+                            tip_diameter_mm: parseFloat(document.getElementById('param_worm_tip_dia').value),
+                            root_diameter_mm: parseFloat(document.getElementById('param_worm_root_dia').value),
+                            lead_mm: parseFloat(document.getElementById('param_worm_lead').value),
+                            lead_angle_deg: parseFloat(document.getElementById('param_worm_lead_angle').value),
+                            addendum_mm: parseFloat(document.getElementById('param_worm_addendum').value),
+                            dedendum_mm: parseFloat(document.getElementById('param_worm_dedendum').value),
+                            thread_thickness_mm: parseFloat(document.getElementById('param_worm_thread_thickness').value),
+                            hand: document.getElementById('param_worm_hand').value,
+                            profile_shift: parseFloat(document.getElementById('param_worm_profile_shift').value)
+                        },
+                        wheel: {
+                            module_mm: parseFloat(document.getElementById('param_wheel_module').value),
+                            num_teeth: parseInt(document.getElementById('param_wheel_teeth').value),
+                            pitch_diameter_mm: parseFloat(document.getElementById('param_wheel_pitch_dia').value),
+                            tip_diameter_mm: parseFloat(document.getElementById('param_wheel_tip_dia').value),
+                            root_diameter_mm: parseFloat(document.getElementById('param_wheel_root_dia').value),
+                            throat_diameter_mm: parseFloat(document.getElementById('param_wheel_throat_dia').value),
+                            helix_angle_deg: parseFloat(document.getElementById('param_wheel_helix_angle').value),
+                            addendum_mm: parseFloat(document.getElementById('param_wheel_addendum').value),
+                            dedendum_mm: parseFloat(document.getElementById('param_wheel_dedendum').value),
+                            profile_shift: parseFloat(document.getElementById('param_wheel_profile_shift').value)
+                        },
+                        assembly: {
+                            centre_distance_mm: parseFloat(document.getElementById('param_assembly_centre_distance').value),
+                            pressure_angle_deg: parseFloat(document.getElementById('param_assembly_pressure_angle').value),
+                            backlash_mm: parseFloat(document.getElementById('param_assembly_backlash').value),
+                            hand: document.getElementById('param_assembly_hand').value,
+                            ratio: parseInt(document.getElementById('param_assembly_ratio').value),
+                            efficiency_percent: parseFloat(document.getElementById('param_assembly_efficiency').value),
+                            self_locking: document.getElementById('param_assembly_self_locking').checked
+                        }
+                    },
+                    validation: {
+                        valid: true,
+                        messages: []
+                    },
+                    metadata: {
+                        source: "manual_input",
+                        created: new Date().toISOString()
+                    }
+                };
+
+                // Set the JSON textarea
+                document.getElementById('jsonInput').value = JSON.stringify(design, null, 2);
+
+                // Switch to JSON tab
+                document.querySelector('.tab:first-child').click();
+
+                log('✓ Parameters converted to JSON', 'success');
+                log('Switched to JSON tab - you can now generate', 'info');
+
+            } catch (error) {
+                log(`✗ Error converting parameters: ${error.message}`, 'error');
+                console.error('Parameter conversion error:', error);
+            }
+        }
+
+        // Load preset into parameter form
+        function loadParamsPreset(preset) {
+            const presets = {
+                'm2_z30': {
+                    worm: {
+                        module: 2.0, starts: 1, pitch_dia: 16.29, tip_dia: 20.29, root_dia: 11.29,
+                        lead: 6.283, lead_angle: 7.0, addendum: 2.0, dedendum: 2.5,
+                        thread_thickness: 3.142, hand: 'RIGHT', profile_shift: 0.0
+                    },
+                    wheel: {
+                        module: 2.0, teeth: 30, pitch_dia: 60.0, tip_dia: 64.0, root_dia: 55.0,
+                        throat_dia: 62.0, helix_angle: 83.0, addendum: 2.0, dedendum: 2.5,
+                        profile_shift: 0.0
+                    },
+                    assembly: {
+                        centre_distance: 38.145, pressure_angle: 20.0, backlash: 0.05,
+                        hand: 'RIGHT', ratio: 30, efficiency: 72.3, self_locking: false
+                    }
+                },
+                '7mm': {
+                    worm: {
+                        module: 0.5, starts: 1, pitch_dia: 6.0, tip_dia: 7.0, root_dia: 4.75,
+                        lead: 1.571, lead_angle: 4.76, addendum: 0.5, dedendum: 0.625,
+                        thread_thickness: 0.685, hand: 'RIGHT', profile_shift: 0.0
+                    },
+                    wheel: {
+                        module: 0.5, teeth: 12, pitch_dia: 6.0, tip_dia: 7.3, root_dia: 5.05,
+                        throat_dia: 6.5, helix_angle: 85.24, addendum: 0.65, dedendum: 0.475,
+                        profile_shift: 0.0
+                    },
+                    assembly: {
+                        centre_distance: 6.0, pressure_angle: 25, backlash: 0.1,
+                        hand: 'RIGHT', ratio: 12, efficiency: 59.9, self_locking: true
+                    }
+                }
+            };
+
+            const data = presets[preset];
+            if (!data) {
+                log(`✗ Unknown preset: ${preset}`, 'error');
+                return;
+            }
+
+            // Worm
+            document.getElementById('param_worm_module').value = data.worm.module;
+            document.getElementById('param_worm_starts').value = data.worm.starts;
+            document.getElementById('param_worm_pitch_dia').value = data.worm.pitch_dia;
+            document.getElementById('param_worm_tip_dia').value = data.worm.tip_dia;
+            document.getElementById('param_worm_root_dia').value = data.worm.root_dia;
+            document.getElementById('param_worm_lead').value = data.worm.lead;
+            document.getElementById('param_worm_lead_angle').value = data.worm.lead_angle;
+            document.getElementById('param_worm_addendum').value = data.worm.addendum;
+            document.getElementById('param_worm_dedendum').value = data.worm.dedendum;
+            document.getElementById('param_worm_thread_thickness').value = data.worm.thread_thickness;
+            document.getElementById('param_worm_hand').value = data.worm.hand;
+            document.getElementById('param_worm_profile_shift').value = data.worm.profile_shift;
+
+            // Wheel
+            document.getElementById('param_wheel_module').value = data.wheel.module;
+            document.getElementById('param_wheel_teeth').value = data.wheel.teeth;
+            document.getElementById('param_wheel_pitch_dia').value = data.wheel.pitch_dia;
+            document.getElementById('param_wheel_tip_dia').value = data.wheel.tip_dia;
+            document.getElementById('param_wheel_root_dia').value = data.wheel.root_dia;
+            document.getElementById('param_wheel_throat_dia').value = data.wheel.throat_dia;
+            document.getElementById('param_wheel_helix_angle').value = data.wheel.helix_angle;
+            document.getElementById('param_wheel_addendum').value = data.wheel.addendum;
+            document.getElementById('param_wheel_dedendum').value = data.wheel.dedendum;
+            document.getElementById('param_wheel_profile_shift').value = data.wheel.profile_shift;
+
+            // Assembly
+            document.getElementById('param_assembly_centre_distance').value = data.assembly.centre_distance;
+            document.getElementById('param_assembly_pressure_angle').value = data.assembly.pressure_angle;
+            document.getElementById('param_assembly_backlash').value = data.assembly.backlash;
+            document.getElementById('param_assembly_hand').value = data.assembly.hand;
+            document.getElementById('param_assembly_ratio').value = data.assembly.ratio;
+            document.getElementById('param_assembly_efficiency').value = data.assembly.efficiency;
+            document.getElementById('param_assembly_self_locking').checked = data.assembly.self_locking;
+
+            log(`✓ Loaded ${preset} preset`, 'success');
+            log('Modify parameters as needed, then click "Convert to JSON"', 'info');
         }
 
         // Initialize on page load
