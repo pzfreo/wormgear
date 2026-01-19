@@ -477,71 +477,78 @@
         // Install build123d and dependencies
         async function installBuild123d(micropip) {
             try {
-                // Approach 1: Try yacv_server (bundles build123d + OCP for WebAssembly)
-                updateStatus('Installing yacv_server...', 'This bundles build123d + OCP (~100MB)', 'loading');
-                log('Trying yacv_server package (includes build123d + OCP)...');
+                // Use Jojain's approach from build123d-sandbox
+                // https://github.com/Jojain/build123d-sandbox
+                updateStatus('Installing CAD packages...', 'Following Jojain\'s working method', 'loading');
+                log('📦 Using proven installation method from build123d-sandbox');
                 log('⏳ Large download - please be patient (2-5 minutes)...', 'info');
 
-                try {
-                    const yacvResult = await pyodide.runPythonAsync(`
+                const result = await pyodide.runPythonAsync(`
 import micropip
 
-print("Installing yacv_server...")
-await micropip.install("yacv_server", pre=True)
-print("✓ yacv_server installed")
+print("Starting package installation...")
+print("Setting index URLs...")
+micropip.set_index_urls(["https://yeicor.github.io/OCP.wasm", "https://pypi.org/simple"])
+print("Index URLs set")
 
-# Add compatibility mocks
-micropip.add_mock_package("ocp-vscode", "2.8.9", modules={"ocp_vscode": 'from yacv_server import *'})
+print("Installing lib3mf...")
+await micropip.install("lib3mf")
+print("✓ lib3mf installed")
 
-"YACV_OK"
-                    `);
+print("Installing ssl...")
+await micropip.install("ssl")
+print("✓ ssl installed")
 
-                    if (yacvResult === 'YACV_OK') {
-                        log('✓ yacv_server installed successfully!', 'success');
-                        log('This includes build123d and OCP support', 'success');
-                        updateStatus('Ready to Generate', 'build123d loaded via yacv_server', 'success');
+print("Installing ocp_vscode from Jojain's fork...")
+await micropip.install("https://raw.githubusercontent.com/Jojain/vscode-ocp-cad-viewer/no_pyperclip/ocp_vscode-2.9.0-py3-none-any.whl")
+print("✓ ocp_vscode installed")
 
-                        document.getElementById('generateBtn').disabled = false;
-                        document.getElementById('testBtn').disabled = false;
+# Mock package for build123d<0.10.0 compatibility
+micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": '''from lib3mf import *'''})
+print("✓ Mock package added")
 
-                        log('System ready - click "Test build123d" to verify', 'info');
-                        return;
-                    }
-                } catch (yacvError) {
-                    log(`✗ yacv_server failed: ${yacvError.message}`, 'warning');
-                    log('Trying alternative approach...', 'info');
-                }
+print("Installing build123d and sqlite3...")
+await micropip.install(["build123d", "sqlite3"])
+print("✓ Installation completed")
 
-                // Approach 2: Try build123d from PyPI (likely won't have WASM OCP)
-                updateStatus('Trying PyPI build123d...', 'May not work without WASM OCP', 'loading');
-                log('Installing build123d from PyPI...', 'info');
+# Test imports
+print("Testing imports...")
+try:
+    import build123d
+    print(f"✓ build123d imported (version: {getattr(build123d, '__version__', 'unknown')})")
+    success = True
+except ImportError as e:
+    print(f"✗ build123d import failed: {e}")
+    success = False
 
-                const pypiResult = await pyodide.runPythonAsync(`
-print("Attempting build123d from PyPI...")
-await micropip.install("build123d", pre=True)
-print("✓ build123d installed")
-"PYPI_OK"
+"SUCCESS" if success else "FAILED"
                 `);
 
-                if (pypiResult === 'PYPI_OK') {
-                    log('✓ build123d installed from PyPI', 'success');
-                    log('⚠ May not work - OCP (CAD kernel) probably missing', 'warning');
-                    updateStatus('Partial Install', 'build123d installed, OCP may be missing', 'success');
+                if (result === 'SUCCESS') {
+                    log('✓ All packages installed successfully!', 'success');
+                    log('✓ build123d is ready to use', 'success');
+                    updateStatus('Ready to Generate', 'build123d loaded and tested', 'success');
 
                     document.getElementById('generateBtn').disabled = false;
                     document.getElementById('testBtn').disabled = false;
 
-                    log('Click "Test build123d" to check if OCP is available', 'info');
+                    log('System ready - click "Test build123d" to verify geometry creation', 'info');
+                } else {
+                    log('⚠ Packages installed but import test failed', 'warning');
+                    log('Click "Test build123d" to see detailed error', 'info');
+                    updateStatus('Partially Ready', 'Packages installed, imports may fail', 'warning');
+
+                    document.getElementById('testBtn').disabled = false;
                 }
 
             } catch (error) {
-                log(`✗ All installation methods failed`, 'error');
+                log(`✗ Installation failed`, 'error');
                 log(`Error: ${error.message}`, 'error');
 
                 // Show traceback
                 try {
                     const tb = await pyodide.runPythonAsync('import traceback; traceback.format_exc()');
-                    log('Traceback:', 'error');
+                    log('Python traceback:', 'error');
                     tb.split('\\n').forEach(line => line && log(line, 'error'));
                 } catch (e) {}
 
@@ -552,11 +559,10 @@ print("✓ build123d installed")
                 document.getElementById('testBtn').disabled = false;
 
                 log('', 'info');
-                log('📝 OCP.wasm is not currently installable via package index', 'warning');
-                log('Possible workarounds:', 'info');
-                log('• Use the Python library locally (recommended)', 'info');
-                log('• Wait for OCP.wasm package distribution to be fixed', 'info');
-                log('• Contact OCP.wasm maintainer about install method', 'info');
+                log('📝 Troubleshooting:', 'warning');
+                log('• Check browser console for detailed errors', 'info');
+                log('• Try using the Python library locally instead (recommended)', 'info');
+                log('• See web/CURRENT_STATUS.md for known issues', 'info');
             }
         }
 
