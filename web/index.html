@@ -823,6 +823,8 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 return;
             }
 
+            const startTime = Date.now();
+
             try {
                 const jsonText = document.getElementById('jsonInput').value;
                 if (!jsonText) {
@@ -854,22 +856,32 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 log(`  Worm length: ${wormLength} mm`, 'info');
                 log(`  Wheel width: ${wheelWidth || 'auto'} mm`, 'info');
                 log(`  Wheel type: ${throated ? 'hobbed (throated)' : 'helical'}`, 'info');
+                log('', 'info');
 
                 // Load package if not already loaded
+                log('⏳ Step 1/4: Checking package...', 'info');
                 const packageLoaded = await loadWormGearPackage();
                 if (!packageLoaded) {
                     log('Cannot proceed - package loading failed', 'error');
                     return;
                 }
+                log('✓ Package ready', 'success');
+                log('', 'info');
 
                 // Pass data to Python and generate
+                log('⏳ Step 2/4: Preparing Python environment...', 'info');
                 pyodide.globals.set('design_json_str', JSON.stringify(designData));
                 pyodide.globals.set('worm_length', wormLength);
                 pyodide.globals.set('wheel_width_val', wheelWidth);
                 pyodide.globals.set('throated_val', throated);
+                log('✓ Parameters passed to Python', 'success');
+                log('', 'info');
 
-                updateStatus('Generating geometr...', 'This may take 30-60 seconds', 'loading');
+                updateStatus('Generating geometry...', 'This may take 30-60 seconds', 'loading');
+                log('⏳ Step 3/4: Generating 3D geometry (please wait)...', 'info');
+                log('  This may take 30-90 seconds on mobile devices', 'info');
 
+                const pythonStartTime = Date.now();
                 const result = await pyodide.runPythonAsync(`
 import json
 from io import BytesIO
@@ -877,6 +889,7 @@ import base64
 from wormgear_geometry import WormGeometry, WheelGeometry
 from wormgear_geometry import WormParams, WheelParams, AssemblyParams
 
+print("📋 Parsing parameters...")
 # Parse design JSON
 design_data = json.loads(design_json_str)
 design = design_data['design']
@@ -885,17 +898,23 @@ design = design_data['design']
 worm_params = WormParams(**design['worm'])
 wheel_params = WheelParams(**design['wheel'])
 assembly_params = AssemblyParams(**design['assembly'])
+print("✓ Parameters parsed")
 
-print(f"Generating worm...")
+print("")
+print("🔩 Generating worm gear...")
+worm_b64 = None
 try:
     # Generate worm
+    print("  Creating worm geometry object...")
     worm_geo = WormGeometry(
         params=worm_params,
         assembly_params=assembly_params,
         length=worm_length,
         sections_per_turn=36
     )
+    print("  Building 3D model...")
     worm = worm_geo.build()
+    print("  Exporting to STEP format...")
 
     # Export to bytes
     worm_buffer = BytesIO()
@@ -903,16 +922,20 @@ try:
     worm_step = worm_buffer.getvalue()
     worm_b64 = base64.b64encode(worm_step).decode('utf-8')
 
-    print(f"✓ Worm generated ({len(worm_step)} bytes)")
+    size_kb = len(worm_step) / 1024
+    print(f"✓ Worm generated successfully!")
+    print(f"  File size: {size_kb:.1f} KB ({len(worm_step)} bytes)")
 except Exception as e:
     print(f"✗ Worm generation failed: {e}")
     import traceback
     traceback.print_exc()
-    worm_b64 = None
 
-print(f"Generating wheel...")
+print("")
+print("⚙️  Generating wheel gear...")
+wheel_b64 = None
 try:
     # Generate wheel
+    print("  Creating wheel geometry object...")
     wheel_geo = WheelGeometry(
         params=wheel_params,
         worm_params=worm_params,
@@ -920,7 +943,9 @@ try:
         face_width=wheel_width_val,
         throated=throated_val
     )
+    print("  Building 3D model (this is the slowest step)...")
     wheel = wheel_geo.build()
+    print("  Exporting to STEP format...")
 
     # Export to bytes
     wheel_buffer = BytesIO()
@@ -928,12 +953,23 @@ try:
     wheel_step = wheel_buffer.getvalue()
     wheel_b64 = base64.b64encode(wheel_step).decode('utf-8')
 
-    print(f"✓ Wheel generated ({len(wheel_step)} bytes)")
+    size_kb = len(wheel_step) / 1024
+    print(f"✓ Wheel generated successfully!")
+    print(f"  File size: {size_kb:.1f} KB ({len(wheel_step)} bytes)")
 except Exception as e:
     print(f"✗ Wheel generation failed: {e}")
     import traceback
     traceback.print_exc()
-    wheel_b64 = None
+
+print("")
+if worm_b64 and wheel_b64:
+    print("✅ Both parts generated successfully!")
+elif worm_b64:
+    print("⚠️  Only worm generated (wheel failed)")
+elif wheel_b64:
+    print("⚠️  Only wheel generated (worm failed)")
+else:
+    print("❌ Both parts failed to generate")
 
 # Return results
 {
@@ -943,34 +979,64 @@ except Exception as e:
 }
                 `);
 
+                const pythonElapsed = ((Date.now() - pythonStartTime) / 1000).toFixed(1);
+                log(`✓ Python execution completed (${pythonElapsed}s)`, 'success');
+                log('', 'info');
+
                 // Process results
+                log('⏳ Step 4/4: Processing results...', 'info');
                 const resultObj = result.toJs({ dict_converter: Object.fromEntries });
 
+                log(`Result status: ${resultObj.success ? 'SUCCESS' : 'FAILED'}`, resultObj.success ? 'success' : 'error');
+                log(`Worm data: ${resultObj.worm ? 'Present' : 'Missing'}`, resultObj.worm ? 'success' : 'error');
+                log(`Wheel data: ${resultObj.wheel ? 'Present' : 'Missing'}`, resultObj.wheel ? 'success' : 'error');
+
                 if (resultObj.success) {
+                    log('', 'info');
                     log('✓ Geometry generated successfully!', 'success');
-                    updateStatus('Generation Complete', 'Ready to download STEP files', 'success');
+                    updateStatus('Generation Complete', 'Downloading STEP files...', 'success');
 
                     // Create download buttons
                     if (resultObj.worm) {
+                        log('📥 Triggering worm.step download...', 'info');
                         downloadSTEP('worm.step', resultObj.worm);
-                        log('✓ Worm STEP file downloaded', 'success');
+                        log('✓ Worm STEP file download triggered', 'success');
                     }
 
                     if (resultObj.wheel) {
+                        log('📥 Triggering wheel.step download...', 'info');
                         downloadSTEP('wheel.step', resultObj.wheel);
-                        log('✓ Wheel STEP file downloaded', 'success');
+                        log('✓ Wheel STEP file download triggered', 'success');
                     }
 
-                    log('Generation complete! Check your downloads folder', 'success');
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    log('', 'info');
+                    log(`✅ Generation complete! Total time: ${totalElapsed}s`, 'success');
+                    log('📁 Check your downloads folder for worm.step and wheel.step', 'success');
+                    updateStatus('Ready', 'Files downloaded successfully', 'success');
 
                 } else {
-                    log('Generation failed - check console for details', 'error');
+                    log('', 'info');
+                    log('❌ Generation failed - check messages above for details', 'error');
                     updateStatus('Generation Failed', 'See console for error details', 'error');
                 }
 
             } catch (error) {
-                log(`Error: ${error.message}`, 'error');
+                log('', 'info');
+                log(`❌ Error: ${error.message}`, 'error');
                 console.error('Generation error:', error);
+
+                // Show Python traceback if available
+                try {
+                    const tb = await pyodide.runPythonAsync('import traceback; traceback.format_exc()');
+                    if (tb && tb !== 'NoneType: None\n') {
+                        log('Python traceback:', 'error');
+                        tb.split('\n').forEach(line => line && log(line, 'error'));
+                    }
+                } catch (e) {
+                    console.error('Could not get Python traceback:', e);
+                }
+
                 updateStatus('Generation Error', error.message, 'error');
             }
         }
@@ -978,6 +1044,7 @@ except Exception as e:
         // Download STEP file from base64
         function downloadSTEP(filename, base64Data) {
             try {
+                log(`  Decoding ${filename}...`, 'info');
                 // Decode base64 to binary
                 const binaryString = atob(base64Data);
                 const bytes = new Uint8Array(binaryString.length);
@@ -985,19 +1052,34 @@ except Exception as e:
                     bytes[i] = binaryString.charCodeAt(i);
                 }
 
+                const sizeKB = (bytes.length / 1024).toFixed(1);
+                log(`  File size: ${sizeKB} KB (${bytes.length} bytes)`, 'info');
+
                 // Create blob and download
+                log(`  Creating download blob...`, 'info');
                 const blob = new Blob([bytes], { type: 'application/step' });
                 const url = URL.createObjectURL(blob);
+
+                log(`  Triggering browser download for ${filename}...`, 'info');
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = filename;
+                a.style.display = 'none';
                 document.body.appendChild(a);
+
+                // Click to trigger download
                 a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    log(`  Download complete: ${filename}`, 'success');
+                }, 100);
 
             } catch (error) {
-                log(`Download failed for ${filename}: ${error.message}`, 'error');
+                log(`❌ Download failed for ${filename}: ${error.message}`, 'error');
+                console.error('Download error:', error);
             }
         }
 
