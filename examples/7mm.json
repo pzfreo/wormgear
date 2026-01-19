@@ -1,60 +1,64 @@
 {
-  "worm": {
-    "module_mm": 0.5,
-    "num_starts": 1,
-    "pitch_diameter_mm": 6.0,
-    "tip_diameter_mm": 7.0,
-    "root_diameter_mm": 4.75,
-    "lead_mm": 1.571,
-    "axial_pitch_mm": 1.571,
-    "lead_angle_deg": 4.76,
-    "addendum_mm": 0.5,
-    "dedendum_mm": 0.625,
-    "thread_thickness_mm": 0.685
-  },
-  "wheel": {
-    "module_mm": 0.5,
-    "num_teeth": 12,
-    "pitch_diameter_mm": 6.0,
-    "tip_diameter_mm": 7.3,
-    "root_diameter_mm": 5.05,
-    "throat_diameter_mm": 6.5,
-    "helix_angle_deg": 85.24,
-    "addendum_mm": 0.65,
-    "dedendum_mm": 0.475
-  },
-  "assembly": {
-    "centre_distance_mm": 6.0,
-    "ratio": 12,
-    "pressure_angle_deg": 25,
-    "backlash_mm": 0.1,
-    "hand": "right"
-  },
-  "performance": {
-    "efficiency_estimate": 0.599,
-    "self_locking": true
+  "design": {
+    "worm": {
+      "module_mm": 0.5,
+      "num_starts": 1,
+      "pitch_diameter_mm": 6.0,
+      "tip_diameter_mm": 7.0,
+      "root_diameter_mm": 4.75,
+      "lead_mm": 1.571,
+      "lead_angle_deg": 4.76,
+      "addendum_mm": 0.5,
+      "dedendum_mm": 0.625,
+      "thread_thickness_mm": 0.685,
+      "hand": "RIGHT",
+      "profile_shift": 0.0
+    },
+    "wheel": {
+      "module_mm": 0.5,
+      "num_teeth": 12,
+      "pitch_diameter_mm": 6.0,
+      "tip_diameter_mm": 7.3,
+      "root_diameter_mm": 5.05,
+      "throat_diameter_mm": 6.5,
+      "helix_angle_deg": 85.24,
+      "addendum_mm": 0.65,
+      "dedendum_mm": 0.475,
+      "profile_shift": 0.0
+    },
+    "assembly": {
+      "centre_distance_mm": 6.0,
+      "ratio": 12,
+      "pressure_angle_deg": 25,
+      "backlash_mm": 0.1,
+      "hand": "RIGHT",
+      "efficiency_percent": 59.9,
+      "self_locking": true
+    }
   },
   "validation": {
     "valid": true,
     "messages": [
       {
-        "severity": "info",
+        "severity": "INFO",
         "code": "LEAD_ANGLE_LOW",
-        "message": "Lead angle 4.8\u00b0 gives low efficiency (~60%) but good self-locking",
-        "suggestion": null
+        "message": "Lead angle 4.8° gives low efficiency (~60%) but good self-locking"
       },
       {
-        "severity": "info",
+        "severity": "INFO",
         "code": "TEETH_ACCEPTABLE",
-        "message": "Wheel has 12 teeth - acceptable for 25\u00b0 pressure angle",
-        "suggestion": null
+        "message": "Wheel has 12 teeth - acceptable for 25° pressure angle"
       },
       {
-        "severity": "info",
+        "severity": "INFO",
         "code": "SELF_LOCKING",
-        "message": "Drive should be self-locking (lead angle < 6\u00b0)",
-        "suggestion": "Verify with actual materials and lubrication"
+        "message": "Drive should be self-locking (lead angle < 6°) - verify with actual materials and lubrication"
       }
     ]
+  },
+  "metadata": {
+    "source": "wormgearcalc",
+    "design_mode": "custom_7mm",
+    "created": "2026-01-19T00:00:00Z"
   }
 }
