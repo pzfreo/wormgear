@@ -1162,7 +1162,7 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 log('⏳ Step 2/4: Preparing Python environment...', 'info');
                 pyodide.globals.set('design_json_str', JSON.stringify(designData));
                 pyodide.globals.set('worm_length', wormLength);
-                pyodide.globals.set('wheel_width_val', wheelWidth);
+                pyodide.globals.set('wheel_width_val', wheelWidth || null);  // Ensure null not undefined
                 pyodide.globals.set('throated_val', throated);
                 log('✓ Parameters passed to Python', 'success');
                 log('', 'info');
@@ -1174,8 +1174,9 @@ print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
                 const pythonStartTime = Date.now();
                 const result = await pyodide.runPythonAsync(`
 import json
-from io import BytesIO
 import base64
+import tempfile
+import os
 from wormgear_geometry import WormGeometry, WheelGeometry
 from wormgear_geometry import WormParams, WheelParams, AssemblyParams
 
@@ -1188,6 +1189,11 @@ design = design_data['design']
 worm_params = WormParams(**design['worm'])
 wheel_params = WheelParams(**design['wheel'])
 assembly_params = AssemblyParams(**design['assembly'])
+
+# Handle None wheel_width - convert JS null to Python None
+wheel_width = None if wheel_width_val is None else float(wheel_width_val)
+print(f"Wheel width: {wheel_width if wheel_width else 'auto-calculated'}")
+
 print("✓ Parameters parsed")
 
 print("")
@@ -1206,10 +1212,19 @@ try:
     worm = worm_geo.build()
     print("  Exporting to STEP format...")
 
-    # Export to bytes
-    worm_buffer = BytesIO()
-    worm_geo.export_step(worm_buffer)
-    worm_step = worm_buffer.getvalue()
+    # Export to temp file (build123d doesn't support BytesIO)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.step', delete=False) as tmp:
+        temp_path = tmp.name
+
+    worm_geo.export_step(temp_path)
+
+    # Read back as bytes
+    with open(temp_path, 'rb') as f:
+        worm_step = f.read()
+
+    # Clean up temp file
+    os.unlink(temp_path)
+
     worm_b64 = base64.b64encode(worm_step).decode('utf-8')
 
     size_kb = len(worm_step) / 1024
@@ -1230,17 +1245,26 @@ try:
         params=wheel_params,
         worm_params=worm_params,
         assembly_params=assembly_params,
-        face_width=wheel_width_val,
+        face_width=wheel_width,
         throated=throated_val
     )
     print("  Building 3D model (this is the slowest step)...")
     wheel = wheel_geo.build()
     print("  Exporting to STEP format...")
 
-    # Export to bytes
-    wheel_buffer = BytesIO()
-    wheel_geo.export_step(wheel_buffer)
-    wheel_step = wheel_buffer.getvalue()
+    # Export to temp file (build123d doesn't support BytesIO)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.step', delete=False) as tmp:
+        temp_path = tmp.name
+
+    wheel_geo.export_step(temp_path)
+
+    # Read back as bytes
+    with open(temp_path, 'rb') as f:
+        wheel_step = f.read()
+
+    # Clean up temp file
+    os.unlink(temp_path)
+
     wheel_b64 = base64.b64encode(wheel_step).decode('utf-8')
 
     size_kb = len(wheel_step) / 1024
