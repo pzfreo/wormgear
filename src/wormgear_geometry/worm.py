@@ -68,16 +68,12 @@ class WormGeometry:
         else:
             print(f"    ✓ Threads created")
 
-        # Calculate helix extent from thread parameters
-        lead = self.params.lead_mm
-        num_turns = math.ceil(self.length / lead) + 1
-        helix_height = num_turns * lead
-
-        # Create core cylinder matching helix height for clean boolean operations
-        print(f"    Creating core cylinder (radius={root_radius:.2f}mm, height={helix_height:.2f}mm)...")
+        # Build worm to exact length - no trimming needed
+        # The core cylinder defines the final worm length
+        print(f"    Creating core cylinder (radius={root_radius:.2f}mm, height={self.length:.2f}mm)...")
         core = Cylinder(
             radius=root_radius,
-            height=helix_height,
+            height=self.length,
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
 
@@ -88,16 +84,6 @@ class WormGeometry:
         else:
             print(f"    No threads to union - using core only")
             worm = core
-
-        # Trim to exact length by intersecting with a box
-        print(f"    Trimming to length {self.length}mm...")
-        print(f"      Worm volume before trim: {worm.volume:.2f} mm³")
-        trim_box = Box(
-            tip_radius * 4, tip_radius * 4, self.length,
-            align=(Align.CENTER, Align.CENTER, Align.CENTER)
-        )
-        worm = worm & trim_box
-        print(f"      Worm volume after trim: {worm.volume:.2f} mm³")
 
         # Ensure we have a single Solid for proper display in ocp_vscode
         if hasattr(worm, 'solids'):
@@ -167,9 +153,9 @@ class WormGeometry:
         thread_half_width_root = thread_half_width_pitch + dedendum * math.tan(pressure_angle_rad)
         thread_half_width_tip = max(0.1, thread_half_width_pitch - addendum * math.tan(pressure_angle_rad))
 
-        # Number of turns needed - add just 1 extra turn, keep it close to length
-        num_turns = math.ceil(self.length / lead) + 1
-        helix_height = num_turns * lead
+        # Build helix to exact worm length (no extra turns, no trimming)
+        helix_height = self.length
+        num_turns = self.length / lead  # Exact number of turns for this length
 
         # Create helix path at pitch radius
         helix = Helix(
@@ -188,7 +174,8 @@ class WormGeometry:
         outer_r = tip_radius - pitch_radius
 
         # Create profiles along the helix for lofting
-        num_sections = int(num_turns * self.sections_per_turn) + 1
+        # Use exact length for sections calculation
+        num_sections = int((self.length / lead) * self.sections_per_turn) + 1
         sections = []
 
         for i in range(num_sections):
