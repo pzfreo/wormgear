@@ -13,6 +13,8 @@ This is **Tool 2** in the worm gear design system. It takes validated parameters
 
 ## Workflow
 
+### Option 1: Python Library (Full Features)
+
 ```
 1. Design in calculator
    https://pzfreo.github.io/wormgearcalc/
@@ -27,6 +29,25 @@ This is **Tool 2** in the worm gear design system. It takes validated parameters
    wheel_m2_z30.step
    assembly.step
 ```
+
+### Option 2: Web Interface (Browser-Based) 🆕
+
+```
+1. Design in calculator
+   https://pzfreo.github.io/wormgearcalc/
+   ↓
+2. Open web interface
+   https://your-site.com/worm-gear-3d-web/
+   ↓
+3. Upload/paste JSON
+   ↓
+4. Generate in browser
+   (No installation needed!)
+   ↓
+5. Download STEP files
+```
+
+See [web/README.md](web/README.md) for web interface documentation.
 
 ## Target Manufacturing
 
@@ -61,6 +82,26 @@ Geometry is exact and watertight - no approximations, no relying on manufacturin
 - [ ] Envelope calculation for wheel (mathematical accuracy)
 - [ ] Assembly positioning
 - [ ] Manufacturing specs output (markdown)
+
+## Web Interface 🆕
+
+Browser-based version using Pyodide (Python in WebAssembly):
+
+- **No installation required** - Run Python + build123d in your browser
+- **Drag-drop JSON files** from the calculator
+- **Generate STEP files** client-side (no server needed)
+- **3D preview** (coming soon)
+
+**Quick Start:**
+```bash
+cd web
+python3 serve.py 8000
+# Open http://localhost:8000
+```
+
+**Status:** 🚧 Foundation complete, needs OCP.wasm integration
+
+See [web/README.md](web/README.md) for details and [web/SETUP_OCP.md](web/SETUP_OCP.md) for OCP.wasm setup.
 
 ## Installation
 

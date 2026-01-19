@@ -1,0 +1,31 @@
+# Large wheel files
+*.whl
+
+# Python bytecode
+*.pyc
+__pycache__/
+
+# Build artifacts
+*.wasm
+*.data
+*.js.mem
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Test outputs
+*.step
+*.stl
+*.gltf
+*.glb
+
+# Node modules (if we add any build tools later)
+node_modules/

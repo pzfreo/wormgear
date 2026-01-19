@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worm Gear 3D Generator - Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .status-panel {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .status-panel.loading {
+            border-color: #ffc107;
+        }
+
+        .status-panel.success {
+            border-color: #28a745;
+        }
+
+        .status-panel.error {
+            border-color: #dc3545;
+        }
+
+        .status-text {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .status-detail {
+            font-size: 0.9em;
+            color: #666;
+            font-family: 'Courier New', monospace;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .json-input-area {
+            position: relative;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-group label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .control-group input,
+        .control-group select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .console {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .console-line {
+            margin-bottom: 5px;
+        }
+
+        .console-line.info {
+            color: #4fc3f7;
+        }
+
+        .console-line.success {
+            color: #81c784;
+        }
+
+        .console-line.error {
+            color: #e57373;
+        }
+
+        .console-line.warning {
+            color: #ffb74d;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .viewer-container {
+            width: 100%;
+            height: 500px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 1.1em;
+        }
+
+        .file-drop-zone {
+            border: 3px dashed #ddd;
+            border-radius: 6px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+
+        .file-drop-zone:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+
+        .file-drop-zone.drag-over {
+            border-color: #667eea;
+            background: #e3f2fd;
+        }
+
+        .sample-designs {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .sample-btn {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sample-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔩 Worm Gear 3D Generator</h1>
+            <p>Browser-based CAD generation using Pyodide & build123d</p>
+        </div>
+
+        <div class="content">
+            <!-- Status Panel -->
+            <div id="statusPanel" class="status-panel loading">
+                <div class="status-text">
+                    <span class="spinner"></span>
+                    <span id="statusText">Initializing Pyodide...</span>
+                </div>
+                <div class="status-detail" id="statusDetail">Loading Python runtime...</div>
+            </div>
+
+            <!-- JSON Input Section -->
+            <div class="section">
+                <h2>1. Load Design JSON</h2>
+
+                <div class="sample-designs">
+                    <button class="sample-btn" onclick="loadSampleDesign('sample_m2_ratio30')">Sample M2 Ratio 30:1</button>
+                    <button class="sample-btn" onclick="loadSampleDesign('7mm')">7mm Design</button>
+                </div>
+
+                <div class="file-drop-zone" id="dropZone">
+                    <div>📁 Drop JSON file here or click to browse</div>
+                    <input type="file" id="fileInput" accept=".json" style="display: none;">
+                </div>
+
+                <div class="json-input-area">
+                    <textarea id="jsonInput" placeholder="Paste your design JSON from wormgearcalc here..."></textarea>
+                </div>
+            </div>
+
+            <!-- Parameter Controls -->
+            <div class="section">
+                <h2>2. Generation Parameters</h2>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Worm Length (mm)</label>
+                        <input type="number" id="wormLength" value="40" min="10" max="200" step="5">
+                    </div>
+
+                    <div class="control-group">
+                        <label>Wheel Width (mm)</label>
+                        <input type="number" id="wheelWidth" value="" placeholder="Auto">
+                    </div>
+
+                    <div class="control-group">
+                        <label>Wheel Type</label>
+                        <select id="wheelType">
+                            <option value="helical">Helical (Default)</option>
+                            <option value="hobbed">Hobbed (Throated)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="addBore">
+                        <label for="addBore">Add Bore</label>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="addKeyway">
+                        <label for="addKeyway">Add Keyway (DIN 6885)</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="section">
+                <h2>3. Generate Geometry</h2>
+
+                <div class="button-group">
+                    <button id="generateBtn" onclick="generateGeometry()" disabled>
+                        Generate STEP Files
+                    </button>
+                    <button id="testBtn" onclick="testBuild123d()" disabled>
+                        Test build123d
+                    </button>
+                </div>
+            </div>
+
+            <!-- Console Output -->
+            <div class="section">
+                <h2>Console Output</h2>
+                <div class="console" id="console">
+                    <div class="console-line info">Waiting for initialization...</div>
+                </div>
+            </div>
+
+            <!-- 3D Viewer (placeholder for now) -->
+            <div class="section hidden" id="viewerSection">
+                <h2>3D Preview</h2>
+                <div class="viewer-container">
+                    3D Viewer (Coming Soon)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+
+    <script>
+        let pyodide = null;
+        let consoleLines = [];
+
+        // Console logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            consoleLines.push({ time: timestamp, message, type });
+            updateConsole();
+        }
+
+        function updateConsole() {
+            const console = document.getElementById('console');
+            console.innerHTML = consoleLines.map(line =>
+                `<div class="console-line ${line.type}">[${line.time}] ${line.message}</div>`
+            ).join('');
+            console.scrollTop = console.scrollHeight;
+        }
+
+        // Status panel updates
+        function updateStatus(text, detail, state = 'loading') {
+            const panel = document.getElementById('statusPanel');
+            const statusText = document.getElementById('statusText');
+            const statusDetail = document.getElementById('statusDetail');
+
+            panel.className = `status-panel ${state}`;
+
+            if (state === 'loading') {
+                statusText.innerHTML = `<span class="spinner"></span><span>${text}</span>`;
+            } else {
+                const icon = state === 'success' ? '✓' : state === 'error' ? '✗' : 'ℹ';
+                statusText.innerHTML = `<span>${icon} ${text}</span>`;
+            }
+
+            statusDetail.textContent = detail;
+        }
+
+        // Initialize Pyodide
+        async function initPyodide() {
+            try {
+                log('Loading Pyodide...');
+                updateStatus('Loading Pyodide...', 'Downloading Python runtime', 'loading');
+
+                pyodide = await loadPyodide({
+                    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/'
+                });
+
+                log('Pyodide loaded successfully', 'success');
+                updateStatus('Pyodide Ready', 'Python runtime loaded', 'success');
+
+                // Install micropip
+                log('Installing micropip...');
+                await pyodide.loadPackage('micropip');
+                const micropip = pyodide.pyimport('micropip');
+
+                log('micropip ready', 'success');
+
+                // Now try to install build123d
+                await installBuild123d(micropip);
+
+            } catch (error) {
+                log(`Error initializing Pyodide: ${error.message}`, 'error');
+                updateStatus('Initialization Failed', error.message, 'error');
+                console.error('Pyodide init error:', error);
+            }
+        }
+
+        // Install build123d and dependencies
+        async function installBuild123d(micropip) {
+            try {
+                updateStatus('Installing build123d...', 'This may take a few minutes', 'loading');
+                log('Attempting to install build123d...');
+
+                // Try to install build123d
+                await micropip.install('build123d');
+
+                log('build123d installed successfully!', 'success');
+                updateStatus('Ready to Generate', 'build123d loaded successfully', 'success');
+
+                // Enable buttons
+                document.getElementById('generateBtn').disabled = false;
+                document.getElementById('testBtn').disabled = false;
+
+                log('System ready for geometry generation', 'success');
+
+            } catch (error) {
+                log(`Error installing build123d: ${error.message}`, 'error');
+                log('This is expected - build123d requires OCP which needs special WebAssembly build', 'warning');
+                updateStatus('build123d Installation Failed',
+                    'OCP (OpenCascade) requires special WebAssembly build - see console', 'error');
+                console.error('build123d install error:', error);
+
+                // Still enable test button to show what's available
+                document.getElementById('testBtn').disabled = false;
+            }
+        }
+
+        // Test build123d import
+        async function testBuild123d() {
+            if (!pyodide) {
+                log('Pyodide not initialized yet', 'error');
+                return;
+            }
+
+            try {
+                log('Testing build123d import...');
+
+                const result = await pyodide.runPythonAsync(`
+import sys
+import micropip
+
+# Get installed packages
+packages = await micropip.list()
+print("Installed packages:", list(packages.keys()))
+
+# Try to import build123d
+try:
+    import build123d
+    print("build123d version:", build123d.__version__ if hasattr(build123d, '__version__') else 'unknown')
+    "SUCCESS: build123d imported"
+except ImportError as e:
+    print(f"Cannot import build123d: {e}")
+    "FAILED: build123d not available"
+                `);
+
+                log(`Test result: ${result}`, result.includes('SUCCESS') ? 'success' : 'error');
+
+            } catch (error) {
+                log(`Test error: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        // File handling
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const jsonInput = document.getElementById('jsonInput');
+
+        dropZone.onclick = () => fileInput.click();
+
+        dropZone.ondragover = (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        };
+
+        dropZone.ondragleave = () => {
+            dropZone.classList.remove('drag-over');
+        };
+
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) loadFile(file);
+        };
+
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) loadFile(file);
+        };
+
+        function loadFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                jsonInput.value = e.target.result;
+                log(`Loaded file: ${file.name}`, 'success');
+                try {
+                    JSON.parse(e.target.result);
+                    log('JSON validated successfully', 'success');
+                } catch (error) {
+                    log(`Invalid JSON: ${error.message}`, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Load sample designs
+        async function loadSampleDesign(name) {
+            try {
+                log(`Loading sample design: ${name}...`);
+                const response = await fetch(`../examples/${name}.json`);
+                const json = await response.json();
+                jsonInput.value = JSON.stringify(json, null, 2);
+                log(`Loaded ${name} design`, 'success');
+            } catch (error) {
+                log(`Error loading sample: ${error.message}`, 'error');
+            }
+        }
+
+        // Generate geometry (placeholder)
+        async function generateGeometry() {
+            if (!pyodide) {
+                log('Pyodide not initialized', 'error');
+                return;
+            }
+
+            try {
+                const jsonText = document.getElementById('jsonInput').value;
+                if (!jsonText) {
+                    log('Please provide design JSON', 'error');
+                    return;
+                }
+
+                const designData = JSON.parse(jsonText);
+                log('JSON parsed successfully', 'success');
+                log('Starting geometry generation...', 'info');
+
+                // TODO: Implement actual geometry generation
+                // For now, just validate the design
+                log('Design validation:', 'info');
+                log(`  Module: ${designData.design.worm.module_mm} mm`, 'info');
+                log(`  Ratio: ${designData.design.assembly.ratio}:1`, 'info');
+                log(`  Worm starts: ${designData.design.worm.num_starts}`, 'info');
+                log(`  Wheel teeth: ${designData.design.wheel.num_teeth}`, 'info');
+
+                log('Geometry generation will be implemented once build123d is working', 'warning');
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error('Generation error:', error);
+            }
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            initPyodide();
+        };
+    </script>
+</body>
+</html>
