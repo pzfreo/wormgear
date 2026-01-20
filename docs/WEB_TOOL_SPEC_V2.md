@@ -860,26 +860,122 @@ The PDF should be a complete document suitable for CNC machining:
 - Assembly view showing meshing
 - Critical dimensions highlighted
 
-### design.json structure
+### design.json structure (expanded)
 
-Same as current wormgearcalc output:
+Includes all calculator outputs PLUS manufacturing parameters for complete reproducibility:
+
 ```json
 {
-  "worm": { ... },
-  "wheel": { ... },
-  "assembly": { ... },
+  "worm": {
+    "module_mm": 2.0,
+    "num_starts": 1,
+    "pitch_diameter_mm": 16.0,
+    "tip_diameter_mm": 20.0,
+    "root_diameter_mm": 11.0,
+    "lead_mm": 6.283,
+    "lead_angle_deg": 7.1,
+    "addendum_mm": 2.0,
+    "dedendum_mm": 2.5,
+    "thread_thickness_mm": 3.14,
+    "hand": "right",
+    "profile_shift": 0.0,
+    "diameter_quotient": 8.0
+  },
+  "wheel": {
+    "module_mm": 2.0,
+    "num_teeth": 30,
+    "pitch_diameter_mm": 60.0,
+    "tip_diameter_mm": 64.0,
+    "root_diameter_mm": 55.0,
+    "throat_diameter_mm": 62.0,
+    "helix_angle_deg": 82.9,
+    "addendum_mm": 2.0,
+    "dedendum_mm": 2.5,
+    "profile_shift": 0.0
+  },
+  "assembly": {
+    "centre_distance_mm": 38.0,
+    "pressure_angle_deg": 20.0,
+    "backlash_mm": 0.05,
+    "hand": "right",
+    "ratio": 30,
+    "efficiency_estimate": 0.72,
+    "self_locking": false,
+    "hunting_ratio": true
+  },
+  "manufacturing": {
+    "worm": {
+      "length_mm": 40.0,
+      "bore": {
+        "enabled": true,
+        "diameter_mm": 4.0,
+        "tolerance": "H7",
+        "through": true
+      },
+      "keyway": {
+        "enabled": false,
+        "reason": "bore_too_small"
+      },
+      "sections_per_turn": 36
+    },
+    "wheel": {
+      "face_width_mm": 12.0,
+      "throated": true,
+      "bore": {
+        "enabled": true,
+        "diameter_mm": 15.0,
+        "tolerance": "H7",
+        "through": true
+      },
+      "keyway": {
+        "enabled": true,
+        "width_mm": 5.0,
+        "depth_mm": 2.3,
+        "standard": "DIN_6885",
+        "is_shaft": false
+      }
+    }
+  },
   "validation": {
     "valid": true,
-    "warnings": [...],
-    "errors": []
+    "errors": [],
+    "warnings": [
+      {
+        "code": "LOW_LEAD_ANGLE",
+        "message": "Low lead angle (7.1°) - efficiency only 72%. Consider increasing to 10-15° for better efficiency.",
+        "severity": "warning"
+      }
+    ],
+    "info": []
   },
   "metadata": {
     "design_mode": "from-module",
-    "generated_at": "2026-01-20T...",
-    "tool_version": "2.0.0"
+    "input_parameters": {
+      "module": 2.0,
+      "ratio": 30,
+      "pressure_angle": 20,
+      "num_starts": 1,
+      "backlash": 0.05,
+      "hand": "right",
+      "profile_shift": 0.0,
+      "use_standard_module": true,
+      "use_standard_q": false
+    },
+    "generated_at": "2026-01-20T14:32:00Z",
+    "tool_name": "Worm Gear Design Tool",
+    "tool_version": "2.0.0",
+    "calculator_version": "1.5.0",
+    "generator_version": "2.1.0"
   }
 }
 ```
+
+**Key additions in manufacturing section:**
+- Complete bore specifications (diameter, tolerance, through/blind)
+- Complete keyway specifications (dimensions, standard, shaft/hub)
+- Worm length and sections_per_turn
+- Wheel face width and throated flag
+- Reasons for disabled features (e.g., "bore_too_small" for no keyway)
 
 ---
 
@@ -936,68 +1032,63 @@ Same as current wormgearcalc output:
 
 ## Open Design Questions
 
-### 1. Module Input - Dropdown vs Freeform?
+### 1. Module Input ✓ DECIDED: Dropdown
 
-**Option A: Dropdown with standards**
+**Path A (Standard Design):**
 ```
-Module: [2.0mm (ISO 54) ▼]
-        Options: 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0
-        Or: [Custom value...]
-```
-
-**Option B: Freeform with suggestion**
-```
-Module: [__2.0__] mm
-        ⓘ Standard values (ISO 54): 0.5, 1.0, 1.5, 2.0, 2.5, 3.0...
-        [Suggest nearest standard]
+Module: [2.0mm ▼]
+        Options: 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, ...
+        (ISO 54 standard values only)
 ```
 
-**Recommendation:** Option A for Path A (standard), Option B for Path B (constraints may yield non-standard)
+**Path B (Envelope Constraints):**
+- Calculator computes module from constraints
+- Shows: "Calculated module: 2.05mm → Rounded to: 2.0mm (ISO 54)"
+- Option to disable rounding (advanced users)
 
 ---
 
-### 2. How to handle "Accept Anyway" for warnings?
+### 2. Warning Handling ✓ DECIDED: Just display
 
-When design has warnings but user wants to proceed:
+Show warnings prominently but don't block:
 
-**Option A: Require explicit acknowledgment**
 ```
-⚠️ This design has 2 warnings. Proceed anyway?
+⚠️ 1 Warning
 
-[☐] I understand the efficiency will be low (52%)
-[☐] I understand it's not self-locking
+Low lead angle (7.1°) - efficiency only 72%.
+Consider increasing to 10-15° for better efficiency.
 
-         [Yes, Continue Anyway]
-```
-
-**Option B: Just show warnings, allow continue**
-```
-⚠️ 2 Warnings (click to view)
-
-         [Continue to Manufacturing]
+    [← Adjust Parameters]  [Continue to Manufacturing] ──►
 ```
 
-**Recommendation:** Option B (trust users, don't add friction). Phase 2 could add Option A for critical errors only.
+Users can see warnings, make informed decision, no friction.
 
 ---
 
-### 3. Manufacturing defaults - Show or hide initially?
+### 3. Manufacturing Options ✓ DECIDED: Always visible
 
-**Option A: Always visible**
-- Pros: Transparent, user sees everything
-- Cons: Overwhelming for beginners
+Show all manufacturing parameters with smart defaults:
 
-**Option B: Start with "Auto" defaults, click to customize**
 ```
-Manufacturing Options: [Auto ▼]
-  When clicked:
-  [Custom ▼]
-    • Worm length: ...
-    • Bore: ...
-    • Keyway: ...
+┌────────────────────────────────────────────┐
+│ Manufacturing Parameters                    │
+├────────────────────────────────────────────┤
+│                                             │
+│ Worm:                                       │
+│   Length:    [__40__] mm                   │
+│   Bore:      [Auto: 4mm ▼] (H7 tolerance) │
+│   Keyway:    [☐] Not available (bore < 6mm)│
+│                                             │
+│ Wheel:                                      │
+│   Face Width: [Auto: 12mm ▼]               │
+│   Type:       (•) Hobbed  ( ) Helical      │
+│   Bore:       [Auto: 15mm ▼] (H7)         │
+│   Keyway:     [☑] DIN 6885 (5×2.3mm)      │
+│                                             │
+└────────────────────────────────────────────┘
 ```
 
-**Recommendation:** Option B with good defaults. Advanced users expand, beginners click "Generate" with auto settings.
+Transparent, educational, defaults are good enough for most users.
 
 ---
 
@@ -1019,17 +1110,19 @@ Manufacturing Options: [Auto ▼]
 
 ---
 
-### 5. Mobile Support - How much?
+### 4. Mobile Support ✓ DECIDED: Desktop only
 
-Constraints:
-- WebAssembly requires modern browsers
-- STEP generation is memory-intensive
-- Small screens make complex forms hard
+**Not supported due to:**
+- WebAssembly + build123d too CPU/memory intensive
+- 3D rendering requires significant GPU
+- STEP generation takes 30-60 seconds even on desktop
+- Complex forms need screen real estate
 
-**Proposal:**
-- Phase 1: Desktop-first (works on mobile but not optimized)
-- Phase 2: Responsive design (smaller forms, touch-friendly)
-- Phase 3: Mobile-specific simplifications (wizard-style for small screens)
+**Implementation:**
+- Desktop-only (1024px minimum width)
+- Show message on mobile: "This tool requires a desktop browser"
+- Link to downloadable CLI version for power users
+- Future: Could add mobile-friendly calculator-only mode (no 3D gen)
 
 ---
 
