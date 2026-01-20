@@ -26,9 +26,9 @@ JSON export                    STEP files (CNC-ready)
 
 ## Current State
 
-**Status: Phase 1 complete - basic geometry generation working**
+**Status: Phase 2 in progress - bore and keyway features complete**
 
-The core geometry generator is functional with worm and wheel generation, STEP export, and CLI.
+The core geometry generator is functional with worm and wheel generation, STEP export, CLI, and feature support (bores, keyways).
 
 ## Target Manufacturing Methods
 
@@ -63,9 +63,11 @@ See `docs/GEOMETRY.md` for full specification.
 - [x] Left/right hand support
 - [x] Profile shift and backlash handling
 
-### Phase 2: Features (Next)
-- [ ] Bore with tolerances
-- [ ] Keyways (ISO 6885 standard sizes)
+### Phase 2: Features (In Progress)
+- [x] Bore with auto-calculation and custom diameters
+- [x] Keyways (ISO 6885 / DIN 6885 standard sizes)
+- [x] Small gear support (bores down to 2mm, below DIN 6885 range)
+- [x] Thin rim warnings for structural integrity
 - [ ] Set screw holes
 - [ ] Hub options (flush/extended/flanged)
 
@@ -122,27 +124,32 @@ The calculator outputs this format (example):
 
 ```python
 from wormgear_geometry import load_design_json, WormGeometry, WheelGeometry
+from wormgear_geometry.features import BoreFeature, KeywayFeature
 
 # Load parameters from calculator JSON
 design = load_design_json("design.json")
 
-# Build worm
+# Build worm with bore and keyway
 worm_geo = WormGeometry(
     params=design.worm,
     assembly_params=design.assembly,
     length=40,  # User specifies worm length
-    sections_per_turn=36  # Smoothness (default: 36)
+    sections_per_turn=36,  # Smoothness (default: 36)
+    bore=BoreFeature(diameter=8.0),  # Optional: adds bore
+    keyway=KeywayFeature()  # Optional: adds DIN 6885 keyway
 )
 worm = worm_geo.build()
 worm_geo.export_step("worm_m2_z1.step")
 
-# Build wheel (helical - default)
+# Build wheel (helical - default) with features
 wheel_geo = WheelGeometry(
     params=design.wheel,
     worm_params=design.worm,
     assembly_params=design.assembly,
     face_width=None,  # Auto-calculated if None
-    throated=False    # Helical teeth (default)
+    throated=False,    # Helical teeth (default)
+    bore=BoreFeature(diameter=12.0),
+    keyway=KeywayFeature()
 )
 wheel = wheel_geo.build()
 wheel_geo.export_step("wheel_m2_z30.step")
@@ -161,11 +168,20 @@ wheel_geo_hobbed.export_step("wheel_m2_z30_hobbed.step")
 ### CLI Usage
 
 ```bash
-# Generate both worm and wheel
+# Generate both worm and wheel (with auto-calculated bores and keyways by default)
 wormgear-geometry design.json
+
+# Generate solid parts without bores
+wormgear-geometry design.json --no-bore
 
 # With hobbed wheel
 wormgear-geometry design.json --hobbed
+
+# Custom bore sizes (keyways auto-sized to match)
+wormgear-geometry design.json --worm-bore 8 --wheel-bore 15
+
+# Bores but no keyways
+wormgear-geometry design.json --no-keyway
 
 # Custom dimensions
 wormgear-geometry design.json --worm-length 50 --wheel-width 12

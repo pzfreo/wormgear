@@ -4,7 +4,7 @@
 
 Tool 2 in the worm gear system. Takes validated parameters from the calculator (Tool 1) and generates CNC-ready STEP geometry.
 
-**Status: Phase 1 complete - basic geometry generation working**
+**Status: Phase 2 in progress - bore and keyway features complete**
 
 ## Target: CNC Manufacture
 
@@ -441,9 +441,11 @@ Surface Finish: Ra 1.6 (thread flanks)
 - [x] Multi-start worm support
 - [x] Left/right hand support
 
-### Phase 2: Features (Next)
-- [ ] Bore with tolerances
-- [ ] Keyways (ISO 6885)
+### Phase 2: Features (In Progress)
+- [x] Bore with auto-calculation and custom diameters
+- [x] Keyways (ISO 6885 / DIN 6885 standard sizes)
+- [x] Small gear support (bores down to 2mm, below DIN 6885 range)
+- [x] Thin rim warnings for structural integrity
 - [ ] Set screw holes
 - [ ] Hub options
 

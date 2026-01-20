@@ -1,6 +1,6 @@
 # Worm Gear Geometry Generator
 
-**Status: Phase 1 complete - basic geometry generation working**
+**Status: Phase 2 in progress - bore and keyway features complete**
 
 Python library for generating CNC-ready STEP files from worm gear parameters using build123d.
 
@@ -72,9 +72,11 @@ Geometry is exact and watertight - no approximations, no relying on manufacturin
 - [x] Profile shift support
 - [x] Backlash handling
 
-### Phase 2: Features (Next)
-- [ ] Bore with tolerances
-- [ ] Keyways (ISO 6885 standard)
+### Phase 2: Features (In Progress)
+- [x] Bore with auto-calculation and custom diameters
+- [x] Keyways (ISO 6885 / DIN 6885 standard sizes)
+- [x] Small gear support (bores down to 2mm, below DIN 6885 range)
+- [x] Thin rim warnings for structural integrity
 - [ ] Set screw holes
 - [ ] Hub options (flush/extended/flanged)
 
@@ -129,8 +131,17 @@ pip install ocp-vscode
 ### Command Line
 
 ```bash
-# Generate both worm and wheel from calculator JSON
+# Generate both worm and wheel (with auto-calculated bores and keyways by default)
 wormgear-geometry design.json
+
+# Generate solid parts without bores
+wormgear-geometry design.json --no-bore
+
+# Custom bore sizes (keyways auto-sized to match)
+wormgear-geometry design.json --worm-bore 8 --wheel-bore 15
+
+# Bores but no keyways
+wormgear-geometry design.json --no-keyway
 
 # Specify output directory
 wormgear-geometry design.json -o output/
@@ -156,23 +167,28 @@ wormgear-geometry design.json --view --mesh-aligned
 
 ```python
 from wormgear_geometry import load_design_json, WormGeometry, WheelGeometry
+from wormgear_geometry.features import BoreFeature, KeywayFeature
 
 # Load parameters from calculator
 design = load_design_json("design.json")
 
-# Build and export worm
+# Build and export worm with bore and keyway
 worm_geo = WormGeometry(
     params=design.worm,
     assembly_params=design.assembly,
-    length=40  # mm
+    length=40,  # mm
+    bore=BoreFeature(diameter=8.0),  # Optional
+    keyway=KeywayFeature()  # Optional: DIN 6885 auto-sized
 )
 worm_geo.export_step("worm.step")
 
-# Build and export wheel (helical - default)
+# Build and export wheel (helical - default) with features
 wheel_geo = WheelGeometry(
     params=design.wheel,
     worm_params=design.worm,
-    assembly_params=design.assembly
+    assembly_params=design.assembly,
+    bore=BoreFeature(diameter=12.0),
+    keyway=KeywayFeature()
 )
 wheel_geo.export_step("wheel.step")
 
