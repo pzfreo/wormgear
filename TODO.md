@@ -1,156 +1,110 @@
-# Implementation TODO
+# TODO - Worm Gear 3D Generator
 
-## Phase 1: Basic Geometry (Start Here)
+## Current Status
 
-### Setup
-- [x] Project structure created
-- [x] Documentation extracted
-- [ ] Install build123d and test basic operations
-- [ ] Create test fixture for sample JSON
+**Phase 2: Features - Bore & Keyway Complete ✅**
 
-### Worm Implementation (worm.py)
-- [ ] Create dataclass for worm parameters
-- [ ] Implement basic cylinder (core)
-- [ ] Create trapezoidal tooth profile
-  - Use pressure angle for flank angle
-  - Apply profile shift if present
-- [ ] Generate helix path at pitch radius
-  - Account for lead and hand (right/left)
-- [ ] Sweep profile along helix
-- [ ] Union with core, trim to length
-- [ ] Export to STEP and validate in CAD software
+Completed features:
+- ✅ Auto-calculated bore diameters (~25% of pitch diameter)
+- ✅ DIN 6885 keyway support (for bores ≥6mm)
+- ✅ Small gear support (bores down to 2mm, below DIN 6885 range)
+- ✅ Thin rim warnings (when rim thickness <1.5mm)
+- ✅ CLI defaults to bore+keyway with opt-out flags
+- ✅ Rim thickness display in CLI output
 
-### Wheel Implementation (wheel.py) - Hybrid Approach
-- [ ] Create dataclass for wheel parameters
-- [ ] Implement basic helical involute gear
-  - Match helix angle to worm lead angle
-  - Use transverse module = axial module
-- [ ] Create throating cylinder
-  - Position at worm tip radius + clearance
-  - Oriented perpendicular to wheel axis
-  - Positioned at centre distance
-- [ ] Boolean subtract throat from gear
-- [ ] Export to STEP and validate
+---
 
-### Testing
-- [ ] Test worm STEP export (reimport, check volume)
-- [ ] Test wheel STEP export (reimport, check volume)
-- [ ] Test pair together (check centre distance, no interference)
-- [ ] Import to CAM software, verify toolpaths
+## Next Steps
 
-## Phase 2: Features
+### 1. Web Tool Design (Next Immediate Task) 🎯
 
-### I/O Module (io.py)
-- [ ] Implement `load_design_json()` function
-- [ ] Parse JSON from calculator
-- [ ] Validate required fields present
-- [ ] Return structured dataclasses
+**Create detailed wireframes** for the integrated web tool:
+- Landing page with three paths (Standard, Envelope, Import)
+- Path A: Standard engineering design flow (module-based)
+- Path B: Envelope constraint design flow (OD-based)
+- Path C: JSON import flow
+- Calculator results and validation screens
+- Manufacturing parameters screen
+- Quick preview (3D visualization) screen
+- Production generation and download screen
 
-### Features Module (features.py)
-- [ ] Implement `BoreFeatures` dataclass
-  - Through bore
-  - Counterbore option
-- [ ] Implement bore cutting function
-  - Cylinder subtraction
-  - Validate clearances
+**Reference:**
+- Full specification: `docs/WEB_TOOL_SPEC_V2.md`
+- Design decisions finalized (module dropdown, warnings display, always-visible mfg params, desktop-only)
 
-- [ ] Implement `KeywayFeatures` dataclass
-  - Auto-select from DIN 6885 table based on bore
-  - Manual override option
-- [ ] Implement keyway cutting function
-  - Rectangular profile with radiused bottom
-  - Position: top dead center by default
+**Deliverable:** Visual mockups showing user flow from inputs → validation → 3D preview → production files
 
-- [ ] Implement `SetScrewFeatures` dataclass
-  - Thread size (M3, M4, M5, etc.)
-  - Angle from keyway
-- [ ] Implement set screw hole function
-  - Pilot hole for tap size
-  - Depth based on thread size
+---
 
-### Integration
-- [ ] Add features to `WormGeometry.build()`
-- [ ] Add features to `WheelGeometry.build()`
-- [ ] Test combined geometry (gear + bore + keyway + set screw)
+### 2. Web Tool Phase 1 Implementation
 
-## Phase 3: Polish
+After wireframes are approved, begin building:
 
-### Assembly (assembly.py)
-- [ ] Position worm and wheel at correct centre distance
-- [ ] Orient based on hand (right/left)
-- [ ] Export as assembly STEP (named components)
-- [ ] Test in CAD assembly viewer
+**Phase 1 Core Features:**
+- [ ] Integrate wormcalc code into web interface
+- [ ] Implement Path A (standard/module-based)
+- [ ] Implement Path B (envelope constraints)
+- [ ] Implement Path C (JSON import)
+- [ ] Connect calculator → 3D generator flow
+- [ ] Validation UI (errors, warnings, info) with actionable messages
+- [ ] Manufacturing parameter controls (bore, keyway, lengths)
+- [ ] Quick preview generation (simplified geometry, 5-10 seconds)
+- [ ] 3D visualization (WebGL viewer - Three.js)
+- [ ] Interactive 3D controls (rotate, zoom, pan, toggle parts)
+- [ ] Production generation (full detail STEP files, 30-60 seconds)
+- [ ] PDF manufacturing spec (complete with drawings, tolerances, assembly)
+- [ ] Expanded design.json export
+- [ ] Zip package download (STEP + PDF + JSON)
+- [ ] All validation rules including:
+  - Diameter quotient (q) display and validation
+  - Hunting teeth ratio (GCD check for multi-start worms)
+  - All existing validations (lead angle, undercut, etc.)
 
-### Manufacturing Specs (specs.py)
-- [ ] Generate markdown spec from parameters
-- [ ] Include dimensions with tolerances
-- [ ] Include material recommendations
-- [ ] Include surface finish requirements
+**Architecture:**
+- Single page application (HTML/JS)
+- Pyodide 0.25+ (Python in WebAssembly)
+- wormcalc + wormgear_geometry packages
+- build123d + OCP for CAD
+- Three.js for 3D rendering
+- Desktop-only (CPU/GPU requirements)
 
-### CLI (cli.py)
-- [ ] Basic command: `wormgear-geometry design.json`
-- [ ] Options for features (--bore, --keyway, etc.)
-- [ ] Options for worm length
-- [ ] Output directory specification
-- [ ] Assembly vs individual parts option
+---
 
-## Phase 4: Advanced (Future)
+## Phase 2: Remaining Features (After Web Tool)
 
-### Accurate Wheel Envelope
-- [ ] Research envelope calculation mathematics
-- [ ] Parameterize worm surface S(u, v)
-- [ ] Calculate contact curves
-- [ ] Generate B-spline surfaces
-- [ ] Compare with hybrid approach
-- [ ] Document accuracy differences
+### Set Screw Holes
+- [ ] Define set screw placement (radial, through bore wall)
+- [ ] Standard sizes (M3, M4, M5, etc.)
+- [ ] Add to BoreFeature or separate SetScrewFeature class
+- [ ] Update CLI and API
 
-### Documentation
-- [ ] Add docstrings to all functions
-- [ ] Create usage examples
-- [ ] Add troubleshooting guide
-- [ ] Document manufacturing workflows
+### Hub Options
+- [ ] Flush hub (no extension)
+- [ ] Extended hub (specify length)
+- [ ] Flanged hub (specify flange diameter and thickness)
+- [ ] Add to WheelGeometry parameters
+- [ ] Update CLI and API
 
-### Testing
-- [ ] Unit tests for all modules
-- [ ] Integration tests for full workflow
-- [ ] Geometry validation tests
-- [ ] Reference designs test suite
+---
 
-## First Steps
+## Phase 3+: Future Enhancements
 
-1. **Install build123d**:
-   ```bash
-   pip install build123d
-   ```
+See `docs/WEB_TOOL_SPEC_V2.md` for full roadmap:
+- Phase 2: Polish & usability (example gallery, share links, etc.)
+- Phase 3: Advanced features (editable tolerances, batch generation)
+- Phase 4: Educational & pro features (tooltips, optimization, cost estimation)
 
-2. **Test basic operation**:
-   ```python
-   from build123d import *
+---
 
-   cylinder = Cylinder(radius=10, height=20)
-   cylinder.export_step("test.step")
-   # Open test.step in FreeCAD/Fusion360 to verify
-   ```
+## Notes
 
-3. **Implement simple worm** (just core + one thread):
-   - Load sample JSON
-   - Extract worm parameters
-   - Create core cylinder
-   - Create single helical sweep
-   - Export and verify
+- **Web tool will replace wormgearcalc** - unified product
+- **Desktop-only** due to CPU/memory requirements (WebAssembly + 3D rendering)
+- **Expanded JSON format** includes all manufacturing parameters for full reproducibility
+- **Two-tier generation**: Quick preview (fast, simplified) → Production files (exact, slower)
+- **PDF manufacturing spec** is key deliverable for CNC shops
 
-4. **Build from there** following the checklist above
+---
 
-## Questions to Resolve
-
-- [ ] How to handle very fine threads in build123d? (small lead angle)
-- [ ] Best approach for helix orientation (ensure profile perpendicular)?
-- [ ] Tolerance representation in STEP files?
-- [ ] Validation strategy (OCC checker? Volume comparison?)
-
-## References While Implementing
-
-- build123d docs: https://build123d.readthedocs.io/
-- py_gearworks source: https://github.com/gumyr/py_gearworks
-- DIN 3975 standard (worm geometry definitions)
-- GEOMETRY.md in this repo (detailed specification)
+**Status:** Ready to begin wireframe design
+**Last Updated:** 2026-01-20
