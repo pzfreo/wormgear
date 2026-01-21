@@ -85,9 +85,9 @@ Geometry is exact and watertight - no approximations, no relying on manufacturin
 - [ ] Assembly positioning
 - [ ] Manufacturing specs output (markdown)
 
-## Web Interface 🆕
+## Web Interface 🆕 (Experimental)
 
-Browser-based version using Pyodide (Python in WebAssembly):
+Browser-based prototype using Pyodide (Python in WebAssembly):
 
 - **No installation required** - Run Python + build123d in your browser
 - **Drag-drop JSON files** from the calculator
@@ -97,26 +97,35 @@ Browser-based version using Pyodide (Python in WebAssembly):
 **Quick Start:**
 ```bash
 cd web
-python3 serve.py 8000
+python3 -m http.server 8000
 # Open http://localhost:8000
 ```
 
-**Status:** ✅ Fully functional with OCP.wasm integration - ready to deploy!
+**Status:** 🚧 **Experimental prototype** - Core generation works, but UI/UX improvements needed before production deployment.
 
-**Try it now:**
+**Current capabilities:**
+- ✅ Pyodide + build123d + OCP.wasm integration
+- ✅ STEP file generation and download
+- 🚧 3D visualization (in progress)
+- 🚧 Progress indicators (in progress)
+
+**Try the prototype:**
 ```bash
-cd web && python3 serve.py 8000
+cd web && python3 -m http.server 8000
 # Open http://localhost:8000
 ```
 
-**Deploy to GitHub Pages:**
-- Push to main branch
-- Enable GitHub Pages in Settings
-- Access at `https://your-username.github.io/worm-gear-3d/`
-
-See [web/README.md](web/README.md) for usage and [web/DEPLOYMENT.md](web/DEPLOYMENT.md) for deployment to GitHub Pages, Netlify, Vercel, etc.
+See [web/README.md](web/README.md) for technical details. A fully integrated web tool with enhanced UI is planned (see [docs/WEB_TOOL_SPEC_V2.md](docs/WEB_TOOL_SPEC_V2.md)).
 
 ## Installation
+
+### Requirements
+
+- **Python 3.9+** (3.10 or 3.11 recommended)
+- **build123d >= 0.5.0** - Modern Python CAD library
+- **OCP** (OpenCascade bindings) - Installed automatically with build123d
+
+### Install
 
 ```bash
 pip install build123d
@@ -125,6 +134,8 @@ pip install -e .
 # Optional: For visualization in VS Code
 pip install ocp-vscode
 ```
+
+**Note:** build123d has platform-specific builds. If you encounter installation issues, see the [build123d installation guide](https://build123d.readthedocs.io/en/latest/installation.html).
 
 ## Usage
 
@@ -220,6 +231,76 @@ See `examples/` directory for more usage patterns.
 - **CLAUDE.md** - Context for Claude Code (AI assistant)
 - **docs/GEOMETRY.md** - Full technical specification
 - **docs/ENGINEERING_CONTEXT.md** - Standards and formulas
+
+## Troubleshooting
+
+### Installation Issues
+
+**Problem:** `pip install build123d` fails or imports don't work
+
+**Solutions:**
+- Ensure Python 3.9+ is installed: `python --version`
+- Try upgrading pip: `pip install --upgrade pip`
+- Check platform-specific instructions: [build123d installation guide](https://build123d.readthedocs.io/en/latest/installation.html)
+- On Windows, you may need Visual C++ build tools
+
+### Generation Errors
+
+**Problem:** "Bore diameter too large" or thin rim warnings
+
+**Solutions:**
+- Use `--no-bore` to generate solid parts
+- Specify smaller custom bore: `--worm-bore 4 --wheel-bore 6`
+- Note: Auto-calculated bores leave ≥1mm rim thickness. Thin rims (<1.5mm) generate warnings but still work.
+
+**Problem:** "Bore outside DIN 6885 range" when using keyways
+
+**Solutions:**
+- For bores <6mm or >95mm, keyways cannot be auto-sized from DIN 6885
+- Either use `--no-keyway` or upgrade to custom keyway dimensions (Python API)
+- Small gears (<6mm bore) are typically used without keyways
+
+**Problem:** STEP file won't import to CAD/CAM software
+
+**Solutions:**
+- Verify the STEP file is not empty (should be >100KB for typical gears)
+- Try a different CAD program (FreeCAD is free and handles most STEP files)
+- Check for generation errors in console output
+- Reduce geometry complexity: use `--no-bore --no-keyway` to test
+
+### Visualization Issues
+
+**Problem:** OCP viewer not working in VS Code
+
+**Solutions:**
+- Install the VS Code extension: "OCP CAD Viewer" from the marketplace
+- Install Python package: `pip install ocp-vscode`
+- Restart VS Code after installation
+- Alternative: Use `--no-view` and open STEP files in FreeCAD or other CAD software
+
+**Problem:** `--view` option shows nothing or crashes
+
+**Solutions:**
+- OCP viewer requires significant memory. Close other applications.
+- Try viewing worm and wheel separately: `--worm-only --view` or `--wheel-only --view`
+- Use external CAD software instead
+
+### Parameter Issues
+
+**Problem:** Generated gear dimensions don't match expectations
+
+**Solutions:**
+- Verify the input JSON is from the calculator (not hand-edited)
+- Check that worm length and wheel width are appropriate for your application
+- Default wheel width is auto-calculated. Override with `--wheel-width` if needed
+- Use `--hobbed` flag if you want throated wheel teeth instead of helical
+
+### Getting Help
+
+If you encounter issues not covered here:
+1. Check the [GitHub Issues](https://github.com/pzfreo/worm-gear-3d/issues) for similar problems
+2. Review the detailed technical docs in [docs/GEOMETRY.md](docs/GEOMETRY.md)
+3. For calculator-related issues, see [wormgearcalc](https://github.com/pzfreo/wormgearcalc)
 
 ## Dependencies
 

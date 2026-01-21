@@ -65,6 +65,10 @@ See `docs/GEOMETRY.md` for full specification.
 
 ### Phase 2: Features (In Progress)
 - [x] Bore with auto-calculation and custom diameters
+  - **Auto-calculation**: Approximately 25% of pitch diameter, constrained by rim thickness
+  - **Constraints**: Leaves ≥1mm rim thickness (or ≥12.5% of root diameter)
+  - **Rounding**: Results rounded to 0.5mm (small bores) or 1mm (large bores)
+  - **Warnings**: Issues warning if rim thickness <1.5mm
 - [x] Keyways (ISO 6885 / DIN 6885 standard sizes)
 - [x] Small gear support (bores down to 2mm, below DIN 6885 range)
 - [x] Thin rim warnings for structural integrity
@@ -230,6 +234,9 @@ Helical sweep of trapezoidal tooth profile:
 - **ISO 6885 / DIN 6885** - Keyway dimensions
 
 ### Keyway Sizes (DIN 6885)
+
+**Common sizes** (full table in `docs/ENGINEERING_CONTEXT.md` and `src/wormgear_geometry/features.py`):
+
 | Bore (mm) | Key Width | Key Height | Shaft Depth | Hub Depth |
 |-----------|-----------|------------|-------------|-----------|
 | 6-8       | 2         | 2          | 1.2         | 1.0       |
@@ -237,6 +244,10 @@ Helical sweep of trapezoidal tooth profile:
 | 10-12     | 4         | 4          | 2.5         | 1.8       |
 | 12-17     | 5         | 5          | 3.0         | 2.3       |
 | 17-22     | 6         | 6          | 3.5         | 2.8       |
+| ...       | ...       | ...        | ...         | ...       |
+| 85-95     | 25        | 14         | 9.0         | 5.4       |
+
+**Note:** Full implementation supports bores from 6mm to 95mm. For bores below 6mm (small gears), keyways are omitted or require custom dimensions.
 
 ### Profile Shift
 - The calculator now supports profile shift coefficients

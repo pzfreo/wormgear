@@ -1,10 +1,16 @@
-# Worm Gear 3D - Web Interface
+# Worm Gear 3D - Web Interface (Experimental Prototype)
 
 Browser-based 3D CAD generation for worm gears using Pyodide and build123d.
 
 ## Overview
 
-This web interface allows users to generate CNC-ready STEP files directly in their browser, with no server-side processing required. It accepts JSON design files from the [wormgearcalc](https://pzfreo.github.io/wormgearcalc/) tool and generates 3D geometry using build123d running in WebAssembly via Pyodide.
+**Status: 🚧 Experimental Prototype**
+
+This web interface is a proof-of-concept that demonstrates browser-based STEP file generation with no server-side processing. It accepts JSON design files from the [wormgearcalc](https://pzfreo.github.io/wormgearcalc/) tool and generates 3D geometry using build123d running in WebAssembly via Pyodide.
+
+**What works:** Core CAD generation, STEP downloads
+**In progress:** 3D visualization, progress indicators, UI/UX polish
+**Planned:** Full integration per [WEB_TOOL_SPEC_V2.md](../docs/WEB_TOOL_SPEC_V2.md)
 
 ## Features
 
@@ -216,9 +222,9 @@ iframe.contentWindow.postMessage({
 
 ## Deployment
 
-The web interface is ready to deploy to static hosting platforms.
+**Note:** This is an experimental prototype. While functional for testing, consider completing the items in the deployment checklist below before production use.
 
-### Quick Deploy to GitHub Pages
+### Quick Deploy to GitHub Pages (for testing/development)
 
 1. Push to main branch:
    ```bash
@@ -240,18 +246,26 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions includin
 
 ## Deployment Checklist
 
+**✅ Prototype Complete (Current State):**
 - [x] OCP.wasm integration complete
 - [x] Geometry generation functional
 - [x] STEP file download working
 - [x] GitHub Pages workflow configured
+
+**🚧 Required Before Production Deployment:**
 - [ ] Test with all sample designs
-- [ ] Verify on multiple browsers
+- [ ] Verify on multiple browsers (Chrome, Firefox, Safari, Edge)
 - [ ] Test on mobile devices
 - [ ] Add 3D visualization
 - [ ] Add loading progress indicators
-- [ ] Optimize initial load time
-- [ ] Add error recovery
-- [ ] Add usage analytics (optional)
+- [ ] Optimize initial load time (currently ~30-60s)
+- [ ] Add error recovery and user-friendly error messages
+- [ ] Comprehensive UI/UX review and improvements
+
+**📋 Optional Enhancements:**
+- [ ] Add usage analytics
+- [ ] Implement service worker for offline support
+- [ ] Add geometry preview thumbnails
 
 ## Contributing
 
