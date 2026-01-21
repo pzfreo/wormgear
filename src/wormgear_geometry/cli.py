@@ -9,7 +9,14 @@ from pathlib import Path
 from .io import load_design_json
 from .worm import WormGeometry
 from .wheel import WheelGeometry
-from .features import BoreFeature, KeywayFeature, calculate_default_bore, get_din_6885_keyway
+from .features import (
+    BoreFeature,
+    KeywayFeature,
+    SetScrewFeature,
+    calculate_default_bore,
+    get_din_6885_keyway,
+    get_set_screw_size
+)
 
 
 def main():
@@ -27,6 +34,12 @@ Examples:
 
   # Override bore sizes (keyways auto-sized to match)
   wormgear-geometry design.json --worm-bore 8 --wheel-bore 12
+
+  # Add set screw holes for shaft retention (auto-sized from bore)
+  wormgear-geometry design.json --set-screw
+
+  # Set screws with specific size and count
+  wormgear-geometry design.json --set-screw --set-screw-size M4 --set-screw-count 2
 
   # Bores but no keyways
   wormgear-geometry design.json --no-keyway
@@ -136,6 +149,27 @@ Examples:
         help='Override wheel bore diameter in mm (default: auto ~25%% of pitch diameter)'
     )
 
+    # Set screw options (default: no set screws unless explicitly requested)
+    parser.add_argument(
+        '--set-screw',
+        action='store_true',
+        help='Add set screw holes for shaft retention (requires bore)'
+    )
+
+    parser.add_argument(
+        '--set-screw-size',
+        type=str,
+        default=None,
+        help='Override set screw size (e.g., "M3", "M4") - auto-sized from bore if not specified'
+    )
+
+    parser.add_argument(
+        '--set-screw-count',
+        type=int,
+        default=1,
+        help='Number of set screws (1-3, default: 1, evenly distributed)'
+    )
+
     args = parser.parse_args()
 
     # Load design
@@ -158,6 +192,7 @@ Examples:
         # Determine bore diameter (auto-calculate or override)
         worm_bore = None
         worm_keyway = None
+        worm_set_screw = None
         worm_bore_diameter = None
 
         worm_thin_rim_warning = False
@@ -181,6 +216,29 @@ Examples:
                 if not args.no_keyway and worm_bore_diameter >= 6.0:
                     worm_keyway = KeywayFeature()
 
+                # Add set screw if requested
+                if args.set_screw:
+                    # Parse size if specified (e.g., "M4" -> ("M4", 4.0))
+                    if args.set_screw_size:
+                        # Extract diameter from size string (e.g., "M4" -> 4.0)
+                        try:
+                            size_str = args.set_screw_size.upper()
+                            if size_str.startswith('M'):
+                                diameter = float(size_str[1:])
+                                worm_set_screw = SetScrewFeature(
+                                    size=size_str,
+                                    diameter=diameter,
+                                    count=args.set_screw_count
+                                )
+                            else:
+                                print(f"  WARNING: Invalid set screw size '{args.set_screw_size}', using auto-size")
+                                worm_set_screw = SetScrewFeature(count=args.set_screw_count)
+                        except ValueError:
+                            print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
+                            worm_set_screw = SetScrewFeature(count=args.set_screw_count)
+                    else:
+                        worm_set_screw = SetScrewFeature(count=args.set_screw_count)
+
         # Build description
         features_desc = ""
         if worm_bore:
@@ -189,6 +247,12 @@ Examples:
                 features_desc += " + keyway"
             elif worm_bore_diameter < 6.0:
                 features_desc += " (no keyway - below DIN 6885 range)"
+            if worm_set_screw:
+                screw_size, _ = worm_set_screw.get_screw_specs(worm_bore_diameter)
+                screw_desc = f"{screw_size}"
+                if worm_set_screw.count > 1:
+                    screw_desc += f" x{worm_set_screw.count}"
+                features_desc += f" + set screw ({screw_desc})"
 
         print(f"\nGenerating worm ({design.worm.num_starts}-start, module {design.worm.module_mm}mm{features_desc})...")
         worm_geo = WormGeometry(
@@ -197,7 +261,8 @@ Examples:
             length=args.worm_length,
             sections_per_turn=args.sections,
             bore=worm_bore,
-            keyway=worm_keyway
+            keyway=worm_keyway,
+            set_screw=worm_set_screw
         )
         worm = worm_geo.build()
         print(f"  Volume: {worm.volume:.2f} mm³")
@@ -207,6 +272,7 @@ Examples:
         # Determine bore diameter (auto-calculate or override)
         wheel_bore = None
         wheel_keyway = None
+        wheel_set_screw = None
         wheel_bore_diameter = None
 
         wheel_thin_rim_warning = False
@@ -230,6 +296,29 @@ Examples:
                 if not args.no_keyway and wheel_bore_diameter >= 6.0:
                     wheel_keyway = KeywayFeature()
 
+                # Add set screw if requested
+                if args.set_screw:
+                    # Parse size if specified (e.g., "M4" -> ("M4", 4.0))
+                    if args.set_screw_size:
+                        # Extract diameter from size string (e.g., "M4" -> 4.0)
+                        try:
+                            size_str = args.set_screw_size.upper()
+                            if size_str.startswith('M'):
+                                diameter = float(size_str[1:])
+                                wheel_set_screw = SetScrewFeature(
+                                    size=size_str,
+                                    diameter=diameter,
+                                    count=args.set_screw_count
+                                )
+                            else:
+                                print(f"  WARNING: Invalid set screw size '{args.set_screw_size}', using auto-size")
+                                wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
+                        except ValueError:
+                            print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
+                            wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
+                    else:
+                        wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
+
         # Build description
         wheel_type_desc = "hobbed (throated)" if args.hobbed else "helical"
         features_desc = ""
@@ -239,6 +328,12 @@ Examples:
                 features_desc += " + keyway"
             elif wheel_bore_diameter < 6.0:
                 features_desc += " (no keyway - below DIN 6885 range)"
+            if wheel_set_screw:
+                screw_size, _ = wheel_set_screw.get_screw_specs(wheel_bore_diameter)
+                screw_desc = f"{screw_size}"
+                if wheel_set_screw.count > 1:
+                    screw_desc += f" x{wheel_set_screw.count}"
+                features_desc += f" + set screw ({screw_desc})"
 
         print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc}{features_desc})...")
         wheel_geo = WheelGeometry(
@@ -248,7 +343,8 @@ Examples:
             face_width=args.wheel_width,
             throated=args.hobbed,
             bore=wheel_bore,
-            keyway=wheel_keyway
+            keyway=wheel_keyway,
+            set_screw=wheel_set_screw
         )
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
