@@ -5,106 +5,297 @@
 **Phase 2: Features - Bore & Keyway Complete ✅**
 
 Completed features:
-- ✅ Auto-calculated bore diameters (~25% of pitch diameter)
-- ✅ DIN 6885 keyway support (for bores ≥6mm)
+- ✅ Auto-calculated bore diameters (~25% of pitch diameter, constrained by rim)
+- ✅ DIN 6885 keyway support (for bores 6-95mm)
 - ✅ Small gear support (bores down to 2mm, below DIN 6885 range)
 - ✅ Thin rim warnings (when rim thickness <1.5mm)
 - ✅ CLI defaults to bore+keyway with opt-out flags
 - ✅ Rim thickness display in CLI output
+- ✅ Comprehensive documentation with troubleshooting
+- ✅ Documentation power review complete
 
 ---
 
-## Next Steps
+## Strategic Direction
 
-### 1. Web Tool Design (Next Immediate Task) 🎯
+**📋 See [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md) for complete three-phase plan (8-10 months)**
 
-**Create detailed wireframes** for the integrated web tool:
-- Landing page with three paths (Standard, Envelope, Import)
-- Path A: Standard engineering design flow (module-based)
-- Path B: Envelope constraint design flow (OD-based)
-- Path C: JSON import flow
-- Calculator results and validation screens
-- Manufacturing parameters screen
-- Quick preview (3D visualization) screen
-- Production generation and download screen
+### Roadmap Summary
 
-**Reference:**
-- Full specification: `docs/WEB_TOOL_SPEC_V2.md`
-- Design decisions finalized (module dropdown, warnings display, always-visible mfg params, desktop-only)
+**Phase 1 (2-3 months): Complete Core Product**
+- Remaining features: set screws, hub options
+- Manufacturing specifications output (markdown/PDF)
+- Testing & validation suite
+- Python API polish
+- Target: v1.0 release
 
-**Deliverable:** Visual mockups showing user flow from inputs → validation → 3D preview → production files
+**Phase 2 (3-4 months): Unified Web Tool**
+- Integrated calculator + 3D generator
+- Three design paths: Standard, Envelope, Import
+- 3D visualization with Three.js
+- Two-tier generation (quick preview + production)
+- Example gallery
+- Target: v2.0 release (replaces wormgearcalc)
 
----
-
-### 2. Web Tool Phase 1 Implementation
-
-After wireframes are approved, begin building:
-
-**Phase 1 Core Features:**
-- [ ] Integrate wormcalc code into web interface
-- [ ] Implement Path A (standard/module-based)
-- [ ] Implement Path B (envelope constraints)
-- [ ] Implement Path C (JSON import)
-- [ ] Connect calculator → 3D generator flow
-- [ ] Validation UI (errors, warnings, info) with actionable messages
-- [ ] Manufacturing parameter controls (bore, keyway, lengths)
-- [ ] Quick preview generation (simplified geometry, 5-10 seconds)
-- [ ] 3D visualization (WebGL viewer - Three.js)
-- [ ] Interactive 3D controls (rotate, zoom, pan, toggle parts)
-- [ ] Production generation (full detail STEP files, 30-60 seconds)
-- [ ] PDF manufacturing spec (complete with drawings, tolerances, assembly)
-- [ ] Expanded design.json export
-- [ ] Zip package download (STEP + PDF + JSON)
-- [ ] All validation rules including:
-  - Diameter quotient (q) display and validation
-  - Hunting teeth ratio (GCD check for multi-start worms)
-  - All existing validations (lead angle, undercut, etc.)
-
-**Architecture:**
-- Single page application (HTML/JS)
-- Pyodide 0.25+ (Python in WebAssembly)
-- wormcalc + wormgear_geometry packages
-- build123d + OCP for CAD
-- Three.js for 3D rendering
-- Desktop-only (CPU/GPU requirements)
+**Phase 3 (2-3 months): Advanced Features**
+- Accurate wheel geometry (envelope calculation)
+- Assembly positioning
+- Advanced manufacturing features
+- Web tool enhancements (optimization, batch, cost estimation)
+- Community ecosystem
+- Target: v3.0 release
 
 ---
 
-## Phase 2: Remaining Features (After Web Tool)
+## Next Immediate Tasks (Phase 1.1)
 
-### Set Screw Holes
-- [ ] Define set screw placement (radial, through bore wall)
-- [ ] Standard sizes (M3, M4, M5, etc.)
-- [ ] Add to BoreFeature or separate SetScrewFeature class
-- [ ] Update CLI and API
+### 1. Set Screw Holes (1 week) 🎯
 
-### Hub Options
-- [ ] Flush hub (no extension)
-- [ ] Extended hub (specify length)
-- [ ] Flanged hub (specify flange diameter and thickness)
-- [ ] Add to WheelGeometry parameters
-- [ ] Update CLI and API
+**Goal:** Allow securing gears to shafts with set screws
+
+**Tasks:**
+- [ ] Define placement strategy (radial through bore wall, 90° from keyway)
+- [ ] Auto-sizing table based on bore diameter
+  - 6-10mm bore → M3 set screw
+  - 10-20mm bore → M4 set screw
+  - 20mm+ bore → M5 set screw
+- [ ] Create `SetScrewFeature` class in `features.py`
+  - Parameters: size (M3/M4/M5), count (1-3), angular_position
+  - Method: `create_set_screw()` - cylindrical hole perpendicular to bore
+- [ ] Integrate into WormGeometry and WheelGeometry
+- [ ] CLI flags:
+  - `--set-screw` (auto-size from bore)
+  - `--set-screw-size M4` (override size)
+  - `--set-screw-count 2` (default: 1)
+- [ ] Update Python API examples
+- [ ] Documentation updates (README, GEOMETRY.md, CLAUDE.md)
+- [ ] Write unit tests (test_features.py)
+
+**Success criteria:**
+- ✅ Generate worm with M4 set screw through 8mm bore
+- ✅ Set screw positioned 90° from keyway
+- ✅ STEP file validates and imports to CAD software
+- ✅ Tests pass
+
+**Estimated effort:** 1 week
 
 ---
 
-## Phase 3+: Future Enhancements
+### 2. Hub Options (2 weeks)
 
-See `docs/WEB_TOOL_SPEC_V2.md` for full roadmap:
-- Phase 2: Polish & usability (example gallery, share links, etc.)
-- Phase 3: Advanced features (editable tolerances, batch generation)
-- Phase 4: Educational & pro features (tooltips, optimization, cost estimation)
+**Goal:** Add hub variations for wheel mounting flexibility
+
+**Tasks:**
+- [ ] Design hub types:
+  - **Flush** (default): Hub face flush with wheel face
+  - **Extended**: Hub extends beyond wheel face by user-specified length
+  - **Flanged**: Hub with larger diameter flange (specify OD, thickness, bolt holes)
+- [ ] Create `HubFeature` class or integrate into WheelGeometry
+  - Parameters: type, length (extended), flange_diameter, flange_thickness, bolt_holes
+- [ ] Geometry generation:
+  - Extended: extrude cylinder from wheel face
+  - Flanged: extended hub + flange disk + bolt hole array
+- [ ] Validation:
+  - Hub doesn't interfere with worm mesh (check clearance)
+  - Flange OD doesn't exceed practical limits
+- [ ] CLI flags:
+  - `--hub-type flush|extended|flanged` (default: flush)
+  - `--hub-length 15` (for extended/flanged)
+  - `--flange-diameter 80 --flange-thickness 5`
+  - `--flange-bolts 4` (bolt hole count)
+- [ ] Update Python API
+- [ ] Documentation updates
+- [ ] Write tests
+
+**Success criteria:**
+- ✅ Generate wheel with 15mm extended hub
+- ✅ Generate wheel with 40mm flange, 5mm thick, 4× M4 bolt holes
+- ✅ Validate no interference with worm mesh
+- ✅ Tests pass
+
+**Estimated effort:** 2 weeks
+
+---
+
+### 3. Manufacturing Specifications Output (2-3 weeks)
+
+**Goal:** Generate CNC-ready documentation alongside STEP files
+
+**Tasks:**
+- [ ] Create `specs.py` module
+- [ ] Define specification template (markdown format)
+- [ ] Include for both worm and wheel:
+  - All key dimensions with tolerances (OD, PD, root, length)
+  - Bore dimensions and tolerance (H7, H8)
+  - Keyway dimensions (per DIN 6885)
+  - Set screw specifications
+  - Hub specifications (if applicable)
+- [ ] Assembly section:
+  - Center distance (nominal ± tolerance)
+  - Alignment instructions
+  - Hand (left/right) and orientation
+  - Backlash specification
+- [ ] Material recommendations:
+  - Worm: hardened steel (58-62 HRC suggested)
+  - Wheel: bronze or acetal (for low friction)
+- [ ] Manufacturing notes:
+  - Surface finish (Ra 0.8-1.6 on contact surfaces)
+  - Tool path considerations (undercuts, clearances)
+  - Inspection requirements
+- [ ] Optional PDF generation:
+  - Use pandoc or weasyprint to convert markdown
+  - Include technical drawing (optional, future enhancement)
+- [ ] CLI integration:
+  - `--specs` flag (default: enabled)
+  - `--specs-format markdown|pdf` (default: markdown)
+  - `--no-specs` to disable
+- [ ] Validation:
+  - Get feedback from real CNC machinist
+  - Ensure all critical info is present
+- [ ] Documentation and examples
+
+**Success criteria:**
+- ✅ Markdown spec generated alongside STEP files
+- ✅ CNC machinist can manufacture part from spec alone
+- ✅ PDF generation works (optional)
+- ✅ All dimensions and tolerances clearly specified
+
+**Example spec structure:**
+```markdown
+# Worm Gear Manufacturing Specification
+
+Generated: 2026-01-21
+Design: M2 30:1 Right-Hand
+
+## Part 1: Worm (Drive Component)
+
+### Critical Dimensions
+| Parameter              | Nominal   | Tolerance | ISO Fit | Notes            |
+|------------------------|-----------|-----------|---------|------------------|
+| Outside Diameter       | 20.29 mm  | ±0.02     | h6      | Ground finish    |
+| Pitch Diameter         | 16.29 mm  | Reference | -       | -                |
+| Root Diameter          | 11.29 mm  | +0.05/-0  | -       | -                |
+| Thread Lead            | 6.283 mm  | ±0.01     | -       | Critical         |
+| Overall Length         | 40.00 mm  | ±0.1      | -       | -                |
+
+### Features
+| Feature                | Dimension | Tolerance | ISO Fit | Notes            |
+|------------------------|-----------|-----------|---------|------------------|
+| Bore Diameter          | 8.00 mm   | +0.015/0  | H7      | Sliding fit      |
+| Keyway (DIN 6885)      | 3×1.8 mm  | per std   | -       | Width × depth    |
+| Set Screw              | M4        | -         | -       | 90° from keyway  |
+
+### Material Specification
+- **Recommended:** EN 1.7131 (16MnCr5) case hardened
+- **Hardness:** 58-62 HRC surface, 35-45 HRC core
+- **Alternative:** EN 1.4305 (303 stainless) for corrosion resistance
+
+### Surface Finish
+- Thread flanks: Ra 0.8 µm (ground or hard-turned)
+- Bore: Ra 1.6 µm (reamed)
+- Faces: Ra 3.2 µm
+
+### Manufacturing Notes
+- Thread hand: RIGHT (right-hand helix)
+- Lead angle: 7.0°
+- Start threads at least 2mm from each end
+- Deburr all edges, especially bore ends
+...
+
+## Part 2: Wheel (Driven Component)
+...
+
+## Assembly Instructions
+- Center distance: 38.145 ± 0.05 mm
+- Align keyways for synchronization (if required)
+- Backlash: 0.05 mm (adjust with shims if needed)
+...
+```
+
+**Estimated effort:** 2-3 weeks
+
+---
+
+## Phase 1: Additional Tasks
+
+### 4. Testing & Validation Suite (2 weeks)
+
+- [ ] Unit tests for all modules (>80% coverage)
+- [ ] Integration tests (full generation workflows)
+- [ ] STEP validation (import/export round-trip)
+- [ ] Geometry validation (volume, mass calculations)
+- [ ] Mesh interference detection
+- [ ] Performance benchmarks
+- [ ] CI/CD pipeline (GitHub Actions)
+
+### 5. Python API Polish (1 week)
+
+- [ ] Consistent error messages
+- [ ] Complete type hints (mypy validation)
+- [ ] Comprehensive docstrings
+- [ ] Example scripts for all features
+- [ ] API documentation (Sphinx)
+
+### 6. Documentation Updates (ongoing)
+
+- [ ] Update README with new features
+- [ ] Update GEOMETRY.md technical spec
+- [ ] Update CLAUDE.md context
+- [ ] Create video tutorials (optional)
+
+### 7. v1.0 Release (1 week)
+
+- [ ] Version tagging and release notes
+- [ ] PyPI package (optional)
+- [ ] Announcement blog post
+- [ ] Community outreach
+
+---
+
+## Phase 2: Web Tool (Future)
+
+**See DEVELOPMENT_ROADMAP.md for detailed breakdown**
+
+Key milestones:
+- Calculator integration (Path A, B, C)
+- 3D visualization with Three.js
+- Two-tier generation (preview + production)
+- Example gallery
+- Deployment
+
+---
+
+## Phase 3: Advanced Features (Future)
+
+**See DEVELOPMENT_ROADMAP.md for detailed breakdown**
+
+Key milestones:
+- Accurate wheel geometry (envelope calculation)
+- Assembly positioning
+- Advanced manufacturing features
+- Community ecosystem
 
 ---
 
 ## Notes
 
-- **Web tool will replace wormgearcalc** - unified product
-- **Desktop-only** due to CPU/memory requirements (WebAssembly + 3D rendering)
-- **Expanded JSON format** includes all manufacturing parameters for full reproducibility
-- **Two-tier generation**: Quick preview (fast, simplified) → Production files (exact, slower)
-- **PDF manufacturing spec** is key deliverable for CNC shops
+### Current Focus
+**We are in Phase 1.1** - Completing remaining core features before moving to web tool.
+
+Web tool development (Phase 2) will begin after Phase 1 is complete and v1.0 is released.
+
+### Philosophy
+- **Complete before expanding** - Finish each phase fully before moving on
+- **User value first** - Prioritize features users need most
+- **Quality over speed** - Test thoroughly, release when ready
+- **Manufacturing focus** - CNC machinists are our primary users
+
+### Success Metrics
+- Phase 1: v1.0 released with all features, tests passing, specs validated
+- Phase 2: v2.0 web tool replaces wormgearcalc, 100+ users in first month
+- Phase 3: v3.0 with advanced features, active community
 
 ---
 
-**Status:** Ready to begin wireframe design
-**Last Updated:** 2026-01-20
+**Last Updated:** 2026-01-21
+**Current Task:** Ready to begin set screw holes implementation (Phase 1.1, Task 1)
