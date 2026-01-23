@@ -8,7 +8,7 @@ import math
 from typing import Optional
 from build123d import *
 from .io import WormParams, AssemblyParams
-from .features import BoreFeature, KeywayFeature, add_bore_and_keyway
+from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
 
 
 class WormGeometry:
@@ -26,7 +26,8 @@ class WormGeometry:
         length: float = 40.0,
         sections_per_turn: int = 36,
         bore: Optional[BoreFeature] = None,
-        keyway: Optional[KeywayFeature] = None
+        keyway: Optional[KeywayFeature] = None,
+        set_screw: Optional[SetScrewFeature] = None
     ):
         """
         Initialize worm geometry generator.
@@ -38,6 +39,7 @@ class WormGeometry:
             sections_per_turn: Number of loft sections per helix turn (default: 36)
             bore: Optional bore feature specification
             keyway: Optional keyway feature specification (requires bore)
+            set_screw: Optional set screw feature specification (requires bore)
         """
         self.params = params
         self.assembly_params = assembly_params
@@ -45,6 +47,7 @@ class WormGeometry:
         self.sections_per_turn = sections_per_turn
         self.bore = bore
         self.keyway = keyway
+        self.set_screw = set_screw
 
         # Set keyway as shaft type if specified
         if self.keyway is not None:
@@ -94,13 +97,14 @@ class WormGeometry:
                 # Return the largest solid (should be the worm)
                 worm = max(solids, key=lambda s: s.volume)
 
-        # Add bore and keyway if specified
-        if self.bore is not None or self.keyway is not None:
+        # Add bore, keyway, and set screw if specified
+        if self.bore is not None or self.keyway is not None or self.set_screw is not None:
             worm = add_bore_and_keyway(
                 worm,
                 part_length=self.length,
                 bore=self.bore,
                 keyway=self.keyway,
+                set_screw=self.set_screw,
                 axis=Axis.Z
             )
 
