@@ -62,7 +62,8 @@ class VirtualHobbingWheelGeometry:
         keyway: Optional[KeywayFeature] = None,
         set_screw: Optional[SetScrewFeature] = None,
         hub: Optional[HubFeature] = None,
-        profile: ProfileType = "ZA"
+        profile: ProfileType = "ZA",
+        hob_geometry: Optional[Part] = None
     ):
         """
         Initialize virtual hobbing wheel generator.
@@ -80,6 +81,9 @@ class VirtualHobbingWheelGeometry:
             set_screw: Optional set screw feature specification (requires bore)
             hub: Optional hub feature specification
             profile: Tooth profile type per DIN 3975 ("ZA" or "ZK")
+            hob_geometry: Optional pre-built worm geometry to use as hob.
+                         If provided, uses this exact shape (e.g., globoid worm).
+                         If None, creates a cylindrical hob from worm_params.
         """
         self.params = params
         self.worm_params = worm_params
@@ -90,6 +94,7 @@ class VirtualHobbingWheelGeometry:
         self.set_screw = set_screw
         self.hub = hub
         self.profile = profile.upper() if isinstance(profile, str) else profile
+        self.hob_geometry = hob_geometry
 
         # Set keyway as hub type if specified
         if self.keyway is not None:
@@ -116,8 +121,13 @@ class VirtualHobbingWheelGeometry:
         # Create wheel blank
         wheel = self._create_blank()
 
-        # Create the hob (cutting tool based on worm geometry)
-        hob = self._create_hob()
+        # Use provided hob geometry or create cylindrical hob
+        if self.hob_geometry is not None:
+            print(f"    Using provided worm geometry as hob (e.g., globoid)")
+            hob = self.hob_geometry
+        else:
+            # Create the hob (cutting tool based on worm geometry)
+            hob = self._create_hob()
 
         # Perform virtual hobbing
         wheel = self._simulate_hobbing(wheel, hob)
