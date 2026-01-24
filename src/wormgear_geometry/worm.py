@@ -198,9 +198,12 @@ class WormGeometry:
         thread_half_width_root = thread_half_width_pitch + dedendum * math.tan(pressure_angle_rad)
         thread_half_width_tip = max(0.1, thread_half_width_pitch - addendum * math.tan(pressure_angle_rad))
 
-        # Build helix to exact worm length (no extra turns, no trimming)
-        helix_height = self.length
-        num_turns = self.length / lead  # Exact number of turns for this length
+        # Extend thread length beyond worm length so we can trim to exact length
+        extended_length = self.length + 2 * lead  # Add lead on each end
+
+        # Build helix with extended length
+        helix_height = extended_length
+        num_turns = extended_length / lead  # Exact number of turns for extended length
 
         # Create helix path at pitch radius
         helix = Helix(
