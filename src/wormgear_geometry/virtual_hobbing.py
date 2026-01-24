@@ -536,12 +536,25 @@ class VirtualHobbingWheelGeometry:
             wheel_angle = step * wheel_increment
             hob_angle = step * hob_increment
 
-            # Rotate hob to position
-            hob_rotated = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+            # CORRECT HOBBING KINEMATICS:
+            # Hob stays at FIXED position (centre distance away, horizontal axis)
+            # Hob rotates around its own axis by hob_angle
+            # WHEEL rotates by wheel_angle
+            # We subtract hob from the rotated wheel position
 
-            # Subtract from wheel
+            # Position hob at fixed location (on X axis at centre distance)
+            # Hob axis is horizontal (along Y after Rot(X=90))
+            hob_positioned = Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+
+            # Rotate wheel to current angle, subtract hob, rotate back
+            # This is equivalent to: wheel rotates, hob cuts, result is accumulated
             try:
-                wheel = wheel - hob_rotated
+                # Rotate wheel to position
+                wheel_rotated = Rot(Z=wheel_angle) * wheel
+                # Subtract hob from rotated wheel
+                wheel_cut = wheel_rotated - hob_positioned
+                # Rotate back to accumulate result
+                wheel = Rot(Z=-wheel_angle) * wheel_cut
             except Exception as e:
                 self._report_progress(f"    WARNING: Step {step} subtraction failed: {e}", -1)
 
