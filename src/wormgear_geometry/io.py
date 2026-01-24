@@ -79,6 +79,7 @@ class ManufacturingParams:
     worm_length: float = 40.0
     wheel_width: Optional[float] = None
     wheel_throated: bool = False
+    profile: str = "ZA"  # "ZA" (straight/CNC) or "ZK" (convex/3D-print) per DIN 3975
     worm_features: Optional[ManufacturingFeatures] = None
     wheel_features: Optional[ManufacturingFeatures] = None
 
@@ -211,6 +212,7 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
             worm_length=mfg_data.get('worm_length', 40.0),
             wheel_width=mfg_data.get('wheel_width'),
             wheel_throated=mfg_data.get('wheel_throated', False),
+            profile=mfg_data.get('profile', 'ZA'),
             worm_features=worm_features,
             wheel_features=wheel_features
         )
@@ -247,7 +249,8 @@ def save_design_json(design: WormGearDesign, filepath: Union[str, Path]) -> None
         mfg_dict: Dict[str, Any] = {
             'worm_type': design.manufacturing.worm_type,
             'worm_length': design.manufacturing.worm_length,
-            'wheel_throated': design.manufacturing.wheel_throated
+            'wheel_throated': design.manufacturing.wheel_throated,
+            'profile': design.manufacturing.profile
         }
 
         if design.manufacturing.wheel_width is not None:

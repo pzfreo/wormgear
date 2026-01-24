@@ -619,6 +619,7 @@ Examples:
             worm_length=args.worm_length,
             wheel_width=args.wheel_width,
             wheel_throated=args.hobbed,
+            profile=args.profile.upper(),
             worm_features=worm_features,
             wheel_features=wheel_features
         )
