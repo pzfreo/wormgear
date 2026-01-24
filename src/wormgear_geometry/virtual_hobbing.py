@@ -288,22 +288,20 @@ class VirtualHobbingWheelGeometry:
 
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
         """
-        Simulate the hobbing process by rotating hob and wheel in sync.
+        Simulate the hobbing process by creating the envelope of all hob positions.
 
-        The hob and wheel rotate according to the gear ratio:
-        - For each increment of wheel rotation, hob rotates by (wheel_teeth / worm_starts) times more
-        - We perform a boolean subtraction at each step
+        Instead of subtracting the hob at each position (which creates overlapping
+        cuts that merge into a smooth groove), we:
+        1. Create all rotated hob positions
+        2. Union them into a single "envelope" solid
+        3. Subtract the envelope from the wheel blank once
 
-        The envelope of all hob positions approximates the true conjugate surface.
+        This produces proper conjugate tooth profiles.
         """
         centre_distance = self.assembly_params.centre_distance_mm
         wheel_teeth = self.params.num_teeth
         worm_starts = self.worm_params.num_starts
         ratio = wheel_teeth / worm_starts
-
-        # Position hob at centre distance, rotated so its axis is along Y
-        # (perpendicular to wheel axis which is along Z)
-        hob_positioned = Pos(centre_distance, 0, 0) * Rot(X=90) * hob
 
         # Calculate angular increments
         # Full wheel rotation = 360 degrees
@@ -311,32 +309,49 @@ class VirtualHobbingWheelGeometry:
         wheel_increment = 360.0 / self.hobbing_steps
         hob_increment = wheel_increment * ratio
 
-        wheel = blank
-
         print(f"    Hobbing simulation: {self.hobbing_steps} steps, ratio 1:{ratio:.1f}")
+        print(f"    Phase 1: Building hob envelope (union of all positions)...")
 
         # Track progress
         progress_interval = max(1, self.hobbing_steps // 10)
+
+        # Build envelope by unioning all hob positions
+        envelope = None
 
         for step in range(self.hobbing_steps):
             # Current rotations
             wheel_angle = step * wheel_increment
             hob_angle = step * hob_increment
 
-            # Rotate hob around its own axis (Y after positioning)
-            # Then the whole assembly rotates around Z (wheel axis)
+            # Rotate hob around its own axis first, then position and rotate around wheel
             hob_rotated = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
 
-            # Subtract hob from wheel
+            # Union into envelope
             try:
-                wheel = wheel - hob_rotated
+                if envelope is None:
+                    envelope = hob_rotated
+                else:
+                    envelope = envelope + hob_rotated
             except Exception as e:
-                print(f"    WARNING: Step {step} boolean failed: {e}")
+                print(f"    WARNING: Step {step} union failed: {e}")
 
             # Progress indicator
             if (step + 1) % progress_interval == 0:
                 pct = ((step + 1) / self.hobbing_steps) * 100
-                print(f"      {pct:.0f}% complete ({step + 1}/{self.hobbing_steps} steps)")
+                print(f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)")
+
+        if envelope is None:
+            print(f"    ERROR: Failed to build envelope")
+            return blank
+
+        print(f"    Phase 2: Subtracting envelope from wheel blank...")
+
+        # Subtract the envelope from the wheel blank
+        try:
+            wheel = blank - envelope
+        except Exception as e:
+            print(f"    ERROR: Envelope subtraction failed: {e}")
+            return blank
 
         print(f"    ✓ Virtual hobbing complete")
         return wheel
