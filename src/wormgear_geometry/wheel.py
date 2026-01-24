@@ -222,18 +222,32 @@ class WheelGeometry:
 
                 with BuildSketch(profile_plane) as sk:
                     with BuildLine():
-                        # Four corners of trapezoidal profile
-                        # For throated wheels, the inner (root) position varies with Z
-                        inner_left = (actual_inner, -half_root)
-                        inner_right = (actual_inner, half_root)
-                        outer_right = (outer, half_tip)
-                        outer_left = (outer, -half_tip)
+                        # Create involute-like curved flanks for better meshing
+                        # Similar to worm thread profile approach
 
-                        # Draw trapezoid: bottom, right flank, top, left flank
-                        Line(inner_left, inner_right)   # Bottom (root)
-                        Line(inner_right, outer_right)  # Right flank
-                        Line(outer_right, outer_left)   # Top (tip)
-                        Line(outer_left, inner_left)    # Left flank
+                        num_flank_points = 5  # Points along each flank for smooth curve
+                        left_flank = []
+                        right_flank = []
+
+                        for j in range(num_flank_points):
+                            t_flank = j / (num_flank_points - 1)  # 0 to 1
+                            r_pos = actual_inner + t_flank * (outer - actual_inner)
+
+                            # Interpolate width with slight involute curve
+                            linear_width = half_root + t_flank * (half_tip - half_root)
+                            # Add subtle involute bulge (parabolic curve)
+                            curve_factor = 4 * t_flank * (1 - t_flank)  # Peaks at 0.5
+                            bulge = curve_factor * 0.05 * (half_root - half_tip) if half_root > half_tip else 0
+                            width = linear_width + bulge
+
+                            left_flank.append((r_pos, -width))
+                            right_flank.append((r_pos, width))
+
+                        # Build closed profile with curved flanks
+                        Spline(left_flank)  # Left flank (curved)
+                        Line(left_flank[-1], right_flank[-1])  # Tip
+                        Spline(list(reversed(right_flank)))  # Right flank (curved)
+                        Line(right_flank[0], left_flank[0])  # Root (closes)
                     make_face()
 
                 sections.append(sk.sketch.faces()[0])
