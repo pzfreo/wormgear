@@ -573,12 +573,24 @@ class VirtualHobbingWheelGeometry:
             # Rotate hob around its own axis first, then position and rotate around wheel
             hob_rotated = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
 
-            # Union into envelope
+            # Union into envelope using OCP fuse (+ operator just makes a list!)
             try:
                 if envelope is None:
                     envelope = hob_rotated
                 else:
-                    envelope = envelope + hob_rotated
+                    # Use OCP's BRepAlgoAPI_Fuse for actual boolean union
+                    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+
+                    env_shape = envelope.wrapped if hasattr(envelope, 'wrapped') else envelope
+                    hob_shape = hob_rotated.wrapped if hasattr(hob_rotated, 'wrapped') else hob_rotated
+
+                    fuser = BRepAlgoAPI_Fuse(env_shape, hob_shape)
+                    fuser.Build()
+
+                    if fuser.IsDone():
+                        envelope = Part(fuser.Shape())
+                    else:
+                        self._report_progress(f"    WARNING: Step {step} union failed (IsDone=False)", -1)
             except Exception as e:
                 self._report_progress(f"    WARNING: Step {step} union failed: {e}", -1)
 
