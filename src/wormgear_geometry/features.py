@@ -388,10 +388,19 @@ class DDCutFeature:
             Depth of flat cut from bore surface in mm
 
         Raises:
-            ValueError: If resulting depth is invalid
+            ValueError: If resulting depth is invalid for the bore diameter
         """
         if self.depth is not None:
-            return self.depth
+            depth = self.depth
+            # Validate that explicitly specified depth is reasonable
+            if depth <= 0:
+                raise ValueError(f"DD-cut depth must be positive, got {depth}mm")
+            if depth >= bore_diameter / 2:
+                raise ValueError(
+                    f"DD-cut depth {depth}mm is too large for bore diameter "
+                    f"{bore_diameter}mm (max: {bore_diameter/2:.2f}mm)"
+                )
+            return depth
 
         # Calculate depth from flat-to-flat dimension
         # flat_to_flat = bore_diameter - 2*depth
@@ -665,7 +674,7 @@ def create_ddcut(
     Args:
         part: The part to modify (must already have bore created)
         bore: Bore feature specification (for diameter)
-        ddcut: DD-cut feature specification
+        ddcut: DD-cut feature specification (depth validation occurs in ddcut.get_depth())
         part_length: Length of part along axis
         axis: Axis of bore (default: Z)
 
@@ -673,7 +682,7 @@ def create_ddcut(
         Modified part with DD-cut flats
 
     Raises:
-        ValueError: If DD-cut depth is invalid for the bore diameter
+        ValueError: If DD-cut depth is invalid (raised by ddcut.get_depth())
     """
     bore_radius = bore.diameter / 2
     flat_depth = ddcut.get_depth(bore.diameter)
@@ -688,7 +697,6 @@ def create_ddcut(
 
     # Calculate chord width at the flat position for precise box sizing
     # For a circle, chord_half_width = sqrt(R^2 - d^2) where d is distance from center
-    import math
     chord_half_width = math.sqrt(bore_radius**2 - flat_position**2)
     box_width = 2 * chord_half_width  # Exact width of chord at flat position
 
@@ -729,10 +737,11 @@ def create_ddcut(
 
     # Create a cylinder at bore radius to constrain radial extent of fills
     # This prevents fills from extending beyond the nominal bore boundary
+    # Height is slightly longer (+1mm) than part to ensure clean intersection at ends
     if axis == Axis.Z:
         bore_boundary = Cylinder(
             radius=bore_radius,
-            height=part_length + 1.0,
+            height=part_length + 1.0,  # +1mm ensures clean intersection at part ends
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
     elif axis == Axis.X:

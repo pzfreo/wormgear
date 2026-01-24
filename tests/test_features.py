@@ -11,10 +11,13 @@ from wormgear_geometry.wheel import WheelGeometry
 from wormgear_geometry.features import (
     BoreFeature,
     KeywayFeature,
+    DDCutFeature,
     get_din_6885_keyway,
     calculate_default_bore,
+    calculate_default_ddcut,
     create_bore,
     create_keyway,
+    create_ddcut,
     add_bore_and_keyway,
     DIN_6885_KEYWAYS,
 )
@@ -239,6 +242,197 @@ class TestCalculateDefaultBore:
         bore, warning = calculate_default_bore(pitch_diameter=6.0, root_diameter=4.75)
         assert bore == 2.0
         assert warning is True  # Thin rim warning
+
+
+class TestDDCutFeature:
+    """Tests for DDCutFeature dataclass."""
+
+    def test_ddcut_creation_with_depth(self):
+        """Test creating DD-cut with depth specification."""
+        ddcut = DDCutFeature(depth=0.5)
+        assert ddcut.depth == 0.5
+        assert ddcut.flat_to_flat is None
+        assert ddcut.angular_offset == 0.0
+        assert ddcut.get_depth(3.0) == 0.5
+
+    def test_ddcut_creation_with_flat_to_flat(self):
+        """Test creating DD-cut with flat-to-flat specification."""
+        ddcut = DDCutFeature(flat_to_flat=2.2)
+        assert ddcut.flat_to_flat == 2.2
+        assert ddcut.depth is None
+        # 3mm bore: depth = (3.0 - 2.2) / 2 = 0.4
+        assert ddcut.get_depth(3.0) == pytest.approx(0.4)
+
+    def test_ddcut_with_angular_offset(self):
+        """Test DD-cut with angular offset."""
+        ddcut = DDCutFeature(depth=0.3, angular_offset=45.0)
+        assert ddcut.angular_offset == 45.0
+
+    def test_ddcut_requires_one_parameter(self):
+        """Test that either depth or flat_to_flat must be specified."""
+        with pytest.raises(ValueError, match="Must specify either"):
+            DDCutFeature()  # Neither specified
+
+    def test_ddcut_mutually_exclusive(self):
+        """Test that depth and flat_to_flat are mutually exclusive."""
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            DDCutFeature(depth=0.5, flat_to_flat=2.2)
+
+    def test_ddcut_depth_must_be_positive(self):
+        """Test that depth must be positive."""
+        with pytest.raises(ValueError, match="must be positive"):
+            DDCutFeature(depth=0)
+        with pytest.raises(ValueError, match="must be positive"):
+            DDCutFeature(depth=-0.5)
+
+    def test_ddcut_flat_to_flat_must_be_positive(self):
+        """Test that flat_to_flat must be positive."""
+        with pytest.raises(ValueError, match="must be positive"):
+            DDCutFeature(flat_to_flat=0)
+        with pytest.raises(ValueError, match="must be positive"):
+            DDCutFeature(flat_to_flat=-2.0)
+
+    def test_ddcut_depth_too_large(self):
+        """Test that depth cannot exceed bore radius."""
+        ddcut = DDCutFeature(depth=2.0)  # 2mm depth
+        # For 3mm bore (radius 1.5mm), depth of 2mm is too large
+        with pytest.raises(ValueError, match="too large for bore diameter"):
+            ddcut.get_depth(3.0)
+
+    def test_ddcut_flat_to_flat_too_large(self):
+        """Test that flat_to_flat cannot exceed bore diameter."""
+        ddcut = DDCutFeature(flat_to_flat=4.0)  # 4mm flat-to-flat
+        # For 3mm bore, this would require negative depth
+        with pytest.raises(ValueError, match="too large for bore diameter"):
+            ddcut.get_depth(3.0)
+
+    def test_ddcut_flat_to_flat_at_boundary(self):
+        """Test edge case where flat_to_flat approaches bore diameter."""
+        # When flat_to_flat is very close to bore diameter, depth approaches 0
+        ddcut = DDCutFeature(flat_to_flat=2.99)  # Almost the same as 3mm bore
+        depth = ddcut.get_depth(3.0)
+        # depth = (3.0 - 2.99)/2 = 0.005mm (very small but valid)
+        assert depth == pytest.approx(0.005)
+        assert depth > 0
+
+
+class TestCalculateDefaultDDCut:
+    """Tests for calculate_default_ddcut function."""
+
+    def test_default_15_percent(self):
+        """Test default 15% depth calculation."""
+        ddcut = calculate_default_ddcut(3.0)
+        # 15% of 3mm = 0.45mm, rounded to 0.4mm
+        assert ddcut.depth == 0.4
+        assert ddcut.flat_to_flat is None
+
+    def test_custom_10_percent(self):
+        """Test custom 10% depth calculation."""
+        ddcut = calculate_default_ddcut(3.0, depth_percent=10.0)
+        # 10% of 3mm = 0.3mm
+        assert ddcut.depth == 0.3
+
+    def test_custom_20_percent(self):
+        """Test custom 20% depth calculation."""
+        ddcut = calculate_default_ddcut(5.0, depth_percent=20.0)
+        # 20% of 5mm = 1.0mm
+        assert ddcut.depth == 1.0
+
+    def test_rounding_to_tenth_mm(self):
+        """Test that depth rounds to nearest 0.1mm."""
+        ddcut = calculate_default_ddcut(3.3)
+        # 15% of 3.3mm = 0.495mm, rounds to 0.5mm
+        assert ddcut.depth == 0.5
+
+    def test_minimum_depth_0_2mm(self):
+        """Test minimum depth is 0.2mm."""
+        ddcut = calculate_default_ddcut(1.0)  # Very small bore
+        # 15% of 1mm = 0.15mm, but min is 0.2mm
+        assert ddcut.depth >= 0.2
+
+    def test_maximum_depth_25_percent(self):
+        """Test maximum depth is clamped to 25% of diameter."""
+        ddcut = calculate_default_ddcut(2.0, depth_percent=50.0)  # Request 50%
+        # Should be clamped to 25% max: 0.5mm
+        assert ddcut.depth == 0.5
+
+    def test_various_bore_sizes(self):
+        """Test sensible defaults for various bore sizes."""
+        # 2mm bore: 15% = 0.3mm
+        assert calculate_default_ddcut(2.0).depth == 0.3
+
+        # 4mm bore: 15% = 0.6mm
+        assert calculate_default_ddcut(4.0).depth == 0.6
+
+        # 6mm bore: 15% = 0.9mm
+        assert calculate_default_ddcut(6.0).depth == 0.9
+
+        # 10mm bore: 15% = 1.5mm
+        assert calculate_default_ddcut(10.0).depth == 1.5
+
+
+class TestCreateDDCut:
+    """Tests for create_ddcut function."""
+
+    def test_create_ddcut_increases_volume(self):
+        """Test that DD-cut adds material back to bore, increasing volume."""
+        # Create a test cylinder with bore
+        cylinder = Cylinder(radius=10, height=20,
+                           align=(Align.CENTER, Align.CENTER, Align.CENTER))
+        bore = BoreFeature(diameter=6.0)
+        cylinder_with_bore = create_bore(cylinder, bore, 20, Axis.Z)
+        bore_volume = cylinder_with_bore.volume
+
+        # Add DD-cut (fills in parts of the bore)
+        ddcut = DDCutFeature(depth=0.6)  # 15% of 4mm
+        cylinder_with_ddcut = create_ddcut(cylinder_with_bore, bore, ddcut, 20, Axis.Z)
+
+        # Volume should increase (material added back)
+        assert cylinder_with_ddcut.volume > bore_volume
+        assert cylinder_with_ddcut.is_valid
+
+    def test_create_ddcut_different_axes(self):
+        """Test DD-cut creation along different axes."""
+        cylinder = Cylinder(radius=10, height=20,
+                           align=(Align.CENTER, Align.CENTER, Align.CENTER))
+        bore = BoreFeature(diameter=4.0)
+        ddcut = DDCutFeature(depth=0.4)
+
+        # Test Z axis
+        cyl_z = create_bore(cylinder, bore, 20, Axis.Z)
+        result_z = create_ddcut(cyl_z, bore, ddcut, 20, Axis.Z)
+        assert result_z.is_valid
+
+        # Test X axis
+        cyl_x = create_bore(cylinder, bore, 20, Axis.X)
+        result_x = create_ddcut(cyl_x, bore, ddcut, 20, Axis.X)
+        assert result_x.is_valid
+
+        # Test Y axis
+        cyl_y = create_bore(cylinder, bore, 20, Axis.Y)
+        result_y = create_ddcut(cyl_y, bore, ddcut, 20, Axis.Y)
+        assert result_y.is_valid
+
+    def test_create_ddcut_with_angular_offset(self):
+        """Test DD-cut with angular offset rotates the flats."""
+        cylinder = Cylinder(radius=10, height=20,
+                           align=(Align.CENTER, Align.CENTER, Align.CENTER))
+        bore = BoreFeature(diameter=4.0)
+        cylinder_with_bore = create_bore(cylinder, bore, 20, Axis.Z)
+
+        # DD-cut with 0° offset
+        ddcut_0 = DDCutFeature(depth=0.4, angular_offset=0.0)
+        result_0 = create_ddcut(cylinder_with_bore, bore, ddcut_0, 20, Axis.Z)
+
+        # DD-cut with 45° offset
+        ddcut_45 = DDCutFeature(depth=0.4, angular_offset=45.0)
+        result_45 = create_ddcut(cylinder_with_bore, bore, ddcut_45, 20, Axis.Z)
+
+        # Both should be valid but have different geometry
+        assert result_0.is_valid
+        assert result_45.is_valid
+        # Volumes should be the same (same depth, just rotated)
+        assert abs(result_0.volume - result_45.volume) < 0.1
 
 
 class TestCreateBore:
@@ -544,6 +738,237 @@ class TestFromJsonFile:
             face_width=4.0,
             bore=BoreFeature(diameter=6.0),
             keyway=KeywayFeature()
+        )
+        wheel = wheel_geo.build()
+
+        assert wheel.volume > 0
+        assert wheel.is_valid
+
+
+class TestWormWithDDCut:
+    """Tests for worm geometry with DD-cut feature."""
+
+    @pytest.fixture
+    def worm_params(self, sample_design_7mm):
+        """Create WormParams from sample design."""
+        return WormParams(
+            module_mm=sample_design_7mm["worm"]["module_mm"],
+            num_starts=sample_design_7mm["worm"]["num_starts"],
+            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
+            lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
+            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
+            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
+            hand="right",
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def assembly_params(self, sample_design_7mm):
+        """Create AssemblyParams from sample design."""
+        return AssemblyParams(
+            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
+            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
+            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
+            hand=sample_design_7mm["assembly"]["hand"],
+            ratio=sample_design_7mm["assembly"]["ratio"]
+        )
+
+    def test_worm_with_ddcut(self, worm_params, assembly_params):
+        """Test worm with bore and DD-cut."""
+        # Build with bore only
+        worm_geo_bore = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            bore=BoreFeature(diameter=3.0)
+        )
+        worm_bore = worm_geo_bore.build()
+
+        # Build with bore and DD-cut
+        worm_geo_ddcut = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            bore=BoreFeature(diameter=3.0),
+            ddcut=DDCutFeature(depth=0.4)
+        )
+        worm_ddcut = worm_geo_ddcut.build()
+
+        # Volume should increase (DD-cut fills in bore)
+        assert worm_ddcut.volume > worm_bore.volume
+        assert worm_ddcut.is_valid
+
+    def test_worm_ddcut_vs_keyway_mutually_exclusive(self, worm_params, assembly_params):
+        """Test that worm cannot have both DD-cut and keyway."""
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            worm_geo = WormGeometry(
+                params=worm_params,
+                assembly_params=assembly_params,
+                length=10.0,
+                bore=BoreFeature(diameter=6.0),
+                keyway=KeywayFeature(),
+                ddcut=DDCutFeature(depth=0.6)
+            )
+            worm_geo.build()
+
+    def test_worm_ddcut_requires_bore(self, worm_params, assembly_params):
+        """Test that DD-cut requires a bore."""
+        with pytest.raises(ValueError, match="DD-cut requires a bore"):
+            worm_geo = WormGeometry(
+                params=worm_params,
+                assembly_params=assembly_params,
+                length=10.0,
+                ddcut=DDCutFeature(depth=0.4)  # No bore specified
+            )
+            worm_geo.build()
+
+    def test_worm_with_default_ddcut(self, worm_params, assembly_params):
+        """Test worm with auto-calculated DD-cut depth."""
+        ddcut = calculate_default_ddcut(3.0)  # 15% of 3mm = 0.4mm
+        worm_geo = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            bore=BoreFeature(diameter=3.0),
+            ddcut=ddcut
+        )
+        worm = worm_geo.build()
+
+        assert worm.volume > 0
+        assert worm.is_valid
+
+
+class TestWheelWithDDCut:
+    """Tests for wheel geometry with DD-cut feature."""
+
+    @pytest.fixture
+    def worm_params(self, sample_design_7mm):
+        """Create WormParams from sample design."""
+        return WormParams(
+            module_mm=sample_design_7mm["worm"]["module_mm"],
+            num_starts=sample_design_7mm["worm"]["num_starts"],
+            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
+            lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
+            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
+            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
+            hand="right",
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def wheel_params(self, sample_design_7mm):
+        """Create WheelParams from sample design."""
+        return WheelParams(
+            module_mm=sample_design_7mm["wheel"]["module_mm"],
+            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
+            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
+            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
+            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
+            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def assembly_params(self, sample_design_7mm):
+        """Create AssemblyParams from sample design."""
+        return AssemblyParams(
+            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
+            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
+            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
+            hand=sample_design_7mm["assembly"]["hand"],
+            ratio=sample_design_7mm["assembly"]["ratio"]
+        )
+
+    def test_wheel_with_ddcut(self, wheel_params, worm_params, assembly_params):
+        """Test wheel with bore and DD-cut."""
+        # Build with bore only
+        wheel_geo_bore = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            bore=BoreFeature(diameter=2.0)
+        )
+        wheel_bore = wheel_geo_bore.build()
+
+        # Build with bore and DD-cut
+        wheel_geo_ddcut = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            bore=BoreFeature(diameter=2.0),
+            ddcut=DDCutFeature(depth=0.3)
+        )
+        wheel_ddcut = wheel_geo_ddcut.build()
+
+        # Volume should increase (DD-cut fills in bore)
+        assert wheel_ddcut.volume > wheel_bore.volume
+        assert wheel_ddcut.is_valid
+
+    def test_wheel_ddcut_vs_keyway_mutually_exclusive(self, wheel_params, worm_params, assembly_params):
+        """Test that wheel cannot have both DD-cut and keyway."""
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            wheel_geo = WheelGeometry(
+                params=wheel_params,
+                worm_params=worm_params,
+                assembly_params=assembly_params,
+                face_width=4.0,
+                bore=BoreFeature(diameter=6.0),
+                keyway=KeywayFeature(),
+                ddcut=DDCutFeature(depth=0.6)
+            )
+            wheel_geo.build()
+
+    def test_wheel_ddcut_requires_bore(self, wheel_params, worm_params, assembly_params):
+        """Test that DD-cut requires a bore."""
+        with pytest.raises(ValueError, match="DD-cut requires a bore"):
+            wheel_geo = WheelGeometry(
+                params=wheel_params,
+                worm_params=worm_params,
+                assembly_params=assembly_params,
+                face_width=4.0,
+                ddcut=DDCutFeature(depth=0.3)  # No bore specified
+            )
+            wheel_geo.build()
+
+    def test_wheel_throated_with_ddcut(self, wheel_params, worm_params, assembly_params):
+        """Test throated wheel with DD-cut."""
+        wheel_geo = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            throated=True,
+            bore=BoreFeature(diameter=2.0),
+            ddcut=DDCutFeature(depth=0.3)
+        )
+        wheel = wheel_geo.build()
+
+        assert wheel.volume > 0
+        assert wheel.is_valid
+
+    def test_wheel_with_default_ddcut(self, wheel_params, worm_params, assembly_params):
+        """Test wheel with auto-calculated DD-cut depth."""
+        ddcut = calculate_default_ddcut(2.0)  # 15% of 2mm = 0.3mm
+        wheel_geo = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            bore=BoreFeature(diameter=2.0),
+            ddcut=ddcut
         )
         wheel = wheel_geo.build()
 
