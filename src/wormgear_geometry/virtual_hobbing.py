@@ -21,8 +21,12 @@ Trade-offs:
 """
 
 import math
+import sys
+import time
 from typing import Optional, Literal, Callable
 from build123d import *
+from OCP.ShapeFix import ShapeFix_Shape
+from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from .io import WheelParams, WormParams, AssemblyParams
 from .features import (
     BoreFeature,
@@ -33,7 +37,7 @@ from .features import (
     create_hub
 )
 
-ProfileType = Literal["ZA", "ZK"]
+ProfileType = Literal["ZA", "ZK", "ZI"]
 
 # Step presets for virtual hobbing with estimated timings
 HOBBING_PRESETS = {
@@ -124,6 +128,7 @@ class VirtualHobbingWheelGeometry:
         hobbing_steps: int = 72,
         bore: Optional[BoreFeature] = None,
         keyway: Optional[KeywayFeature] = None,
+        ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         hub: Optional[HubFeature] = None,
         profile: ProfileType = "ZA",
@@ -162,6 +167,7 @@ class VirtualHobbingWheelGeometry:
         self.hobbing_steps = hobbing_steps
         self.bore = bore
         self.keyway = keyway
+        self.ddcut = ddcut
         self.set_screw = set_screw
         self.hub = hub
         self.profile = profile.upper() if isinstance(profile, str) else profile
@@ -196,13 +202,15 @@ class VirtualHobbingWheelGeometry:
         # Use provided hob geometry or create cylindrical hob
         if self.hob_geometry is not None:
             print(f"    Using provided worm geometry as hob (e.g., globoid)")
-            hob = self.hob_geometry
+            print(f"    Applying simplification to complex hob geometry...")
+            hob = self._create_simplified_hob(self.hob_geometry)
         else:
             # Create the hob (cutting tool based on worm geometry)
             hob = self._create_hob()
 
         # Perform virtual hobbing
-        wheel = self._simulate_hobbing(wheel, hob)
+        # Use incremental approach (faster, more reliable than envelope)
+        wheel = self._simulate_hobbing_incremental(wheel, hob)
 
         # Add bore, keyway, and set screw if specified
         if self.bore is not None or self.keyway is not None or self.set_screw is not None:
@@ -211,6 +219,7 @@ class VirtualHobbingWheelGeometry:
                 part_length=self.face_width,
                 bore=self.bore,
                 keyway=self.keyway,
+                ddcut=self.ddcut,
                 set_screw=self.set_screw,
                 axis=Axis.Z
             )
@@ -301,7 +310,7 @@ class VirtualHobbingWheelGeometry:
             with BuildSketch(profile_plane) as sk:
                 with BuildLine():
                     if self.profile == "ZA":
-                        # ZA: Straight flanks
+                        # ZA profile: Straight flanks (trapezoidal) per DIN 3975
                         root_left = (inner_r, -thread_half_width_root)
                         root_right = (inner_r, thread_half_width_root)
                         tip_left = (outer_r, -thread_half_width_tip)
@@ -311,20 +320,35 @@ class VirtualHobbingWheelGeometry:
                         Line(tip_left, tip_right)
                         Line(tip_right, root_right)
                         Line(root_right, root_left)
-                    else:
-                        # ZK: Slightly convex flanks
-                        num_flank_points = 5
+
+                    elif self.profile == "ZK":
+                        # ZK profile: Circular arc flanks per DIN 3975 Type K
+                        # Biconical grinding wheel profile
+                        num_points = 9
                         left_flank = []
                         right_flank = []
 
-                        for j in range(num_flank_points):
-                            t_flank = j / (num_flank_points - 1)
-                            r_pos = inner_r + t_flank * (outer_r - inner_r)
-                            linear_width = thread_half_width_root + t_flank * (thread_half_width_tip - thread_half_width_root)
-                            curve_factor = 4 * t_flank * (1 - t_flank)
-                            bulge = curve_factor * 0.05 * (thread_half_width_root - thread_half_width_tip)
-                            width = linear_width + bulge
+                        # Arc radius
+                        arc_radius = 0.45 * self.worm_params.module_mm
 
+                        flank_height = outer_r - inner_r
+                        flank_width_change = thread_half_width_root - thread_half_width_tip
+
+                        if flank_width_change > 0:
+                            flank_angle = math.atan(flank_width_change / flank_height)
+                        else:
+                            flank_angle = 0
+
+                        for j in range(num_points):
+                            t = j / (num_points - 1)
+                            r_pos = inner_r + t * flank_height
+                            linear_width = thread_half_width_root + t * (thread_half_width_tip - thread_half_width_root)
+
+                            # Circular arc bulge
+                            arc_param = t * math.pi
+                            arc_bulge = arc_radius * 0.15 * math.sin(arc_param)
+
+                            width = linear_width + arc_bulge
                             left_flank.append((r_pos, -width))
                             right_flank.append((r_pos, width))
 
@@ -332,6 +356,25 @@ class VirtualHobbingWheelGeometry:
                         Line(left_flank[-1], right_flank[-1])
                         Spline(list(reversed(right_flank)))
                         Line(right_flank[0], left_flank[0])
+
+                    elif self.profile == "ZI":
+                        # ZI profile: Involute helicoid per DIN 3975 Type I
+                        # In axial section, appears as straight flanks (generatrix of involute helicoid)
+                        # The involute shape is in normal section (perpendicular to thread)
+                        # Manufactured by hobbing
+
+                        root_left = (inner_r, -thread_half_width_root)
+                        root_right = (inner_r, thread_half_width_root)
+                        tip_left = (outer_r, -thread_half_width_tip)
+                        tip_right = (outer_r, thread_half_width_tip)
+
+                        Line(root_left, tip_left)      # Left flank (straight generatrix)
+                        Line(tip_left, tip_right)      # Tip
+                        Line(tip_right, root_right)    # Right flank (straight generatrix)
+                        Line(root_right, root_left)    # Root (closes)
+
+                    else:
+                        raise ValueError(f"Unknown profile type: {self.profile}")
                 make_face()
 
             sections.append(sk.sketch.faces()[0])
@@ -374,6 +417,196 @@ class VirtualHobbingWheelGeometry:
             except Exception as e:
                 pass  # Don't let callback errors break generation
 
+    def _simplify_geometry(self, part: Part, description: str = "") -> Part:
+        """
+        Simplify geometry using OpenCascade tools.
+
+        Optimization #3: Merge coplanar faces and unify same-domain surfaces
+        to reduce boolean operation complexity.
+
+        Args:
+            part: The part to simplify
+            description: Description for progress reporting
+
+        Returns:
+            Simplified part
+        """
+        if description:
+            print(f"    Simplifying {description}...", end="", flush=True)
+
+        simplify_start = time.time()
+
+        try:
+            # Ensure we have a Part, not a ShapeList or other type
+            if not isinstance(part, Part):
+                if hasattr(part, 'wrapped'):
+                    part = Part(part.wrapped)
+                else:
+                    raise ValueError(f"Cannot simplify object of type {type(part)}")
+
+            # UnifySameDomain merges faces that share the same underlying surface
+            unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
+            unifier.Build()
+            unified_shape = unifier.Shape()
+
+            # ShapeFix cleans up invalid geometry
+            fixer = ShapeFix_Shape(unified_shape)
+            fixer.Perform()
+            fixed_shape = fixer.Shape()
+
+            simplified = Part(fixed_shape)
+
+            simplify_time = time.time() - simplify_start
+            if description:
+                print(f" done in {simplify_time:.1f}s")
+
+            return simplified
+        except Exception as e:
+            simplify_time = time.time() - simplify_start
+            print(f" failed after {simplify_time:.1f}s: {e}, using original")
+            return part
+
+    def _create_simplified_hob(self, original_hob: Part) -> Part:
+        """
+        Create a simplified version of a complex hob (e.g., globoid).
+
+        Optimization #2: For globoid worms with many lofted sections,
+        create a coarser approximation that's much faster to process
+        while preserving tooth contact geometry.
+
+        Args:
+            original_hob: The original complex hob geometry
+
+        Returns:
+            Simplified hob (or original if simplification not needed/possible)
+        """
+        # First try OCC simplification
+        simplified = self._simplify_geometry(original_hob, "hob geometry (OCC tools)")
+
+        # TODO: If we detect a globoid, we could rebuild it with fewer sections
+        # For now, OCC simplification should help significantly
+
+        return simplified
+
+    def _trim_envelope_to_wheel_bounds(self, envelope: Part) -> Part:
+        """
+        Trim envelope to wheel boundaries.
+
+        Optimization #1: Remove all hob geometry outside the wheel's
+        cutting zone. This dramatically reduces the complexity of the
+        boolean subtraction in Phase 2.
+
+        Args:
+            envelope: The full hob envelope
+
+        Returns:
+            Trimmed envelope
+        """
+        # Calculate trim radius: must be large enough to contain hob at working position
+        # Hob is positioned at centre_distance from wheel center
+        # Hob extends to: centre_distance + hob_tip_radius
+        centre_distance = self.assembly_params.centre_distance_mm
+        hob_tip_radius = self.worm_params.tip_diameter_mm / 2
+
+        # Add small margin beyond hob envelope (0.5mm is enough)
+        trim_radius = centre_distance + hob_tip_radius + 0.5
+        trim_height = self.face_width + 2.0  # 2mm margin
+
+        bounding_cylinder = Cylinder(
+            radius=trim_radius,
+            height=trim_height,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        )
+
+        print(f"    Trimming envelope to wheel bounds (r={trim_radius:.2f}mm, h={trim_height:.2f}mm)...")
+        sys.stdout.flush()
+
+        trim_start = time.time()
+
+        try:
+            # Ensure envelope is a Part
+            if not isinstance(envelope, Part):
+                if hasattr(envelope, 'wrapped'):
+                    envelope = Part(envelope.wrapped)
+                else:
+                    print(f"    ⚠️  Envelope is not a Part (type: {type(envelope)}), skipping trim")
+                    return envelope
+
+            # Intersect envelope with bounding cylinder
+            trimmed = envelope & bounding_cylinder
+            trim_time = time.time() - trim_start
+            print(f"    ✓ Envelope trimmed in {trim_time:.1f}s")
+            return trimmed
+        except Exception as e:
+            trim_time = time.time() - trim_start
+            print(f"    ⚠️  Envelope trimming failed after {trim_time:.1f}s: {e}")
+            print(f"    ⚠️  Using untrimmed envelope (Phase 2 will be slower)")
+            return envelope
+
+    def _simulate_hobbing_incremental(self, blank: Part, hob: Part) -> Part:
+        """
+        Simulate hobbing by incrementally subtracting hob at each position.
+
+        ALTERNATIVE APPROACH: Instead of building envelope then subtracting,
+        subtract the hob from wheel at each step. Avoids complex envelope management.
+
+        Pros: Simpler, more predictable memory usage
+        Cons: More boolean operations, overlapping cuts
+        """
+        centre_distance = self.assembly_params.centre_distance_mm
+        wheel_teeth = self.params.num_teeth
+        worm_starts = self.worm_params.num_starts
+        ratio = wheel_teeth / worm_starts
+
+        wheel_increment = 360.0 / self.hobbing_steps
+        hob_increment = wheel_increment * ratio
+
+        self._report_progress(
+            f"    Hobbing simulation (INCREMENTAL): {self.hobbing_steps} steps, ratio 1:{ratio:.1f}",
+            0.0
+        )
+
+        progress_interval = max(1, self.hobbing_steps // 20)
+        wheel = blank
+
+        for step in range(self.hobbing_steps):
+            wheel_angle = step * wheel_increment
+            hob_angle = step * hob_increment
+
+            # CORRECT HOBBING KINEMATICS:
+            # Hob stays at FIXED position (centre distance away, horizontal axis)
+            # Hob rotates around its own axis by hob_angle
+            # WHEEL rotates by wheel_angle
+            # We subtract hob from the rotated wheel position
+
+            # Position hob at fixed location (on X axis at centre distance)
+            # Hob axis is horizontal (along Y after Rot(X=90))
+            hob_positioned = Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+
+            # Rotate wheel to current angle, subtract hob, rotate back
+            # This is equivalent to: wheel rotates, hob cuts, result is accumulated
+            try:
+                # Rotate wheel to position
+                wheel_rotated = Rot(Z=wheel_angle) * wheel
+                # Subtract hob from rotated wheel
+                wheel_cut = wheel_rotated - hob_positioned
+                # Rotate back to accumulate result
+                wheel = Rot(Z=-wheel_angle) * wheel_cut
+            except Exception as e:
+                self._report_progress(f"    WARNING: Step {step} subtraction failed: {e}", -1)
+
+            # Progress
+            if (step + 1) % progress_interval == 0:
+                pct = ((step + 1) / self.hobbing_steps) * 100
+                self._report_progress(
+                    f"      {pct:.0f}% complete ({step + 1}/{self.hobbing_steps} cuts)",
+                    pct,
+                    verbose=(step + 1) in [self.hobbing_steps // 4, self.hobbing_steps // 2, 3 * self.hobbing_steps // 4]
+                )
+
+        self._report_progress(f"    ✓ Incremental hobbing complete", 100.0)
+        return wheel
+
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
         """
         Simulate the hobbing process by creating the envelope of all hob positions.
@@ -385,6 +618,12 @@ class VirtualHobbingWheelGeometry:
         3. Subtract the envelope from the wheel blank once
 
         This produces proper conjugate tooth profiles.
+
+        PERFORMANCE WARNING:
+        - Complex hob geometry (e.g., globoid worms) can make this VERY slow
+        - Phase 2 (envelope subtraction) complexity grows exponentially with hobbing_steps
+        - For globoid worms, consider using 18-36 steps instead of 72+
+        - Cylindrical worms are much faster to process
         """
         centre_distance = self.assembly_params.centre_distance_mm
         wheel_teeth = self.params.num_teeth
@@ -401,6 +640,13 @@ class VirtualHobbingWheelGeometry:
             f"    Hobbing simulation: {self.hobbing_steps} steps, ratio 1:{ratio:.1f}",
             0.0
         )
+
+        # Warn about performance if using many steps (likely globoid worm)
+        if self.hobbing_steps > 36 and self.worm_geometry is not None:
+            print(f"    ⚠️  WARNING: Using {self.hobbing_steps} steps with provided worm geometry (likely globoid).")
+            print(f"    ⚠️  Phase 2 may take 30+ minutes or fail. Consider using 18-36 steps for globoid worms.")
+            sys.stdout.flush()
+
         self._report_progress(
             f"    Phase 1: Building hob envelope (union of all positions)...",
             1.0
@@ -409,8 +655,17 @@ class VirtualHobbingWheelGeometry:
         # Track progress - more frequent updates for WASM
         progress_interval = max(1, self.hobbing_steps // 20)
 
+        # Time Phase 1
+        phase1_start = time.time()
+
         # Build envelope by unioning all hob positions
         envelope = None
+
+        # Optimization #4: Periodic simplification interval
+        # Only do this for complex geometry (globoid) - skip for cylindrical
+        # Simplify every N steps to prevent complexity buildup
+        use_periodic_simplification = (self.hob_geometry is not None)  # Only if using provided geometry
+        simplification_interval = max(3, self.hobbing_steps // 6) if use_periodic_simplification else 999999
 
         for step in range(self.hobbing_steps):
             # Current rotations
@@ -420,20 +675,36 @@ class VirtualHobbingWheelGeometry:
             # Rotate hob around its own axis first, then position and rotate around wheel
             hob_rotated = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
 
-            # Union into envelope
+            # Union into envelope using OCP fuse (+ operator just makes a list!)
             try:
                 if envelope is None:
                     envelope = hob_rotated
                 else:
-                    envelope = envelope + hob_rotated
+                    # Use OCP's BRepAlgoAPI_Fuse for actual boolean union
+                    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+
+                    env_shape = envelope.wrapped if hasattr(envelope, 'wrapped') else envelope
+                    hob_shape = hob_rotated.wrapped if hasattr(hob_rotated, 'wrapped') else hob_rotated
+
+                    fuser = BRepAlgoAPI_Fuse(env_shape, hob_shape)
+                    fuser.Build()
+
+                    if fuser.IsDone():
+                        envelope = Part(fuser.Shape())
+                    else:
+                        self._report_progress(f"    WARNING: Step {step} union failed (IsDone=False)", -1)
             except Exception as e:
                 self._report_progress(f"    WARNING: Step {step} union failed: {e}", -1)
+
+            # Optimization #4: Periodic simplification during envelope building (globoid only)
+            # Simplify every few steps to prevent exponential complexity growth
+            if use_periodic_simplification and envelope is not None and (step + 1) % simplification_interval == 0 and (step + 1) < self.hobbing_steps:
+                envelope = self._simplify_geometry(envelope, f"envelope at step {step + 1}")
 
             # Progress indicator (more frequent for WASM feedback)
             if (step + 1) % progress_interval == 0:
                 # Phase 1 is 0-90% of total progress
                 pct = ((step + 1) / self.hobbing_steps) * 90
-<<<<<<< HEAD
                 # Only print 25%, 50%, 75% to console; all updates go to callback
                 verbose = (step + 1) in [
                     self.hobbing_steps // 4,
@@ -444,24 +715,131 @@ class VirtualHobbingWheelGeometry:
                     f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)",
                     pct,
                     verbose=verbose
-=======
-                self._report_progress(
-                    f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)",
-                    pct
->>>>>>> origin/main
                 )
 
         if envelope is None:
             self._report_progress(f"    ERROR: Failed to build envelope", -1)
             return blank
 
-        self._report_progress(f"    Phase 2: Subtracting envelope from wheel blank...", 92.0)
+        # Ensure envelope is a proper Part (unions can sometimes create Compound/ShapeList)
+        if not isinstance(envelope, Part):
+            print(f"    Converting envelope from {type(envelope).__name__} to Part...")
+            convert_start = time.time()
+            try:
+                # If it's a ShapeList (list of shapes), we need to fuse them at OCP level
+                if isinstance(envelope, (list, tuple)):
+                    if len(envelope) == 0:
+                        print(f"    ⚠️  ERROR: Envelope is empty list!")
+                        return blank
+
+                    print(f"    Fusing {len(envelope)} shapes from ShapeList...")
+
+                    # Use OCP BRepAlgoAPI_Fuse to fuse all shapes
+                    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+
+                    # Start with first shape
+                    current_shape = envelope[0].wrapped if hasattr(envelope[0], 'wrapped') else envelope[0]
+
+                    # Fuse with each subsequent shape
+                    for i, shape in enumerate(envelope[1:], 1):
+                        shape_ocp = shape.wrapped if hasattr(shape, 'wrapped') else shape
+                        fuser = BRepAlgoAPI_Fuse(current_shape, shape_ocp)
+                        fuser.Build()
+                        if not fuser.IsDone():
+                            print(f"    ⚠️  WARNING: Fuse failed at shape {i}")
+                            continue
+                        current_shape = fuser.Shape()
+
+                    # Wrap result as Part
+                    envelope = Part(current_shape)
+
+                elif hasattr(envelope, 'wrapped'):
+                    # Has .wrapped - direct conversion
+                    envelope = Part(envelope.wrapped)
+                else:
+                    print(f"    ⚠️  ERROR: Don't know how to convert {type(envelope)} to Part!")
+                    return blank
+
+                # Final check that result is a Part
+                if not isinstance(envelope, Part):
+                    print(f"    ⚠️  ERROR: After conversion, still not a Part (is {type(envelope)})!")
+                    return blank
+
+                convert_time = time.time() - convert_start
+                print(f"    ✓ Conversion successful in {convert_time:.1f}s")
+            except Exception as e:
+                convert_time = time.time() - convert_start
+                print(f"    ⚠️  ERROR: Failed to convert envelope to Part after {convert_time:.1f}s: {e}")
+                import traceback
+                traceback.print_exc()
+                return blank
+
+        # Report Phase 1 completion time
+        phase1_time = time.time() - phase1_start
+        self._report_progress(
+            f"    ✓ Phase 1 complete in {phase1_time:.1f}s ({self.hobbing_steps} unions)",
+            91.0
+        )
+
+        # DEBUG: Check envelope validity before optimizations
+        try:
+            env_volume = envelope.volume
+            print(f"    Envelope volume before optimizations: {env_volume:.2f} mm³")
+        except Exception as e:
+            print(f"    ⚠️  WARNING: Cannot compute envelope volume: {e}")
+
+        # Optimization #1: Trim envelope to wheel boundaries
+        # This removes excess hob geometry that doesn't cut anything
+        envelope = self._trim_envelope_to_wheel_bounds(envelope)
+
+        # DEBUG: Check envelope after trim
+        try:
+            env_volume_trimmed = envelope.volume
+            print(f"    Envelope volume after trim: {env_volume_trimmed:.2f} mm³")
+        except:
+            print(f"    ⚠️  WARNING: Envelope invalid after trim!")
+
+        # Optimization #3: Final simplification before Phase 2
+        print(f"    Applying final simplification to envelope...")
+        sys.stdout.flush()
+        simplify_start = time.time()
+        envelope = self._simplify_geometry(envelope, "final envelope")
+        simplify_time = time.time() - simplify_start
+        print(f"    ✓ Final simplification complete in {simplify_time:.1f}s")
+
+        # DEBUG: Check envelope after simplification
+        try:
+            env_volume_final = envelope.volume
+            print(f"    Envelope volume after simplification: {env_volume_final:.2f} mm³")
+        except:
+            print(f"    ⚠️  WARNING: Envelope invalid after simplification!")
+
+        # Phase 2: Subtract envelope (this is a single complex boolean operation)
+        self._report_progress(
+            f"    Phase 2: Subtracting envelope from wheel blank (this may take several minutes)...",
+            92.0
+        )
+
+        # Force flush to ensure message is displayed immediately
+        sys.stdout.flush()
+
+        # Time this operation since it can be slow
+        phase2_start = time.time()
 
         # Subtract the envelope from the wheel blank
         try:
             wheel = blank - envelope
+            phase2_time = time.time() - phase2_start
+            self._report_progress(
+                f"    ✓ Envelope subtracted in {phase2_time:.1f}s",
+                95.0
+            )
         except Exception as e:
-            self._report_progress(f"    ERROR: Envelope subtraction failed: {e}", -1)
+            phase2_time = time.time() - phase2_start
+            self._report_progress(
+                f"    ERROR: Envelope subtraction failed after {phase2_time:.1f}s: {e}",
+                -1
+            )
             return blank
 
         self._report_progress(f"    ✓ Virtual hobbing complete", 100.0)
