@@ -358,9 +358,16 @@ class VirtualHobbingWheelGeometry:
         print(f"    ✓ Hob created: length={hob_length:.2f}mm, {self.worm_params.num_starts} start(s)")
         return hob
 
-    def _report_progress(self, message: str, percent: float):
-        """Report progress via callback if available."""
-        print(message)
+    def _report_progress(self, message: str, percent: float, verbose: bool = True):
+        """Report progress via callback if available.
+
+        Args:
+            message: Progress message
+            percent: Completion percentage (0-100)
+            verbose: If True, also print to console. If False, only call callback.
+        """
+        if verbose:
+            print(message)
         if self.progress_callback:
             try:
                 self.progress_callback(message, percent)
@@ -426,9 +433,22 @@ class VirtualHobbingWheelGeometry:
             if (step + 1) % progress_interval == 0:
                 # Phase 1 is 0-90% of total progress
                 pct = ((step + 1) / self.hobbing_steps) * 90
+<<<<<<< HEAD
+                # Only print 25%, 50%, 75% to console; all updates go to callback
+                verbose = (step + 1) in [
+                    self.hobbing_steps // 4,
+                    self.hobbing_steps // 2,
+                    3 * self.hobbing_steps // 4
+                ]
+                self._report_progress(
+                    f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)",
+                    pct,
+                    verbose=verbose
+=======
                 self._report_progress(
                     f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)",
                     pct
+>>>>>>> origin/main
                 )
 
         if envelope is None:
