@@ -102,10 +102,13 @@ class WormGeometry:
 
         # Trim to exact length - removes fragile tapered thread ends
         print(f"    Trimming to final length ({self.length:.2f}mm)...")
+        # Trim box needs to be large enough in XY to contain the worm diameter
+        # but exact in Z (height) to trim to the desired length
+        trim_diameter = tip_radius * 4  # Plenty of margin
         trim_box = Box(
-            length=self.length * 2,  # Large in XY
-            width=self.length * 2,
-            height=self.length,
+            length=trim_diameter,  # Large enough in XY
+            width=trim_diameter,
+            height=self.length,    # Exact length in Z
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
         worm = worm & trim_box
