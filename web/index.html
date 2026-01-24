@@ -741,7 +741,13 @@
                 updateStatus('Loading Pyodide...', 'Downloading Python runtime', 'loading');
 
                 pyodide = await loadPyodide({
-                    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/'
+                    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/',
+                    stdout: (text) => {
+                        if (text.trim()) log(`[py] ${text}`, 'info');
+                    },
+                    stderr: (text) => {
+                        if (text.trim()) log(`[py:err] ${text}`, 'warning');
+                    }
                 });
 
                 log('Pyodide loaded successfully', 'success');
