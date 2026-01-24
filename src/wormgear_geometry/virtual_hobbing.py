@@ -399,6 +399,13 @@ class VirtualHobbingWheelGeometry:
         simplify_start = time.time()
 
         try:
+            # Ensure we have a Part, not a ShapeList or other type
+            if not isinstance(part, Part):
+                if hasattr(part, 'wrapped'):
+                    part = Part(part.wrapped)
+                else:
+                    raise ValueError(f"Cannot simplify object of type {type(part)}")
+
             # UnifySameDomain merges faces that share the same underlying surface
             unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
             unifier.Build()
@@ -479,6 +486,14 @@ class VirtualHobbingWheelGeometry:
         trim_start = time.time()
 
         try:
+            # Ensure envelope is a Part
+            if not isinstance(envelope, Part):
+                if hasattr(envelope, 'wrapped'):
+                    envelope = Part(envelope.wrapped)
+                else:
+                    print(f"    ⚠️  Envelope is not a Part (type: {type(envelope)}), skipping trim")
+                    return envelope
+
             # Intersect envelope with bounding cylinder
             trimmed = envelope & bounding_cylinder
             trim_time = time.time() - trim_start
@@ -556,14 +571,31 @@ class VirtualHobbingWheelGeometry:
             hob_angle = step * hob_increment
 
             # Rotate hob around its own axis first, then position and rotate around wheel
-            hob_rotated = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+            hob_rotated_raw = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+
+            # Ensure hob_rotated is a proper Part (transformations can return ShapeList)
+            if isinstance(hob_rotated_raw, Part):
+                hob_rotated = hob_rotated_raw
+            elif isinstance(hob_rotated_raw, (list, tuple)):
+                # If it's a list, union all elements
+                hob_rotated = hob_rotated_raw[0]
+                for item in hob_rotated_raw[1:]:
+                    hob_rotated = hob_rotated + item
+            else:
+                # Wrap it as a Part
+                hob_rotated = Part(hob_rotated_raw.wrapped)
 
             # Union into envelope
             try:
                 if envelope is None:
                     envelope = hob_rotated
                 else:
+                    # Perform union
                     envelope = envelope + hob_rotated
+                    # Ensure result is a Part
+                    if not isinstance(envelope, Part):
+                        # Compound - convert to Part
+                        envelope = Part(envelope.wrapped)
             except Exception as e:
                 self._report_progress(f"    WARNING: Step {step} union failed: {e}", -1)
 
