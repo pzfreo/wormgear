@@ -192,10 +192,37 @@ class WormGeometry:
         num_sections = int((self.length / lead) * self.sections_per_turn) + 1
         sections = []
 
+        # Thread end taper: ramp down thread depth over ~1 lead at each end
+        # This prevents threads from extending abruptly beyond the shaft ends
+        taper_length = lead  # Taper zone length at each end
+
         for i in range(num_sections):
             t = i / (num_sections - 1)
             point = helix @ t
             tangent = helix % t
+
+            # Calculate taper factor for smooth thread ends
+            # Ramps from 0 to 1 over taper_length at each end
+            half_width = self.length / 2.0
+            z_position = point.Z
+            dist_from_start = z_position + half_width
+            dist_from_end = half_width - z_position
+
+            if dist_from_start < taper_length:
+                # Taper at start end
+                taper_factor = dist_from_start / taper_length
+            elif dist_from_end < taper_length:
+                # Taper at end
+                taper_factor = dist_from_end / taper_length
+            else:
+                # Full depth in middle
+                taper_factor = 1.0
+
+            # Smooth the taper with a cosine curve for better appearance
+            taper_factor = (1 - math.cos(taper_factor * math.pi)) / 2
+
+            # Ensure minimum taper factor to avoid degenerate profiles
+            taper_factor = max(0.05, taper_factor)
 
             # Radial direction at this point
             angle = math.atan2(point.Y, point.X)
@@ -204,15 +231,21 @@ class WormGeometry:
             # Profile plane perpendicular to helix tangent
             profile_plane = Plane(origin=point, x_dir=radial_dir, z_dir=tangent)
 
+            # Apply taper factor to thread dimensions
+            local_inner_r = inner_r * taper_factor
+            local_outer_r = outer_r * taper_factor
+            local_thread_half_width_root = thread_half_width_root * taper_factor
+            local_thread_half_width_tip = thread_half_width_tip * taper_factor
+
             with BuildSketch(profile_plane) as sk:
                 with BuildLine():
                     if self.profile == "ZA":
                         # ZA profile: Straight flanks (trapezoidal) per DIN 3975
                         # Best for CNC machining - simple, accurate, standard
-                        root_left = (inner_r, -thread_half_width_root)
-                        root_right = (inner_r, thread_half_width_root)
-                        tip_left = (outer_r, -thread_half_width_tip)
-                        tip_right = (outer_r, thread_half_width_tip)
+                        root_left = (local_inner_r, -local_thread_half_width_root)
+                        root_right = (local_inner_r, local_thread_half_width_root)
+                        tip_left = (local_outer_r, -local_thread_half_width_tip)
+                        tip_right = (local_outer_r, local_thread_half_width_tip)
 
                         Line(root_left, tip_left)      # Left flank (straight)
                         Line(tip_left, tip_right)      # Tip
