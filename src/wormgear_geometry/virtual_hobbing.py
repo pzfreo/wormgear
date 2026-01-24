@@ -611,11 +611,30 @@ class VirtualHobbingWheelGeometry:
         if not isinstance(envelope, Part):
             print(f"    Converting envelope from {type(envelope).__name__} to Part...")
             try:
-                if hasattr(envelope, 'wrapped'):
+                # If it's a ShapeList (list of shapes), union them all
+                if isinstance(envelope, (list, tuple)):
+                    if len(envelope) == 0:
+                        print(f"    ⚠️  ERROR: Envelope is empty list!")
+                        return blank
+                    # Start with first element
+                    result = envelope[0]
+                    # Union the rest
+                    for shape in envelope[1:]:
+                        result = result + shape
+                    envelope = result
+                elif hasattr(envelope, 'wrapped'):
+                    # Has .wrapped - direct conversion
                     envelope = Part(envelope.wrapped)
                 else:
-                    print(f"    ⚠️  ERROR: Envelope has no .wrapped attribute!")
+                    print(f"    ⚠️  ERROR: Don't know how to convert {type(envelope)} to Part!")
                     return blank
+
+                # Final check that result is a Part
+                if not isinstance(envelope, Part):
+                    print(f"    ⚠️  ERROR: After conversion, still not a Part (is {type(envelope)})!")
+                    return blank
+
+                print(f"    ✓ Conversion successful")
             except Exception as e:
                 print(f"    ⚠️  ERROR: Failed to convert envelope to Part: {e}")
                 return blank
