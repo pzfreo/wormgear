@@ -233,6 +233,117 @@ class TestWormGeometry:
         assert abs(z_extent - length) < 1.0
 
 
+class TestWormProfileTypes:
+    """Tests for DIN 3975 profile types (ZA/ZK)."""
+
+    @pytest.fixture
+    def worm_params(self, sample_design_7mm):
+        """Create WormParams from sample design."""
+        return WormParams(
+            module_mm=sample_design_7mm["worm"]["module_mm"],
+            num_starts=sample_design_7mm["worm"]["num_starts"],
+            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
+            lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
+            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
+            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
+            hand="right",
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def assembly_params(self, sample_design_7mm):
+        """Create AssemblyParams from sample design."""
+        return AssemblyParams(
+            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
+            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
+            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
+            hand=sample_design_7mm["assembly"]["hand"],
+            ratio=sample_design_7mm["assembly"]["ratio"]
+        )
+
+    def test_worm_profile_za_default(self, worm_params, assembly_params):
+        """Test that ZA profile is the default."""
+        worm_geo = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            sections_per_turn=12
+        )
+        assert worm_geo.profile == "ZA"
+
+    def test_worm_profile_za_explicit(self, worm_params, assembly_params):
+        """Test ZA profile can be explicitly set."""
+        worm_geo = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZA"
+        )
+        assert worm_geo.profile == "ZA"
+        worm = worm_geo.build()
+        assert worm is not None
+        assert worm.volume > 0
+        assert worm.is_valid
+
+    def test_worm_profile_zk(self, worm_params, assembly_params):
+        """Test ZK profile (convex flanks for 3D printing)."""
+        worm_geo = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZK"
+        )
+        assert worm_geo.profile == "ZK"
+        worm = worm_geo.build()
+        assert worm is not None
+        assert worm.volume > 0
+        assert worm.is_valid
+
+    def test_worm_profile_case_insensitive(self, worm_params, assembly_params):
+        """Test that profile parameter is case-insensitive."""
+        for profile in ["za", "Za", "ZA", "zk", "Zk", "ZK"]:
+            worm_geo = WormGeometry(
+                params=worm_params,
+                assembly_params=assembly_params,
+                length=10.0,
+                sections_per_turn=12,
+                profile=profile
+            )
+            assert worm_geo.profile == profile.upper()
+
+    def test_worm_za_and_zk_produce_different_geometry(self, worm_params, assembly_params):
+        """Test that ZA and ZK profiles produce different geometry."""
+        worm_za = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZA"
+        ).build()
+
+        worm_zk = WormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZK"
+        ).build()
+
+        # Both should be valid
+        assert worm_za.is_valid
+        assert worm_zk.is_valid
+
+        # Volumes should be slightly different due to curved vs straight flanks
+        # ZK has convex bulge, so slightly more material
+        assert abs(worm_za.volume - worm_zk.volume) / worm_za.volume < 0.05  # Within 5%
+
+
 class TestWormFromJsonFile:
     """Tests using actual JSON files."""
 

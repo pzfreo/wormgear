@@ -63,7 +63,7 @@ class TestGloboidWormGeometry:
         assert globoid_geo.wheel_pitch_radius == wheel_pitch_diameter / 2
 
     def test_globoid_hourglass_parameters(self, worm_params, assembly_params, wheel_pitch_diameter):
-        """Test that hourglass parameters are calculated correctly."""
+        """Test that hourglass parameters are calculated correctly using geometry-based formula."""
         globoid_geo = GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
@@ -72,13 +72,16 @@ class TestGloboidWormGeometry:
         )
 
         pitch_radius = worm_params.pitch_diameter_mm / 2
+        center_distance = assembly_params.centre_distance_mm
+        wheel_pitch_radius = wheel_pitch_diameter / 2
 
-        # Throat radius should be ~90% of nominal
-        assert globoid_geo.throat_pitch_radius == pytest.approx(pitch_radius * 0.90, rel=0.01)
+        # Throat radius should be: center_distance - wheel_pitch_radius (geometry-based)
+        expected_throat_radius = center_distance - wheel_pitch_radius
+        assert globoid_geo.throat_pitch_radius == pytest.approx(expected_throat_radius, rel=0.01)
         assert globoid_geo.nominal_pitch_radius == pytest.approx(pitch_radius, rel=0.01)
 
         # Curvature radius should match wheel pitch radius
-        assert globoid_geo.throat_curvature_radius == pytest.approx(wheel_pitch_diameter / 2, rel=0.01)
+        assert globoid_geo.throat_curvature_radius == pytest.approx(wheel_pitch_radius, rel=0.01)
 
     def test_globoid_auto_length_calculation(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test auto-calculation of worm length when not specified."""
@@ -451,3 +454,120 @@ class TestGloboidWormFromJsonFile:
         # Verify file was created and has content
         assert output_file.exists()
         assert output_file.stat().st_size > 1000  # Should be reasonably sized
+
+
+class TestGloboidWormProfileTypes:
+    """Tests for DIN 3975 profile types (ZA/ZK) on globoid worm."""
+
+    @pytest.fixture
+    def worm_params(self, sample_design_7mm):
+        """Create WormParams from sample design."""
+        return WormParams(
+            module_mm=sample_design_7mm["worm"]["module_mm"],
+            num_starts=sample_design_7mm["worm"]["num_starts"],
+            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
+            lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
+            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
+            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
+            hand="right",
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def assembly_params(self, sample_design_7mm):
+        """Create AssemblyParams from sample design."""
+        return AssemblyParams(
+            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
+            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
+            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
+            hand=sample_design_7mm["assembly"]["hand"],
+            ratio=sample_design_7mm["assembly"]["ratio"]
+        )
+
+    @pytest.fixture
+    def wheel_pitch_diameter(self, sample_design_7mm):
+        """Get wheel pitch diameter from sample design."""
+        return sample_design_7mm["wheel"]["pitch_diameter_mm"]
+
+    def test_globoid_profile_za_default(self, worm_params, assembly_params, wheel_pitch_diameter):
+        """Test that ZA profile is the default."""
+        globoid_geo = GloboidWormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            wheel_pitch_diameter=wheel_pitch_diameter,
+            length=10.0,
+            sections_per_turn=12
+        )
+        assert globoid_geo.profile == "ZA"
+
+    def test_globoid_profile_za_explicit(self, worm_params, assembly_params, wheel_pitch_diameter):
+        """Test ZA profile can be explicitly set."""
+        globoid_geo = GloboidWormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            wheel_pitch_diameter=wheel_pitch_diameter,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZA"
+        )
+        assert globoid_geo.profile == "ZA"
+        globoid = globoid_geo.build()
+        assert globoid is not None
+        assert globoid.volume > 0
+        assert globoid.is_valid
+
+    def test_globoid_profile_zk(self, worm_params, assembly_params, wheel_pitch_diameter):
+        """Test ZK profile (convex flanks for 3D printing)."""
+        globoid_geo = GloboidWormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            wheel_pitch_diameter=wheel_pitch_diameter,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZK"
+        )
+        assert globoid_geo.profile == "ZK"
+        globoid = globoid_geo.build()
+        assert globoid is not None
+        assert globoid.volume > 0
+        assert globoid.is_valid
+
+    def test_globoid_profile_case_insensitive(self, worm_params, assembly_params, wheel_pitch_diameter):
+        """Test that profile parameter is case-insensitive."""
+        for profile in ["za", "Za", "ZA", "zk", "Zk", "ZK"]:
+            globoid_geo = GloboidWormGeometry(
+                params=worm_params,
+                assembly_params=assembly_params,
+                wheel_pitch_diameter=wheel_pitch_diameter,
+                length=10.0,
+                sections_per_turn=12,
+                profile=profile
+            )
+            assert globoid_geo.profile == profile.upper()
+
+    def test_globoid_za_and_zk_both_valid(self, worm_params, assembly_params, wheel_pitch_diameter):
+        """Test that both ZA and ZK profiles produce valid geometry."""
+        globoid_za = GloboidWormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            wheel_pitch_diameter=wheel_pitch_diameter,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZA"
+        ).build()
+
+        globoid_zk = GloboidWormGeometry(
+            params=worm_params,
+            assembly_params=assembly_params,
+            wheel_pitch_diameter=wheel_pitch_diameter,
+            length=10.0,
+            sections_per_turn=12,
+            profile="ZK"
+        ).build()
+
+        assert globoid_za.is_valid
+        assert globoid_zk.is_valid

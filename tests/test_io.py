@@ -8,10 +8,13 @@ from pathlib import Path
 
 from wormgear_geometry.io import (
     load_design_json,
+    save_design_json,
     WormParams,
     WheelParams,
     AssemblyParams,
     WormGearDesign,
+    ManufacturingParams,
+    ManufacturingFeatures,
 )
 
 
@@ -203,3 +206,157 @@ class TestAssemblyParams:
 
         assert params.centre_distance_mm == 15.0
         assert params.ratio == 20
+
+
+class TestManufacturingParams:
+    """Tests for ManufacturingParams dataclass and profile serialization."""
+
+    def test_manufacturing_params_default_profile(self):
+        """Test that default profile is ZA."""
+        params = ManufacturingParams()
+        assert params.profile == "ZA"
+
+    def test_manufacturing_params_zk_profile(self):
+        """Test setting ZK profile."""
+        params = ManufacturingParams(profile="ZK")
+        assert params.profile == "ZK"
+
+    def test_manufacturing_params_all_fields(self):
+        """Test creating ManufacturingParams with all fields."""
+        params = ManufacturingParams(
+            worm_type="globoid",
+            worm_length=50.0,
+            wheel_width=15.0,
+            wheel_throated=True,
+            profile="ZK"
+        )
+
+        assert params.worm_type == "globoid"
+        assert params.worm_length == 50.0
+        assert params.wheel_width == 15.0
+        assert params.wheel_throated is True
+        assert params.profile == "ZK"
+
+
+class TestProfileJsonSerialization:
+    """Tests for profile field JSON serialization."""
+
+    @pytest.fixture
+    def base_design(self, sample_design_7mm):
+        """Create a base WormGearDesign from sample data."""
+        return WormGearDesign(
+            worm=WormParams(
+                module_mm=sample_design_7mm["worm"]["module_mm"],
+                num_starts=sample_design_7mm["worm"]["num_starts"],
+                pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
+                tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
+                root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
+                lead_mm=sample_design_7mm["worm"]["lead_mm"],
+                lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
+                addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
+                dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
+                thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
+                hand="right",
+                profile_shift=0.0
+            ),
+            wheel=WheelParams(
+                module_mm=sample_design_7mm["wheel"]["module_mm"],
+                num_teeth=sample_design_7mm["wheel"]["num_teeth"],
+                pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
+                tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
+                root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
+                throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
+                helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
+                addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
+                dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
+                profile_shift=0.0
+            ),
+            assembly=AssemblyParams(
+                centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
+                pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
+                backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
+                hand=sample_design_7mm["assembly"]["hand"],
+                ratio=sample_design_7mm["assembly"]["ratio"]
+            )
+        )
+
+    def test_save_and_load_za_profile(self, tmp_path, base_design):
+        """Test saving and loading ZA profile."""
+        base_design.manufacturing = ManufacturingParams(profile="ZA")
+
+        json_file = tmp_path / "test_za.json"
+        save_design_json(base_design, json_file)
+
+        loaded = load_design_json(json_file)
+        assert loaded.manufacturing is not None
+        assert loaded.manufacturing.profile == "ZA"
+
+    def test_save_and_load_zk_profile(self, tmp_path, base_design):
+        """Test saving and loading ZK profile."""
+        base_design.manufacturing = ManufacturingParams(profile="ZK")
+
+        json_file = tmp_path / "test_zk.json"
+        save_design_json(base_design, json_file)
+
+        loaded = load_design_json(json_file)
+        assert loaded.manufacturing is not None
+        assert loaded.manufacturing.profile == "ZK"
+
+    def test_profile_in_saved_json_content(self, tmp_path, base_design):
+        """Test that profile field appears correctly in saved JSON."""
+        base_design.manufacturing = ManufacturingParams(profile="ZK")
+
+        json_file = tmp_path / "test.json"
+        save_design_json(base_design, json_file)
+
+        with open(json_file) as f:
+            data = json.load(f)
+
+        assert "manufacturing" in data
+        assert "profile" in data["manufacturing"]
+        assert data["manufacturing"]["profile"] == "ZK"
+
+    def test_load_json_without_profile_defaults_to_za(self, tmp_path, sample_design_7mm):
+        """Test that loading JSON without profile defaults to ZA."""
+        # Add manufacturing section without profile
+        sample_design_7mm["manufacturing"] = {
+            "worm_type": "cylindrical",
+            "worm_length": 40.0
+        }
+
+        json_file = tmp_path / "test.json"
+        with open(json_file, 'w') as f:
+            json.dump(sample_design_7mm, f)
+
+        loaded = load_design_json(json_file)
+        assert loaded.manufacturing is not None
+        assert loaded.manufacturing.profile == "ZA"
+
+    def test_save_complete_design_with_all_manufacturing(self, tmp_path, base_design):
+        """Test saving complete design with all manufacturing options."""
+        base_design.manufacturing = ManufacturingParams(
+            worm_type="globoid",
+            worm_length=50.0,
+            wheel_width=12.0,
+            wheel_throated=True,
+            profile="ZK",
+            worm_features=ManufacturingFeatures(
+                bore_diameter=8.0,
+                keyway_width=3.0,
+                keyway_depth=1.8
+            ),
+            wheel_features=ManufacturingFeatures(
+                bore_diameter=12.0,
+                hub_type="extended",
+                hub_length=15.0
+            )
+        )
+
+        json_file = tmp_path / "complete.json"
+        save_design_json(base_design, json_file)
+
+        loaded = load_design_json(json_file)
+        assert loaded.manufacturing.worm_type == "globoid"
+        assert loaded.manufacturing.profile == "ZK"
+        assert loaded.manufacturing.worm_features.bore_diameter == 8.0
+        assert loaded.manufacturing.wheel_features.hub_type == "extended"

@@ -382,6 +382,144 @@ class TestThroatedWheel:
             assert wheel.is_valid
 
 
+class TestWheelProfileTypes:
+    """Tests for DIN 3975 profile types (ZA/ZK) on wheel."""
+
+    @pytest.fixture
+    def worm_params(self, sample_design_7mm):
+        """Create WormParams from sample design."""
+        return WormParams(
+            module_mm=sample_design_7mm["worm"]["module_mm"],
+            num_starts=sample_design_7mm["worm"]["num_starts"],
+            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
+            lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
+            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
+            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
+            hand="right",
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def wheel_params(self, sample_design_7mm):
+        """Create WheelParams from sample design."""
+        return WheelParams(
+            module_mm=sample_design_7mm["wheel"]["module_mm"],
+            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
+            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
+            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
+            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
+            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
+            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
+            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
+            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
+            profile_shift=0.0
+        )
+
+    @pytest.fixture
+    def assembly_params(self, sample_design_7mm):
+        """Create AssemblyParams from sample design."""
+        return AssemblyParams(
+            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
+            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
+            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
+            hand=sample_design_7mm["assembly"]["hand"],
+            ratio=sample_design_7mm["assembly"]["ratio"]
+        )
+
+    def test_wheel_profile_za_default(self, wheel_params, worm_params, assembly_params):
+        """Test that ZA profile is the default."""
+        wheel_geo = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0
+        )
+        assert wheel_geo.profile == "ZA"
+
+    def test_wheel_profile_za_explicit(self, wheel_params, worm_params, assembly_params):
+        """Test ZA profile can be explicitly set."""
+        wheel_geo = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            profile="ZA"
+        )
+        assert wheel_geo.profile == "ZA"
+        wheel = wheel_geo.build()
+        assert wheel is not None
+        assert wheel.volume > 0
+        assert wheel.is_valid
+
+    def test_wheel_profile_zk(self, wheel_params, worm_params, assembly_params):
+        """Test ZK profile (convex flanks for 3D printing)."""
+        wheel_geo = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            profile="ZK"
+        )
+        assert wheel_geo.profile == "ZK"
+        wheel = wheel_geo.build()
+        assert wheel is not None
+        assert wheel.volume > 0
+        assert wheel.is_valid
+
+    def test_wheel_profile_case_insensitive(self, wheel_params, worm_params, assembly_params):
+        """Test that profile parameter is case-insensitive."""
+        for profile in ["za", "Za", "ZA", "zk", "Zk", "ZK"]:
+            wheel_geo = WheelGeometry(
+                params=wheel_params,
+                worm_params=worm_params,
+                assembly_params=assembly_params,
+                face_width=4.0,
+                profile=profile
+            )
+            assert wheel_geo.profile == profile.upper()
+
+    def test_wheel_za_and_zk_both_valid(self, wheel_params, worm_params, assembly_params):
+        """Test that both ZA and ZK profiles produce valid geometry."""
+        wheel_za = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            profile="ZA"
+        ).build()
+
+        wheel_zk = WheelGeometry(
+            params=wheel_params,
+            worm_params=worm_params,
+            assembly_params=assembly_params,
+            face_width=4.0,
+            profile="ZK"
+        ).build()
+
+        assert wheel_za.is_valid
+        assert wheel_zk.is_valid
+
+    def test_wheel_profile_with_throating(self, wheel_params, worm_params, assembly_params):
+        """Test that profile works with throated wheel."""
+        for profile in ["ZA", "ZK"]:
+            wheel_geo = WheelGeometry(
+                params=wheel_params,
+                worm_params=worm_params,
+                assembly_params=assembly_params,
+                face_width=4.0,
+                throated=True,
+                profile=profile
+            )
+            wheel = wheel_geo.build()
+            assert wheel is not None
+            assert wheel.volume > 0
+            assert wheel.is_valid
+
+
 class TestWheelFromJsonFile:
     """Tests using actual JSON files."""
 
