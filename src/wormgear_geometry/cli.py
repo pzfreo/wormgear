@@ -487,9 +487,10 @@ Examples:
 
         if args.virtual_hobbing:
             # EXPERIMENTAL: Virtual hobbing simulation
-            # Pass the actual worm geometry as hob if available (important for globoid)
-            hob_geo = worm if worm is not None else None
-            hob_type = "globoid" if args.globoid and hob_geo else "cylindrical"
+            # Pass the actual worm geometry as hob ONLY for globoid (important for accuracy)
+            # For cylindrical, let VirtualHobbingWheelGeometry create a simpler hob internally
+            hob_geo = worm if (worm is not None and args.globoid) else None
+            hob_type = "globoid" if args.globoid else "cylindrical"
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, VIRTUAL HOBBING [EXPERIMENTAL], {profile_desc}{features_desc})...")
             print(f"  Using {args.hobbing_steps} hobbing steps, {hob_type} hob")
             wheel_geo = VirtualHobbingWheelGeometry(
