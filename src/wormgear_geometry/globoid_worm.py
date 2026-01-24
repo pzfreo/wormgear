@@ -14,7 +14,7 @@ from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
 # ZK: Slightly convex flanks - better for 3D printing (reduces stress concentrations)
-ProfileType = Literal["ZA", "ZK"]
+ProfileType = Literal["ZA", "ZK", "ZI"]
 
 # Progress callback type for WASM integration
 ProgressCallback = Callable[[str, float], None]  # (message, percent_complete)
@@ -40,6 +40,7 @@ class GloboidWormGeometry:
         sections_per_turn: int = 36,
         bore: Optional[BoreFeature] = None,
         keyway: Optional[KeywayFeature] = None,
+        ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         profile: ProfileType = "ZA",
         progress_callback: Optional[ProgressCallback] = None
@@ -70,6 +71,7 @@ class GloboidWormGeometry:
         self.sections_per_turn = sections_per_turn
         self.bore = bore
         self.keyway = keyway
+        self.ddcut = ddcut
         self.set_screw = set_screw
         self.profile = profile.upper() if isinstance(profile, str) else profile
         self.progress_callback = progress_callback
@@ -127,6 +129,11 @@ class GloboidWormGeometry:
         # face_width is now an alias for length (for backwards compatibility)
         self.face_width = self.length
 
+        # Extended length for extend-and-trim strategy
+        # Extend by 1 lead on each end to create tapered sections that will be trimmed off
+        lead = params.lead_mm
+        self.extended_length = self.length + 2 * lead
+
         self._part = None
 
     def _report_progress(self, message: str, percent: float, verbose: bool = True):
@@ -181,28 +188,67 @@ class GloboidWormGeometry:
 
         self._report_progress("  Combining core and threads...", 80.0)
 
-        # Union core and threads
+        # Union core and threads using OCP fuse for reliable result
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+
         if len(threads) == 0:
             result = core
         elif len(threads) == 1:
-            result = core + threads[0]
+            try:
+                core_shape = core.wrapped if hasattr(core, 'wrapped') else core
+                thread_shape = threads[0].wrapped if hasattr(threads[0], 'wrapped') else threads[0]
+                fuse_op = BRepAlgoAPI_Fuse(core_shape, thread_shape)
+                fuse_op.Build()
+                if fuse_op.IsDone():
+                    result = Part(fuse_op.Shape())
+                else:
+                    result = core + threads[0]
+            except Exception:
+                result = core + threads[0]
         else:
             # Union all threads together first
             thread_union = threads[0]
             for thread in threads[1:]:
-                thread_union = thread_union + thread
-            result = core + thread_union
+                try:
+                    t1_shape = thread_union.wrapped if hasattr(thread_union, 'wrapped') else thread_union
+                    t2_shape = thread.wrapped if hasattr(thread, 'wrapped') else thread
+                    fuse_op = BRepAlgoAPI_Fuse(t1_shape, t2_shape)
+                    fuse_op.Build()
+                    if fuse_op.IsDone():
+                        thread_union = Part(fuse_op.Shape())
+                    else:
+                        thread_union = thread_union + thread
+                except Exception:
+                    thread_union = thread_union + thread
+            # Union threads with core
+            try:
+                core_shape = core.wrapped if hasattr(core, 'wrapped') else core
+                threads_shape = thread_union.wrapped if hasattr(thread_union, 'wrapped') else thread_union
+                fuse_op = BRepAlgoAPI_Fuse(core_shape, threads_shape)
+                fuse_op.Build()
+                if fuse_op.IsDone():
+                    result = Part(fuse_op.Shape())
+                else:
+                    result = core + thread_union
+            except Exception:
+                result = core + thread_union
 
-        self._report_progress("  ✓ Geometry combined", 90.0)
+        self._report_progress("  ✓ Geometry combined", 85.0)
 
-        # Add features (bore, keyway, set screw)
-        if self.bore or self.keyway or self.set_screw:
-            self._report_progress("  Adding bore/keyway features...", 92.0)
+        # Trim to exact length - removes fragile tapered thread ends
+        self._report_progress(f"  Trimming to final length ({self.length:.2f}mm)...", 87.0)
+        result = self._trim_to_length(result)
+        self._report_progress("  ✓ Trimmed to length", 90.0)
+
+        # Add features (bore, keyway/ddcut, set screw)
+        if self.bore or self.keyway or self.ddcut or self.set_screw:
+            self._report_progress("  Adding bore/keyway/DD-cut features...", 92.0)
             result = add_bore_and_keyway(
                 part=result,
                 part_length=self.length,
                 bore=self.bore,
                 keyway=self.keyway,
+                ddcut=self.ddcut,
                 set_screw=self.set_screw,
                 axis=Axis.Z
             )
@@ -211,6 +257,75 @@ class GloboidWormGeometry:
         self._report_progress("Globoid worm geometry complete.", 100.0)
         return self._part
 
+    def _trim_to_length(self, worm: Part) -> Part:
+        """
+        Trim extended worm to exact target length using two OCP cut operations.
+
+        The worm was created with extended_length (self.length + 2*lead) to allow
+        for tapered thread ends. This method cuts away the extended portions,
+        leaving clean ends with full-depth threads.
+
+        Args:
+            worm: Extended worm Part to trim
+
+        Returns:
+            Trimmed Part with exact self.length dimension
+        """
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+
+        # Calculate cutting positions
+        half_length = self.length / 2
+        tip_radius = self.params.tip_diameter_mm / 2
+        trim_diameter = tip_radius * 4  # Large enough for cutting boxes
+
+        try:
+            worm_shape = worm.wrapped if hasattr(worm, 'wrapped') else worm
+
+            # Create top cutting box (remove everything above +half_length)
+            top_cut_box = Box(
+                length=trim_diameter,
+                width=trim_diameter,
+                height=self.extended_length,
+                align=(Align.CENTER, Align.CENTER, Align.MIN)
+            )
+            # Move box to start at Z = +half_length
+            top_cut_box = Pos(0, 0, half_length) * top_cut_box
+
+            # Cut away top part
+            cut_top = BRepAlgoAPI_Cut(worm_shape, top_cut_box.wrapped)
+            cut_top.Build()
+
+            if cut_top.IsDone():
+                worm_shape = cut_top.Shape()
+            else:
+                print(f"    WARNING: Top cut failed, keeping extended geometry")
+
+            # Create bottom cutting box (remove everything below -half_length)
+            bottom_cut_box = Box(
+                length=trim_diameter,
+                width=trim_diameter,
+                height=self.extended_length,
+                align=(Align.CENTER, Align.CENTER, Align.MAX)
+            )
+            # Move box to end at Z = -half_length
+            bottom_cut_box = Pos(0, 0, -half_length) * bottom_cut_box
+
+            # Cut away bottom part
+            cut_bottom = BRepAlgoAPI_Cut(worm_shape, bottom_cut_box.wrapped)
+            cut_bottom.Build()
+
+            if cut_bottom.IsDone():
+                worm = Part(cut_bottom.Shape())
+            else:
+                print(f"    WARNING: Bottom cut failed, using partial trim")
+                worm = Part(worm_shape)
+
+        except Exception as e:
+            print(f"    ERROR during cutting: {e}")
+            print(f"    Keeping extended worm (no trim)")
+
+        return worm
+
     def _create_hourglass_core(self) -> Part:
         """
         Create the hourglass-shaped core.
@@ -218,15 +333,14 @@ class GloboidWormGeometry:
         The core must be SMALLER than the thread root radius everywhere,
         so threads sit ON TOP of the core, not inside it.
 
-        The core extends to the full length including taper zones to ensure
-        threads are fully supported everywhere.
+        The core extends to extended_length to match the extended threads,
+        and will be trimmed to exact length after union.
 
         Returns:
             build123d Part representing the hourglass core
         """
-        # Core extends to full length (no additional extension needed since
-        # threads now have tapered ends that smoothly merge with the core)
-        half_width = self.length / 2.0
+        # Core extends to extended length (will be trimmed after union)
+        half_width = self.extended_length / 2.0
 
         # Core should match the thread root radius (where threads meet the core)
         # Calculate using same circular arc formula as helix path for perfect alignment
@@ -241,8 +355,8 @@ class GloboidWormGeometry:
         profile_points = []
         R_c = self.throat_curvature_radius
 
-        # Core length matches worm length
-        core_length = self.length
+        # Core length matches extended worm length
+        core_length = self.extended_length
 
         # Taper zone length (same as threads)
         taper_length = lead
@@ -313,6 +427,8 @@ class GloboidWormGeometry:
         The helix has varying radius calculated from the hourglass formula:
         r(z) = throat_pitch_radius + R_c - sqrt(R_c² - z²)
 
+        Uses extended_length to create helix with tapering at ends that will be trimmed.
+
         Args:
             start_angle: Angular offset for multi-start worms (degrees)
 
@@ -320,8 +436,8 @@ class GloboidWormGeometry:
             List of Vector points that form the helix path
         """
         lead = self.params.lead_mm
-        half_width = self.length / 2.0
-        num_turns = self.length / lead
+        half_width = self.extended_length / 2.0
+        num_turns = self.extended_length / lead
         is_right_hand = self.assembly_params.hand.upper() == "RIGHT"
 
         # Match cylindrical worm's section density
@@ -333,7 +449,7 @@ class GloboidWormGeometry:
 
         for i in range(num_points):
             t = i / (num_points - 1)
-            z = -half_width + t * self.length
+            z = -half_width + t * self.extended_length
 
             # Calculate local pitch radius using circular arc hourglass formula
             if abs(z) < R_c:
@@ -401,7 +517,8 @@ class GloboidWormGeometry:
         helix_path = Spline(*helix_points)
 
         # Create profiles along the helix for lofting
-        num_turns = self.length / lead
+        # Use extended_length for section calculation
+        num_turns = self.extended_length / lead
         num_sections = int(num_turns * self.sections_per_turn) + 1
         sections = []
 
@@ -419,7 +536,8 @@ class GloboidWormGeometry:
 
             # Calculate taper factor for smooth thread ends
             # Ramps from 0 to 1 over taper_length at each end
-            half_width = self.length / 2.0
+            # Use extended_length for taper calculation
+            half_width = self.extended_length / 2.0
             z_position = point.Z
             dist_from_start = z_position + half_width
             dist_from_end = half_width - z_position
@@ -456,6 +574,10 @@ class GloboidWormGeometry:
             local_tip_radius = local_pitch_radius + local_addendum
             local_root_radius = local_pitch_radius - local_dedendum
 
+            # IMPORTANT: Ensure thread root never goes above core radius
+            # Clamp the thread root to stay at or below the core radius to prevent gaps
+            local_root_radius = min(local_root_radius, root_radius)
+
             # Profile coordinates relative to local pitch radius
             inner_r = local_root_radius - local_pitch_radius
             outer_r = local_tip_radius - local_pitch_radius
@@ -479,31 +601,70 @@ class GloboidWormGeometry:
                         Line(tip_left, tip_right)      # Tip
                         Line(tip_right, root_right)    # Right flank (straight)
                         Line(root_right, root_left)    # Root (closes)
-                    else:
-                        # ZK profile: Slightly convex flanks per DIN 3975
-                        # Better for 3D printing - reduces stress concentrations
-                        num_flank_points = 5
+
+                    elif self.profile == "ZK":
+                        # ZK profile: Circular arc flanks per DIN 3975 Type K
+                        # Biconical grinding wheel profile - convex circular arc
+                        # Better for 3D printing and reduces stress concentrations
+
+                        # Generate circular arc flanks
+                        num_points = 9  # Points per flank for smooth arc
                         left_flank = []
                         right_flank = []
 
-                        for j in range(num_flank_points):
-                            t_flank = j / (num_flank_points - 1)
-                            r_pos = inner_r + t_flank * (outer_r - inner_r)
+                        # Arc radius typically 0.4-0.5 × module for biconical cutter
+                        arc_radius = 0.45 * self.params.module_mm
 
-                            # Interpolate width with convex curve
-                            linear_width = local_thread_half_width_root + t_flank * (local_thread_half_width_tip - local_thread_half_width_root)
-                            curve_factor = 4 * t_flank * (1 - t_flank)  # Parabolic bulge
-                            bulge = curve_factor * 0.05 * (local_thread_half_width_root - local_thread_half_width_tip)
-                            width = linear_width + bulge
+                        # Calculate arc center position
+                        flank_height = outer_r - inner_r
+                        flank_width_change = local_thread_half_width_root - local_thread_half_width_tip
 
+                        # Angle of straight flank for reference
+                        if flank_width_change > 0:
+                            flank_angle = math.atan(flank_width_change / flank_height)
+                        else:
+                            flank_angle = 0
+
+                        # Generate arc points
+                        for j in range(num_points):
+                            t = j / (num_points - 1)
+                            r_pos = inner_r + t * flank_height
+
+                            # Circular arc deviation from straight line
+                            linear_width = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
+
+                            # Arc bulge (circular, not parabolic)
+                            arc_param = t * math.pi  # 0 to π
+                            arc_bulge = arc_radius * 0.15 * math.sin(arc_param)  # Circular arc approximation
+
+                            width = linear_width + arc_bulge
                             left_flank.append((r_pos, -width))
                             right_flank.append((r_pos, width))
 
-                        # Build closed profile with curved flanks
+                        # Build profile with circular arc flanks
                         Spline(left_flank)
                         Line(left_flank[-1], right_flank[-1])  # Tip
                         Spline(list(reversed(right_flank)))
                         Line(right_flank[0], left_flank[0])    # Root (closes)
+
+                    elif self.profile == "ZI":
+                        # ZI profile: Involute helicoid per DIN 3975 Type I
+                        # In axial section, appears as straight flanks (generatrix of involute helicoid)
+                        # The involute shape is in normal section (perpendicular to thread)
+                        # Manufactured by hobbing
+
+                        root_left = (inner_r, -local_thread_half_width_root)
+                        root_right = (inner_r, local_thread_half_width_root)
+                        tip_left = (outer_r, -local_thread_half_width_tip)
+                        tip_right = (outer_r, local_thread_half_width_tip)
+
+                        Line(root_left, tip_left)      # Left flank (straight generatrix)
+                        Line(tip_left, tip_right)      # Tip
+                        Line(tip_right, root_right)    # Right flank (straight generatrix)
+                        Line(root_right, root_left)    # Root (closes)
+
+                    else:
+                        raise ValueError(f"Unknown profile type: {self.profile}")
                 make_face()  # CRITICAL: Creates filled face with area
 
             sections.append(sk.sketch.faces()[0])

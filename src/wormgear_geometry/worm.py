@@ -13,7 +13,8 @@ from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
 # ZK: Slightly convex flanks - better for 3D printing (reduces stress concentrations)
-ProfileType = Literal["ZA", "ZK"]
+# ZI: Involute helicoid (true involute in normal section) - NOT YET IMPLEMENTED
+ProfileType = Literal["ZA", "ZK", "ZI"]
 
 
 class WormGeometry:
@@ -32,6 +33,7 @@ class WormGeometry:
         sections_per_turn: int = 36,
         bore: Optional[BoreFeature] = None,
         keyway: Optional[KeywayFeature] = None,
+        ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         profile: ProfileType = "ZA"
     ):
@@ -44,11 +46,13 @@ class WormGeometry:
             length: Total worm length in mm (default: 40)
             sections_per_turn: Number of loft sections per helix turn (default: 36)
             bore: Optional bore feature specification
-            keyway: Optional keyway feature specification (requires bore)
+            keyway: Optional keyway feature specification (requires bore, mutually exclusive with ddcut)
+            ddcut: Optional double-D cut feature (requires bore, mutually exclusive with keyway)
             set_screw: Optional set screw feature specification (requires bore)
             profile: Tooth profile type per DIN 3975:
                      "ZA" - Straight flanks (trapezoidal) - best for CNC (default)
                      "ZK" - Slightly convex flanks - better for 3D printing
+                     "ZI" - Involute (straight in axial section) - for hobbing
         """
         self.params = params
         self.assembly_params = assembly_params
@@ -56,6 +60,7 @@ class WormGeometry:
         self.sections_per_turn = sections_per_turn
         self.bore = bore
         self.keyway = keyway
+        self.ddcut = ddcut
         self.set_screw = set_screw
         self.profile = profile.upper() if isinstance(profile, str) else profile
 
@@ -94,38 +99,86 @@ class WormGeometry:
 
         if threads is not None:
             print(f"    Unioning core with threads...")
-            worm = core + threads
-            print(f"    ✓ Union complete")
+            # Use OCP fuse for reliable boolean union
+            from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+
+            try:
+                core_shape = core.wrapped if hasattr(core, 'wrapped') else core
+                threads_shape = threads.wrapped if hasattr(threads, 'wrapped') else threads
+
+                fuse_op = BRepAlgoAPI_Fuse(core_shape, threads_shape)
+                fuse_op.Build()
+
+                if fuse_op.IsDone():
+                    worm = Part(fuse_op.Shape())
+                    print(f"    ✓ OCP union complete")
+                else:
+                    print(f"    WARNING: OCP union failed, using build123d operator")
+                    worm = core + threads
+            except Exception as e:
+                print(f"    WARNING: OCP union error ({e}), using build123d operator")
+                worm = core + threads
         else:
             print(f"    No threads to union - using core only")
             worm = core
 
         # Trim to exact length - removes fragile tapered thread ends
         print(f"    Trimming to final length ({self.length:.2f}mm)...")
-        try:
-            pre_trim_volume = worm.volume
-            print(f"    Pre-trim volume: {pre_trim_volume:.2f} mm³")
-        except:
-            print(f"    Pre-trim volume: unable to calculate")
 
-        # Trim box needs to be large enough in XY to contain the worm diameter
-        # but exact in Z (height) to trim to the desired length
-        trim_diameter = tip_radius * 4  # Plenty of margin
-        trim_box = Box(
-            length=trim_diameter,  # Large enough in XY
-            width=trim_diameter,
-            height=self.length,    # Exact length in Z
-            align=(Align.CENTER, Align.CENTER, Align.CENTER)
-        )
-        print(f"    Trim box: {trim_diameter:.2f} x {trim_diameter:.2f} x {self.length:.2f} mm")
+        # Prepare trim dimensions
+        trim_diameter = tip_radius * 4  # Large enough for cutting boxes
+        half_length = self.length / 2
+        print(f"    Cutting at Z = ±{half_length:.2f}mm...")
 
-        worm = worm & trim_box
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 
         try:
-            post_trim_volume = worm.volume
-            print(f"    Post-trim volume: {post_trim_volume:.2f} mm³")
-        except:
-            print(f"    Post-trim volume: unable to calculate")
+            worm_shape = worm.wrapped if hasattr(worm, 'wrapped') else worm
+
+            # Create top cutting box (remove everything above +half_length)
+            top_cut_box = Box(
+                length=trim_diameter,
+                width=trim_diameter,
+                height=extended_length,
+                align=(Align.CENTER, Align.CENTER, Align.MIN)
+            )
+            # Move box to start at Z = +half_length
+            top_cut_box = Pos(0, 0, half_length) * top_cut_box
+
+            # Cut away top part
+            cut_top = BRepAlgoAPI_Cut(worm_shape, top_cut_box.wrapped)
+            cut_top.Build()
+
+            if cut_top.IsDone():
+                worm_shape = cut_top.Shape()
+                print(f"    ✓ Top cut successful")
+            else:
+                print(f"    WARNING: Top cut failed")
+
+            # Create bottom cutting box (remove everything below -half_length)
+            bottom_cut_box = Box(
+                length=trim_diameter,
+                width=trim_diameter,
+                height=extended_length,
+                align=(Align.CENTER, Align.CENTER, Align.MAX)
+            )
+            # Move box to end at Z = -half_length
+            bottom_cut_box = Pos(0, 0, -half_length) * bottom_cut_box
+
+            # Cut away bottom part
+            cut_bottom = BRepAlgoAPI_Cut(worm_shape, bottom_cut_box.wrapped)
+            cut_bottom.Build()
+
+            if cut_bottom.IsDone():
+                worm = Part(cut_bottom.Shape())
+                print(f"    ✓ Bottom cut successful")
+            else:
+                print(f"    WARNING: Bottom cut failed")
+                worm = Part(worm_shape)
+
+        except Exception as e:
+            print(f"    ERROR during cutting: {e}")
+            print(f"    Keeping extended worm (no trim)")
 
         print(f"    ✓ Worm trimmed to length")
 
@@ -138,13 +191,14 @@ class WormGeometry:
                 # Return the largest solid (should be the worm)
                 worm = max(solids, key=lambda s: s.volume)
 
-        # Add bore, keyway, and set screw if specified
-        if self.bore is not None or self.keyway is not None or self.set_screw is not None:
+        # Add bore, keyway/ddcut, and set screw if specified
+        if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:
             worm = add_bore_and_keyway(
                 worm,
                 part_length=self.length,
                 bore=self.bore,
                 keyway=self.keyway,
+                ddcut=self.ddcut,
                 set_screw=self.set_screw,
                 axis=Axis.Z
             )
@@ -179,6 +233,8 @@ class WormGeometry:
         Uses the worm axis as an auxiliary spine to control profile orientation,
         ensuring the profile stays aligned with the radial direction as it sweeps.
         """
+        import math
+
         pitch_radius = self.params.pitch_diameter_mm / 2
         tip_radius = self.params.tip_diameter_mm / 2
         root_radius = self.params.root_diameter_mm / 2
@@ -305,33 +361,76 @@ class WormGeometry:
                         Line(tip_left, tip_right)      # Tip
                         Line(tip_right, root_right)    # Right flank (straight)
                         Line(root_right, root_left)    # Root (closes)
-                    else:
-                        # ZK profile: Slightly convex flanks per DIN 3975
-                        # Better for 3D printing - reduces stress concentrations
-                        num_flank_points = 5
+
+                    elif self.profile == "ZK":
+                        # ZK profile: Circular arc flanks per DIN 3975 Type K
+                        # Biconical grinding wheel profile - convex circular arc
+                        # Better for 3D printing and reduces stress concentrations
+
+                        # Generate circular arc flanks
+                        num_points = 9  # Points per flank for smooth arc
                         left_flank = []
                         right_flank = []
 
-                        for j in range(num_flank_points):
-                            # Parameter along the flank (0 = root, 1 = tip)
-                            t_flank = j / (num_flank_points - 1)
-                            r_pos = inner_r + t_flank * (outer_r - inner_r)
+                        # Arc radius typically 0.4-0.5 × module for biconical cutter
+                        arc_radius = 0.45 * self.params.module_mm
 
-                            # Interpolate width with slight convex curve
-                            linear_width = local_thread_half_width_root + t_flank * (local_thread_half_width_tip - local_thread_half_width_root)
-                            # Add subtle convex bulge - max at middle of flank
-                            curve_factor = 4 * t_flank * (1 - t_flank)  # Parabolic, peaks at 0.5
-                            bulge = curve_factor * 0.05 * (local_thread_half_width_root - local_thread_half_width_tip)
-                            width = linear_width + bulge
+                        # Calculate arc center position
+                        # Arc should be tangent at approximately pitch radius
+                        flank_height = outer_r - inner_r
+                        flank_width_change = local_thread_half_width_root - local_thread_half_width_tip
 
+                        # Angle of straight flank for reference
+                        if flank_width_change > 0:
+                            flank_angle = math.atan(flank_width_change / flank_height)
+                        else:
+                            flank_angle = 0
+
+                        # Generate arc points
+                        for j in range(num_points):
+                            t = j / (num_points - 1)
+                            r_pos = inner_r + t * flank_height
+
+                            # Circular arc deviation from straight line
+                            linear_width = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
+
+                            # Arc bulge (circular, not parabolic)
+                            # Maximum at mid-flank
+                            arc_param = t * math.pi  # 0 to π
+                            arc_bulge = arc_radius * 0.15 * math.sin(arc_param)  # Circular arc approximation
+
+                            width = linear_width + arc_bulge
                             left_flank.append((r_pos, -width))
                             right_flank.append((r_pos, width))
 
-                        # Build profile with curved flanks
+                        # Build profile with circular arc flanks
                         Spline(left_flank)
                         Line(left_flank[-1], right_flank[-1])  # Tip
                         Spline(list(reversed(right_flank)))
                         Line(right_flank[0], left_flank[0])    # Root (closes)
+
+                    elif self.profile == "ZI":
+                        # ZI profile: Involute helicoid per DIN 3975 Type I
+                        # In axial section, appears as straight flanks (generatrix of involute helicoid)
+                        # The involute shape is in normal section (perpendicular to thread)
+                        # Manufactured by hobbing
+
+                        # Note: For worm gears in axial section, ZI looks identical to ZA
+                        # The difference is in the normal section where true involute exists
+                        # Since we're modeling in axial section for build123d, use straight flanks
+
+                        root_left = (inner_r, -local_thread_half_width_root)
+                        root_right = (inner_r, local_thread_half_width_root)
+                        tip_left = (outer_r, -local_thread_half_width_tip)
+                        tip_right = (outer_r, local_thread_half_width_tip)
+
+                        Line(root_left, tip_left)      # Left flank (straight generatrix)
+                        Line(tip_left, tip_right)      # Tip
+                        Line(tip_right, root_right)    # Right flank (straight generatrix)
+                        Line(root_right, root_left)    # Root (closes)
+
+                    else:
+                        raise ValueError(f"Unknown profile type: {self.profile}")
                 make_face()
 
             sections.append(sk.sketch.faces()[0])

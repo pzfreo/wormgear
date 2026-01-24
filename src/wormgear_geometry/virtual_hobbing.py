@@ -37,7 +37,7 @@ from .features import (
     create_hub
 )
 
-ProfileType = Literal["ZA", "ZK"]
+ProfileType = Literal["ZA", "ZK", "ZI"]
 
 # Step presets for virtual hobbing with estimated timings
 HOBBING_PRESETS = {
@@ -128,6 +128,7 @@ class VirtualHobbingWheelGeometry:
         hobbing_steps: int = 72,
         bore: Optional[BoreFeature] = None,
         keyway: Optional[KeywayFeature] = None,
+        ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         hub: Optional[HubFeature] = None,
         profile: ProfileType = "ZA",
@@ -166,6 +167,7 @@ class VirtualHobbingWheelGeometry:
         self.hobbing_steps = hobbing_steps
         self.bore = bore
         self.keyway = keyway
+        self.ddcut = ddcut
         self.set_screw = set_screw
         self.hub = hub
         self.profile = profile.upper() if isinstance(profile, str) else profile
@@ -217,6 +219,7 @@ class VirtualHobbingWheelGeometry:
                 part_length=self.face_width,
                 bore=self.bore,
                 keyway=self.keyway,
+                ddcut=self.ddcut,
                 set_screw=self.set_screw,
                 axis=Axis.Z
             )
@@ -307,7 +310,7 @@ class VirtualHobbingWheelGeometry:
             with BuildSketch(profile_plane) as sk:
                 with BuildLine():
                     if self.profile == "ZA":
-                        # ZA: Straight flanks
+                        # ZA profile: Straight flanks (trapezoidal) per DIN 3975
                         root_left = (inner_r, -thread_half_width_root)
                         root_right = (inner_r, thread_half_width_root)
                         tip_left = (outer_r, -thread_half_width_tip)
@@ -317,20 +320,35 @@ class VirtualHobbingWheelGeometry:
                         Line(tip_left, tip_right)
                         Line(tip_right, root_right)
                         Line(root_right, root_left)
-                    else:
-                        # ZK: Slightly convex flanks
-                        num_flank_points = 5
+
+                    elif self.profile == "ZK":
+                        # ZK profile: Circular arc flanks per DIN 3975 Type K
+                        # Biconical grinding wheel profile
+                        num_points = 9
                         left_flank = []
                         right_flank = []
 
-                        for j in range(num_flank_points):
-                            t_flank = j / (num_flank_points - 1)
-                            r_pos = inner_r + t_flank * (outer_r - inner_r)
-                            linear_width = thread_half_width_root + t_flank * (thread_half_width_tip - thread_half_width_root)
-                            curve_factor = 4 * t_flank * (1 - t_flank)
-                            bulge = curve_factor * 0.05 * (thread_half_width_root - thread_half_width_tip)
-                            width = linear_width + bulge
+                        # Arc radius
+                        arc_radius = 0.45 * self.worm_params.module_mm
 
+                        flank_height = outer_r - inner_r
+                        flank_width_change = thread_half_width_root - thread_half_width_tip
+
+                        if flank_width_change > 0:
+                            flank_angle = math.atan(flank_width_change / flank_height)
+                        else:
+                            flank_angle = 0
+
+                        for j in range(num_points):
+                            t = j / (num_points - 1)
+                            r_pos = inner_r + t * flank_height
+                            linear_width = thread_half_width_root + t * (thread_half_width_tip - thread_half_width_root)
+
+                            # Circular arc bulge
+                            arc_param = t * math.pi
+                            arc_bulge = arc_radius * 0.15 * math.sin(arc_param)
+
+                            width = linear_width + arc_bulge
                             left_flank.append((r_pos, -width))
                             right_flank.append((r_pos, width))
 
@@ -338,6 +356,25 @@ class VirtualHobbingWheelGeometry:
                         Line(left_flank[-1], right_flank[-1])
                         Spline(list(reversed(right_flank)))
                         Line(right_flank[0], left_flank[0])
+
+                    elif self.profile == "ZI":
+                        # ZI profile: Involute helicoid per DIN 3975 Type I
+                        # In axial section, appears as straight flanks (generatrix of involute helicoid)
+                        # The involute shape is in normal section (perpendicular to thread)
+                        # Manufactured by hobbing
+
+                        root_left = (inner_r, -thread_half_width_root)
+                        root_right = (inner_r, thread_half_width_root)
+                        tip_left = (outer_r, -thread_half_width_tip)
+                        tip_right = (outer_r, thread_half_width_tip)
+
+                        Line(root_left, tip_left)      # Left flank (straight generatrix)
+                        Line(tip_left, tip_right)      # Tip
+                        Line(tip_right, root_right)    # Right flank (straight generatrix)
+                        Line(root_right, root_left)    # Root (closes)
+
+                    else:
+                        raise ValueError(f"Unknown profile type: {self.profile}")
                 make_face()
 
             sections.append(sk.sketch.faces()[0])

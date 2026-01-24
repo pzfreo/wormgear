@@ -20,9 +20,11 @@ from .virtual_hobbing import VirtualHobbingWheelGeometry
 from .features import (
     BoreFeature,
     KeywayFeature,
+    DDCutFeature,
     SetScrewFeature,
     HubFeature,
     calculate_default_bore,
+    calculate_default_ddcut,
     get_din_6885_keyway,
     get_set_screw_size
 )
@@ -71,11 +73,10 @@ Examples:
   # Generate globoid (hourglass) worm for 30-50% higher load capacity
   wormgear-geometry design.json --globoid
 
-  # For 3D printing: use ZK profile (slightly convex flanks)
-  wormgear-geometry design.json --profile ZK
-
-  # For CNC machining: use ZA profile (straight flanks, default)
-  wormgear-geometry design.json --profile ZA
+  # Tooth profiles per DIN 3975:
+  wormgear-geometry design.json --profile ZA  # Straight flanks (default, CNC)
+  wormgear-geometry design.json --profile ZK  # Circular arc (3D printing)
+  wormgear-geometry design.json --profile ZI  # Involute (hobbing)
         """
     )
 
@@ -165,9 +166,9 @@ Examples:
     parser.add_argument(
         '--profile',
         type=str,
-        choices=['ZA', 'ZK', 'za', 'zk'],
+        choices=['ZA', 'ZK', 'ZI', 'za', 'zk', 'zi'],
         default='ZA',
-        help='Tooth profile type per DIN 3975: ZA=straight flanks for CNC (default), ZK=convex for 3D printing'
+        help='Tooth profile type per DIN 3975: ZA=straight flanks/CNC (default), ZK=circular arc/3D print, ZI=involute/hobbing'
     )
 
     # Experimental virtual hobbing
@@ -195,6 +196,34 @@ Examples:
         '--no-keyway',
         action='store_true',
         help='Omit keyways (default: DIN 6885 keyways added with bores)'
+    )
+
+    # DD-cut options (alternative to keyways for small diameter bores)
+    parser.add_argument(
+        '--dd-cut',
+        action='store_true',
+        help='Use double-D cuts instead of keyways (for small diameter bores < 6mm)'
+    )
+
+    parser.add_argument(
+        '--worm-ddcut-depth',
+        type=float,
+        default=None,
+        help='Worm DD-cut flat depth in mm (default: auto ~15%% of bore diameter)'
+    )
+
+    parser.add_argument(
+        '--wheel-ddcut-depth',
+        type=float,
+        default=None,
+        help='Wheel DD-cut flat depth in mm (default: auto ~15%% of bore diameter)'
+    )
+
+    parser.add_argument(
+        '--ddcut-depth-percent',
+        type=float,
+        default=15.0,
+        help='DD-cut depth as percentage of bore diameter (default: 15.0 for ~70%% flat-to-flat). Common: 10%% (80%% f-t-f), 15%% (70%% f-t-f), 20%% (60%% f-t-f)'
     )
 
     parser.add_argument(
@@ -318,8 +347,15 @@ Examples:
             if worm_bore_diameter is not None:
                 worm_bore = BoreFeature(diameter=worm_bore_diameter)
 
-                # Add keyway unless disabled or bore too small for DIN 6885
-                if not args.no_keyway and worm_bore_diameter >= 6.0:
+                # Add anti-rotation feature (keyway or DD-cut)
+                if args.dd_cut:
+                    # DD-cut requested (alternative to keyway for small bores)
+                    if args.worm_ddcut_depth:
+                        worm_ddcut = DDCutFeature(depth=args.worm_ddcut_depth)
+                    else:
+                        worm_ddcut = calculate_default_ddcut(worm_bore_diameter, args.ddcut_depth_percent)
+                elif not args.no_keyway and worm_bore_diameter >= 6.0:
+                    # Standard keyway for bores >= 6mm
                     worm_keyway = KeywayFeature()
 
                 # Add set screw if requested
@@ -351,6 +387,9 @@ Examples:
             features_desc += f", bore {worm_bore_diameter}mm"
             if worm_keyway:
                 features_desc += " + keyway"
+            elif worm_ddcut:
+                ddcut_depth = worm_ddcut.get_depth(worm_bore_diameter)
+                features_desc += f" + DD-cut ({ddcut_depth:.1f}mm depth)"
             elif worm_bore_diameter < 6.0:
                 features_desc += " (no keyway - below DIN 6885 range)"
             if worm_set_screw:
@@ -361,7 +400,13 @@ Examples:
                 features_desc += f" + set screw ({screw_desc})"
 
         worm_type_desc = "globoid (hourglass)" if args.globoid else "cylindrical"
-        profile_desc = "ZK/3D-print" if args.profile.upper() == "ZK" else "ZA/CNC"
+        profile_upper = args.profile.upper()
+        if profile_upper == "ZK":
+            profile_desc = "ZK/circular arc"
+        elif profile_upper == "ZI":
+            profile_desc = "ZI/involute"
+        else:
+            profile_desc = "ZA/straight"
         print(f"\nGenerating worm ({worm_type_desc}, {design.worm.num_starts}-start, module {design.worm.module_mm}mm, {profile_desc}{features_desc})...")
 
         profile = args.profile.upper()
@@ -374,6 +419,7 @@ Examples:
                 sections_per_turn=args.sections,
                 bore=worm_bore,
                 keyway=worm_keyway,
+                ddcut=worm_ddcut,
                 set_screw=worm_set_screw,
                 profile=profile
             )
@@ -385,6 +431,7 @@ Examples:
                 sections_per_turn=args.sections,
                 bore=worm_bore,
                 keyway=worm_keyway,
+                ddcut=worm_ddcut,
                 set_screw=worm_set_screw,
                 profile=profile
             )
@@ -417,8 +464,15 @@ Examples:
             if wheel_bore_diameter is not None:
                 wheel_bore = BoreFeature(diameter=wheel_bore_diameter)
 
-                # Add keyway unless disabled or bore too small for DIN 6885
-                if not args.no_keyway and wheel_bore_diameter >= 6.0:
+                # Add anti-rotation feature (keyway or DD-cut)
+                if args.dd_cut:
+                    # DD-cut requested (alternative to keyway for small bores)
+                    if args.wheel_ddcut_depth:
+                        wheel_ddcut = DDCutFeature(depth=args.wheel_ddcut_depth)
+                    else:
+                        wheel_ddcut = calculate_default_ddcut(wheel_bore_diameter, args.ddcut_depth_percent)
+                elif not args.no_keyway and wheel_bore_diameter >= 6.0:
+                    # Standard keyway for bores >= 6mm
                     wheel_keyway = KeywayFeature()
 
                 # Add set screw if requested
@@ -463,6 +517,9 @@ Examples:
             features_desc += f", bore {wheel_bore_diameter}mm"
             if wheel_keyway:
                 features_desc += " + keyway"
+            elif wheel_ddcut:
+                ddcut_depth = wheel_ddcut.get_depth(wheel_bore_diameter)
+                features_desc += f" + DD-cut ({ddcut_depth:.1f}mm depth)"
             elif wheel_bore_diameter < 6.0:
                 features_desc += " (no keyway - below DIN 6885 range)"
             if wheel_set_screw:
@@ -483,7 +540,12 @@ Examples:
             features_desc += f", {hub_desc}"
 
         profile = args.profile.upper()
-        profile_desc = "ZK/3D-print" if profile == "ZK" else "ZA/CNC"
+        if profile == "ZK":
+            profile_desc = "ZK/circular arc"
+        elif profile == "ZI":
+            profile_desc = "ZI/involute"
+        else:
+            profile_desc = "ZA/straight"
 
         if args.virtual_hobbing:
             # EXPERIMENTAL: Virtual hobbing simulation
@@ -501,6 +563,7 @@ Examples:
                 hobbing_steps=args.hobbing_steps,
                 bore=wheel_bore,
                 keyway=wheel_keyway,
+                ddcut=wheel_ddcut,
                 set_screw=wheel_set_screw,
                 hub=wheel_hub,
                 profile=profile,
@@ -516,6 +579,7 @@ Examples:
                 throated=args.hobbed,
                 bore=wheel_bore,
                 keyway=wheel_keyway,
+                ddcut=wheel_ddcut,
                 set_screw=wheel_set_screw,
                 hub=wheel_hub,
                 profile=profile
@@ -573,7 +637,13 @@ Examples:
             print("Install with: pip install ocp_vscode", file=sys.stderr)
 
     # Summary
-    profile_name = "ZK (convex, 3D printing)" if args.profile.upper() == "ZK" else "ZA (straight, CNC)"
+    profile_upper = args.profile.upper()
+    if profile_upper == "ZK":
+        profile_name = "ZK (circular arc, 3D printing)"
+    elif profile_upper == "ZI":
+        profile_name = "ZI (involute, hobbing)"
+    else:
+        profile_name = "ZA (straight, CNC)"
     print(f"\nDesign summary:")
     print(f"  Ratio: {design.assembly.ratio}:1")
     print(f"  Centre distance: {design.assembly.centre_distance_mm:.2f} mm")

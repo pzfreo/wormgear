@@ -22,7 +22,7 @@ from .features import (
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
 # ZK: Slightly convex flanks - better for 3D printing (reduces stress concentrations)
-ProfileType = Literal["ZA", "ZK"]
+ProfileType = Literal["ZA", "ZK", "ZI"]
 
 
 class WheelGeometry:
@@ -45,6 +45,7 @@ class WheelGeometry:
         throated: bool = False,
         bore: Optional[BoreFeature] = None,
         keyway: Optional[KeywayFeature] = None,
+        ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         hub: Optional[HubFeature] = None,
         profile: ProfileType = "ZA"
@@ -72,6 +73,7 @@ class WheelGeometry:
         self.throated = throated
         self.bore = bore
         self.keyway = keyway
+        self.ddcut = ddcut
         self.set_screw = set_screw
         self.hub = hub
         self.profile = profile.upper() if isinstance(profile, str) else profile
@@ -100,12 +102,13 @@ class WheelGeometry:
         gear = self._create_helical_gear()
 
         # Add bore, keyway, and set screw if specified
-        if self.bore is not None or self.keyway is not None or self.set_screw is not None:
+        if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:
             gear = add_bore_and_keyway(
                 gear,
                 part_length=self.face_width,
                 bore=self.bore,
                 keyway=self.keyway,
+                ddcut=self.ddcut,
                 set_screw=self.set_screw,
                 axis=Axis.Z
             )
@@ -244,32 +247,70 @@ class WheelGeometry:
                             Line(tip_left, tip_right)      # Tip
                             Line(tip_right, root_right)    # Right flank (straight)
                             Line(root_right, root_left)    # Root (closes)
-                        else:
-                            # ZK profile: Slightly convex flanks per DIN 3975
-                            # Better for 3D printing - reduces stress concentrations
-                            num_flank_points = 5  # Points along each flank for smooth curve
+
+                        elif self.profile == "ZK":
+                            # ZK profile: Circular arc flanks per DIN 3975 Type K
+                            # Biconical grinding wheel profile - convex circular arc
+                            # Better for 3D printing and reduces stress concentrations
+
+                            # Generate circular arc flanks
+                            num_points = 9  # Points per flank for smooth arc
                             left_flank = []
                             right_flank = []
 
-                            for j in range(num_flank_points):
-                                t_flank = j / (num_flank_points - 1)  # 0 to 1
-                                r_pos = actual_inner + t_flank * (outer - actual_inner)
+                            # Arc radius typically 0.4-0.5 × module for biconical cutter
+                            arc_radius = 0.45 * self.params.module_mm
 
-                                # Interpolate width with slight convex curve
-                                linear_width = half_root + t_flank * (half_tip - half_root)
-                                # Add subtle convex bulge (parabolic curve)
-                                curve_factor = 4 * t_flank * (1 - t_flank)  # Peaks at 0.5
-                                bulge = curve_factor * 0.05 * (half_root - half_tip) if half_root > half_tip else 0
-                                width = linear_width + bulge
+                            # Calculate arc center position
+                            flank_height = outer - actual_inner
+                            flank_width_change = half_root - half_tip
 
+                            # Angle of straight flank for reference
+                            if flank_width_change > 0 and flank_height > 0:
+                                flank_angle = math.atan(flank_width_change / flank_height)
+                            else:
+                                flank_angle = 0
+
+                            # Generate arc points
+                            for j in range(num_points):
+                                t = j / (num_points - 1)
+                                r_pos = actual_inner + t * flank_height
+
+                                # Circular arc deviation from straight line
+                                linear_width = half_root + t * (half_tip - half_root)
+
+                                # Arc bulge (circular, not parabolic)
+                                arc_param = t * math.pi  # 0 to π
+                                arc_bulge = arc_radius * 0.15 * math.sin(arc_param)  # Circular arc approximation
+
+                                width = linear_width + arc_bulge
                                 left_flank.append((r_pos, -width))
                                 right_flank.append((r_pos, width))
 
-                            # Build closed profile with curved flanks
-                            Spline(left_flank)  # Left flank (curved)
+                            # Build profile with circular arc flanks
+                            Spline(left_flank)
                             Line(left_flank[-1], right_flank[-1])  # Tip
-                            Spline(list(reversed(right_flank)))  # Right flank (curved)
-                            Line(right_flank[0], left_flank[0])  # Root (closes)
+                            Spline(list(reversed(right_flank)))
+                            Line(right_flank[0], left_flank[0])    # Root (closes)
+
+                        elif self.profile == "ZI":
+                            # ZI profile: Involute helicoid per DIN 3975 Type I
+                            # In axial section, appears as straight flanks (generatrix of involute helicoid)
+                            # The involute shape is in normal section (perpendicular to thread)
+                            # Manufactured by hobbing
+
+                            root_left = (actual_inner, -half_root)
+                            root_right = (actual_inner, half_root)
+                            tip_left = (outer, -half_tip)
+                            tip_right = (outer, half_tip)
+
+                            Line(root_left, tip_left)      # Left flank (straight generatrix)
+                            Line(tip_left, tip_right)      # Tip
+                            Line(tip_right, root_right)    # Right flank (straight generatrix)
+                            Line(root_right, root_left)    # Root (closes)
+
+                        else:
+                            raise ValueError(f"Unknown profile type: {self.profile}")
                     make_face()
 
                 sections.append(sk.sketch.faces()[0])

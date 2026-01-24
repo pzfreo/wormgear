@@ -335,6 +335,119 @@ class HubFeature:
             # Flange diameter will be validated when we know wheel size
 
 
+@dataclass
+class DDCutFeature:
+    """
+    Double-D cut feature specification for small diameter anti-rotation.
+
+    A double-D (D-D) shaft has two parallel flats on opposite sides,
+    creating a D-shaped cross-section when viewed from two perpendicular angles.
+    This provides excellent anti-rotation for small shafts where keyways are
+    impractical or too weak (typically below 6mm diameter).
+
+    The flat depth can be specified either as:
+    - depth: Direct depth of flat cut from bore surface (in mm)
+    - flat_to_flat: Distance between the two parallel flats (in mm)
+
+    Standard practice for small shafts:
+    - 3mm bore: 0.3mm depth or 2.4mm flat-to-flat
+    - 4mm bore: 0.4mm depth or 3.2mm flat-to-flat
+    - 5mm bore: 0.4mm depth or 4.2mm flat-to-flat
+    - 6mm bore: 0.5mm depth or 5.0mm flat-to-flat
+
+    Attributes:
+        depth: Depth of flat cut from bore surface in mm (mutually exclusive with flat_to_flat)
+        flat_to_flat: Distance between parallel flats in mm (mutually exclusive with depth)
+        angular_offset: Rotation of first flat in degrees (0 = aligned with +X axis)
+    """
+    depth: Optional[float] = None
+    flat_to_flat: Optional[float] = None
+    angular_offset: float = 0.0
+
+    def __post_init__(self):
+        if self.depth is None and self.flat_to_flat is None:
+            raise ValueError("Must specify either 'depth' or 'flat_to_flat'")
+
+        if self.depth is not None and self.flat_to_flat is not None:
+            raise ValueError("Cannot specify both 'depth' and 'flat_to_flat' - choose one")
+
+        if self.depth is not None and self.depth <= 0:
+            raise ValueError(f"DD-cut depth must be positive, got {self.depth}")
+
+        if self.flat_to_flat is not None and self.flat_to_flat <= 0:
+            raise ValueError(f"DD-cut flat_to_flat must be positive, got {self.flat_to_flat}")
+
+    def get_depth(self, bore_diameter: float) -> float:
+        """
+        Get the flat cut depth given the bore diameter.
+
+        Args:
+            bore_diameter: Bore diameter in mm
+
+        Returns:
+            Depth of flat cut from bore surface in mm
+
+        Raises:
+            ValueError: If resulting depth is invalid
+        """
+        if self.depth is not None:
+            return self.depth
+
+        # Calculate depth from flat-to-flat dimension
+        # flat_to_flat = bore_diameter - 2*depth
+        # depth = (bore_diameter - flat_to_flat) / 2
+        depth = (bore_diameter - self.flat_to_flat) / 2
+
+        if depth <= 0:
+            raise ValueError(
+                f"flat_to_flat {self.flat_to_flat}mm is too large for "
+                f"bore diameter {bore_diameter}mm (would result in negative depth)"
+            )
+
+        if depth >= bore_diameter / 2:
+            raise ValueError(
+                f"flat_to_flat {self.flat_to_flat}mm is too small for "
+                f"bore diameter {bore_diameter}mm (would result in no bore)"
+            )
+
+        return depth
+
+
+def calculate_default_ddcut(bore_diameter: float, depth_percent: float = 15.0) -> DDCutFeature:
+    """
+    Calculate sensible default DD-cut dimensions for a given bore diameter.
+
+    Standard practice: depth ≈ 0.15 × bore_diameter (gives ~70% flat-to-flat ratio).
+    This matches common small servo/stepper motor shaft standards.
+
+    Args:
+        bore_diameter: Bore diameter in mm
+        depth_percent: Depth as percentage of bore diameter (default: 15.0 for ~70% flat-to-flat)
+                      Common values: 10% (80% f-t-f), 15% (70% f-t-f), 20% (60% f-t-f)
+
+    Returns:
+        DDCutFeature with appropriate dimensions
+
+    Examples:
+        >>> calculate_default_ddcut(3.0)
+        DDCutFeature(depth=0.5, ...)  # 3mm bore, 0.45mm depth, 2.1mm flat-to-flat (70%)
+        >>> calculate_default_ddcut(3.0, depth_percent=10.0)
+        DDCutFeature(depth=0.3, ...)  # 3mm bore, 0.3mm depth, 2.4mm flat-to-flat (80%)
+    """
+    # Calculate depth from percentage
+    depth = bore_diameter * (depth_percent / 100.0)
+
+    # Round to nearest 0.1mm
+    depth = round(depth * 10) / 10
+
+    # Clamp to reasonable range (5-25% of diameter)
+    min_depth = max(0.2, bore_diameter * 0.05)
+    max_depth = bore_diameter * 0.25
+    depth = max(min_depth, min(depth, max_depth))
+
+    return DDCutFeature(depth=depth)
+
+
 def create_bore(
     part: Part,
     bore: BoreFeature,
@@ -532,6 +645,129 @@ def create_set_screw(
     return result
 
 
+def create_ddcut(
+    part: Part,
+    bore: BoreFeature,
+    ddcut: DDCutFeature,
+    part_length: float,
+    axis: Axis = Axis.Z
+) -> Part:
+    """
+    Create double-D cut flats in a bore for anti-rotation (requires bore to already exist).
+
+    Creates two parallel flat cuts on opposite sides of the bore, forming
+    a D-shape when viewed from two perpendicular directions. This provides
+    excellent anti-rotation for small shafts where keyways are impractical.
+
+    NOTE: This fills in portions of the circular bore to create flats, making
+    the effective bore diameter smaller in one direction.
+
+    Args:
+        part: The part to modify (must already have bore created)
+        bore: Bore feature specification (for diameter)
+        ddcut: DD-cut feature specification
+        part_length: Length of part along axis
+        axis: Axis of bore (default: Z)
+
+    Returns:
+        Modified part with DD-cut flats
+
+    Raises:
+        ValueError: If DD-cut depth is invalid for the bore diameter
+    """
+    bore_radius = bore.diameter / 2
+    flat_depth = ddcut.get_depth(bore.diameter)
+
+    # The flat position is at distance (bore_radius - flat_depth) from center
+    flat_position = bore_radius - flat_depth
+
+    # Create boxes to FILL IN the bore region beyond the flats
+    # This adds material back into the circular bore to create the flats
+    # Box extends from flat_position outward to bore_radius (exactly)
+    box_thickness = flat_depth  # Thickness of material to add back (no excess)
+
+    # Calculate chord width at the flat position for precise box sizing
+    # For a circle, chord_half_width = sqrt(R^2 - d^2) where d is distance from center
+    import math
+    chord_half_width = math.sqrt(bore_radius**2 - flat_position**2)
+    box_width = 2 * chord_half_width  # Exact width of chord at flat position
+
+    box_height = part_length  # Exact length along bore axis (no extension)
+
+    # Create filling boxes based on axis orientation
+    if axis == Axis.Z:
+        # Bore along Z axis, flats perpendicular to X axis
+        # Fill from flat_position to bore_radius on +X side
+        fill1 = Box(box_thickness, box_width, box_height,
+                   align=(Align.MIN, Align.CENTER, Align.CENTER))
+        fill1 = Pos(flat_position, 0, 0) * fill1
+
+        # Fill from -flat_position to -bore_radius on -X side
+        fill2 = Box(box_thickness, box_width, box_height,
+                   align=(Align.MAX, Align.CENTER, Align.CENTER))
+        fill2 = Pos(-flat_position, 0, 0) * fill2
+
+    elif axis == Axis.X:
+        # Bore along X axis, flats perpendicular to Y axis
+        fill1 = Box(box_height, box_thickness, box_width,
+                   align=(Align.CENTER, Align.MIN, Align.CENTER))
+        fill1 = Pos(0, flat_position, 0) * fill1
+
+        fill2 = Box(box_height, box_thickness, box_width,
+                   align=(Align.CENTER, Align.MAX, Align.CENTER))
+        fill2 = Pos(0, -flat_position, 0) * fill2
+
+    elif axis == Axis.Y:
+        # Bore along Y axis, flats perpendicular to Z axis
+        fill1 = Box(box_width, box_height, box_thickness,
+                   align=(Align.CENTER, Align.CENTER, Align.MIN))
+        fill1 = Pos(0, 0, flat_position) * fill1
+
+        fill2 = Box(box_width, box_height, box_thickness,
+                   align=(Align.CENTER, Align.CENTER, Align.MAX))
+        fill2 = Pos(0, 0, -flat_position) * fill2
+
+    # Create a cylinder at bore radius to constrain radial extent of fills
+    # This prevents fills from extending beyond the nominal bore boundary
+    if axis == Axis.Z:
+        bore_boundary = Cylinder(
+            radius=bore_radius,
+            height=part_length + 1.0,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        )
+    elif axis == Axis.X:
+        bore_boundary = Cylinder(
+            radius=bore_radius,
+            height=part_length + 1.0,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        )
+        bore_boundary = bore_boundary.rotate(Axis.Y, 90)
+    elif axis == Axis.Y:
+        bore_boundary = Cylinder(
+            radius=bore_radius,
+            height=part_length + 1.0,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        )
+        bore_boundary = bore_boundary.rotate(Axis.X, 90)
+
+    # Apply angular offset to fill boxes if specified
+    if ddcut.angular_offset != 0:
+        fill1 = fill1.rotate(axis, ddcut.angular_offset)
+        fill2 = fill2.rotate(axis, ddcut.angular_offset)
+
+    # Constrain fills using two operations:
+    # 1. Intersect with bore_boundary to limit radial extent to bore radius
+    # 2. Subtract solid part to only keep portion in the bore hole
+    # This ensures fills only occupy bore space and don't extend beyond part surface
+    fill1 = (fill1 & bore_boundary) - part
+    fill2 = (fill2 & bore_boundary) - part
+
+    # UNION the constrained fills back into the part to create flats in the bore
+    result = part + fill1 + fill2
+
+    return result
+
+
 def create_hub(
     wheel: Part,
     hub: HubFeature,
@@ -723,19 +959,24 @@ def add_bore_and_keyway(
     part_length: float,
     bore: Optional[BoreFeature] = None,
     keyway: Optional[KeywayFeature] = None,
+    ddcut: Optional[DDCutFeature] = None,
     set_screw: Optional[SetScrewFeature] = None,
     axis: Axis = Axis.Z
 ) -> Part:
     """
-    Add bore, keyway, and set screw holes to a part.
+    Add bore, keyway/DD-cut, and set screw holes to a part.
 
-    Convenience function that applies features in order: bore → keyway → set screws.
+    Convenience function that applies features in order:
+    bore → keyway/DD-cut → set screws.
+
+    Note: keyway and ddcut are mutually exclusive (use one or the other).
 
     Args:
         part: The part to modify
         part_length: Length of the part along axis
-        bore: Bore specification (required if keyway or set_screw specified)
-        keyway: Keyway specification (optional)
+        bore: Bore specification (required if keyway, ddcut, or set_screw specified)
+        keyway: Keyway specification (optional, mutually exclusive with ddcut)
+        ddcut: Double-D cut specification (optional, mutually exclusive with keyway)
         set_screw: Set screw specification (optional)
         axis: Axis for bore and features (default: Z)
 
@@ -743,10 +984,17 @@ def add_bore_and_keyway(
         Modified part with requested features
 
     Raises:
-        ValueError: If keyway or set_screw specified without bore
+        ValueError: If keyway/ddcut/set_screw specified without bore,
+                   or if both keyway and ddcut specified
     """
     if keyway is not None and bore is None:
         raise ValueError("Keyway requires a bore to be specified")
+
+    if ddcut is not None and bore is None:
+        raise ValueError("DD-cut requires a bore to be specified")
+
+    if keyway is not None and ddcut is not None:
+        raise ValueError("Cannot specify both keyway and DD-cut - choose one")
 
     if set_screw is not None and bore is None:
         raise ValueError("Set screw requires a bore to be specified")
@@ -758,6 +1006,9 @@ def add_bore_and_keyway(
 
     if keyway is not None:
         result = create_keyway(result, bore, keyway, part_length, axis)
+
+    if ddcut is not None:
+        result = create_ddcut(result, bore, ddcut, part_length, axis)
 
     if set_screw is not None:
         result = create_set_screw(result, bore, set_screw, part_length, axis)
