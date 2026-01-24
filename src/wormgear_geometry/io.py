@@ -26,6 +26,19 @@ class WormParams:
     thread_thickness_mm: float
     hand: str  # "RIGHT" or "LEFT"
     profile_shift: float = 0.0
+    # Optional geometry parameters (from schema v1.0)
+    type: Optional[str] = None  # "cylindrical" or "globoid"
+    throat_reduction_mm: Optional[float] = None  # Globoid only
+    throat_curvature_radius_mm: Optional[float] = None  # Globoid only
+    recommended_length_mm: Optional[float] = None
+    min_length_mm: Optional[float] = None
+    length_mm: Optional[float] = None  # Actual length to generate
+    bore_diameter_mm: Optional[float] = None
+    bore_auto: Optional[bool] = None
+    keyway_standard: Optional[str] = None  # "DIN6885" or "none"
+    keyway_auto: Optional[bool] = None
+    set_screw_diameter_mm: Optional[float] = None
+    set_screw_count: Optional[int] = None
 
 
 @dataclass
@@ -41,6 +54,21 @@ class WheelParams:
     addendum_mm: float
     dedendum_mm: float
     profile_shift: float = 0.0
+    # Optional geometry parameters (from schema v1.0)
+    recommended_width_mm: Optional[float] = None
+    max_width_mm: Optional[float] = None
+    min_width_mm: Optional[float] = None
+    width_mm: Optional[float] = None  # Actual width to generate
+    bore_diameter_mm: Optional[float] = None
+    bore_auto: Optional[bool] = None
+    keyway_standard: Optional[str] = None  # "DIN6885" or "none"
+    keyway_auto: Optional[bool] = None
+    set_screw_diameter_mm: Optional[float] = None
+    set_screw_count: Optional[int] = None
+    hub_type: Optional[str] = None  # "flush", "extended", "flanged", "none"
+    hub_length_mm: Optional[float] = None
+    hub_flange_diameter_mm: Optional[float] = None
+    hub_bolt_holes: Optional[int] = None
 
 
 @dataclass
@@ -74,14 +102,12 @@ class ManufacturingFeatures:
 
 @dataclass
 class ManufacturingParams:
-    """Manufacturing parameters for worm and wheel."""
-    worm_type: str = "cylindrical"  # "cylindrical" or "globoid"
-    worm_length: float = 40.0
-    wheel_width: Optional[float] = None
-    wheel_throated: bool = False
-    profile: str = "ZA"  # "ZA" (straight/CNC) or "ZK" (convex/3D-print) per DIN 3975
-    worm_features: Optional[ManufacturingFeatures] = None
-    wheel_features: Optional[ManufacturingFeatures] = None
+    """Manufacturing parameters for geometry generation."""
+    profile: str = "ZA"  # Tooth profile: "ZA" (straight), "ZK" (circular arc), "ZI" (involute)
+    virtual_hobbing: bool = False  # Use virtual hobbing simulation for wheel
+    hobbing_steps: int = 18  # Number of steps for virtual hobbing (if enabled)
+    throated_wheel: bool = False  # True for throated/hobbed wheel style
+    sections_per_turn: int = 36  # Loft sections per helix turn (smoothness)
 
 
 @dataclass
@@ -143,7 +169,20 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
         dedendum_mm=worm_data['dedendum_mm'],
         thread_thickness_mm=worm_data['thread_thickness_mm'],
         hand=worm_hand,
-        profile_shift=worm_data.get('profile_shift', 0.0)
+        profile_shift=worm_data.get('profile_shift', 0.0),
+        # Optional schema v1.0 fields
+        type=worm_data.get('type'),
+        throat_reduction_mm=worm_data.get('throat_reduction_mm'),
+        throat_curvature_radius_mm=worm_data.get('throat_curvature_radius_mm'),
+        recommended_length_mm=worm_data.get('recommended_length_mm'),
+        min_length_mm=worm_data.get('min_length_mm'),
+        length_mm=worm_data.get('length_mm'),
+        bore_diameter_mm=worm_data.get('bore_diameter_mm'),
+        bore_auto=worm_data.get('bore_auto'),
+        keyway_standard=worm_data.get('keyway_standard'),
+        keyway_auto=worm_data.get('keyway_auto'),
+        set_screw_diameter_mm=worm_data.get('set_screw_diameter_mm'),
+        set_screw_count=worm_data.get('set_screw_count')
     )
 
     # Parse wheel parameters
@@ -158,7 +197,22 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
         helix_angle_deg=wheel_data['helix_angle_deg'],
         addendum_mm=wheel_data['addendum_mm'],
         dedendum_mm=wheel_data['dedendum_mm'],
-        profile_shift=wheel_data.get('profile_shift', 0.0)
+        profile_shift=wheel_data.get('profile_shift', 0.0),
+        # Optional schema v1.0 fields
+        recommended_width_mm=wheel_data.get('recommended_width_mm'),
+        max_width_mm=wheel_data.get('max_width_mm'),
+        min_width_mm=wheel_data.get('min_width_mm'),
+        width_mm=wheel_data.get('width_mm'),
+        bore_diameter_mm=wheel_data.get('bore_diameter_mm'),
+        bore_auto=wheel_data.get('bore_auto'),
+        keyway_standard=wheel_data.get('keyway_standard'),
+        keyway_auto=wheel_data.get('keyway_auto'),
+        set_screw_diameter_mm=wheel_data.get('set_screw_diameter_mm'),
+        set_screw_count=wheel_data.get('set_screw_count'),
+        hub_type=wheel_data.get('hub_type'),
+        hub_length_mm=wheel_data.get('hub_length_mm'),
+        hub_flange_diameter_mm=wheel_data.get('hub_flange_diameter_mm'),
+        hub_bolt_holes=wheel_data.get('hub_bolt_holes')
     )
 
     # Parse assembly parameters (asm_data already extracted above)
@@ -176,45 +230,12 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
     manufacturing = None
     if 'manufacturing' in data:
         mfg_data = data['manufacturing']
-
-        # Parse worm features
-        worm_features = None
-        if 'worm_features' in mfg_data:
-            wf = mfg_data['worm_features']
-            worm_features = ManufacturingFeatures(
-                bore_diameter=wf.get('bore_diameter'),
-                keyway_width=wf.get('keyway_width'),
-                keyway_depth=wf.get('keyway_depth'),
-                set_screw_size=wf.get('set_screw_size'),
-                set_screw_count=wf.get('set_screw_count')
-            )
-
-        # Parse wheel features
-        wheel_features = None
-        if 'wheel_features' in mfg_data:
-            wf = mfg_data['wheel_features']
-            wheel_features = ManufacturingFeatures(
-                bore_diameter=wf.get('bore_diameter'),
-                keyway_width=wf.get('keyway_width'),
-                keyway_depth=wf.get('keyway_depth'),
-                set_screw_size=wf.get('set_screw_size'),
-                set_screw_count=wf.get('set_screw_count'),
-                hub_type=wf.get('hub_type'),
-                hub_length=wf.get('hub_length'),
-                flange_diameter=wf.get('flange_diameter'),
-                flange_thickness=wf.get('flange_thickness'),
-                flange_bolts=wf.get('flange_bolts'),
-                bolt_diameter=wf.get('bolt_diameter')
-            )
-
         manufacturing = ManufacturingParams(
-            worm_type=mfg_data.get('worm_type', 'cylindrical'),
-            worm_length=mfg_data.get('worm_length', 40.0),
-            wheel_width=mfg_data.get('wheel_width'),
-            wheel_throated=mfg_data.get('wheel_throated', False),
             profile=mfg_data.get('profile', 'ZA'),
-            worm_features=worm_features,
-            wheel_features=wheel_features
+            virtual_hobbing=mfg_data.get('virtual_hobbing', False),
+            hobbing_steps=mfg_data.get('hobbing_steps', 18),
+            throated_wheel=mfg_data.get('throated_wheel', False),
+            sections_per_turn=mfg_data.get('sections_per_turn', 36)
         )
 
     return WormGearDesign(worm=worm, wheel=wheel, assembly=assembly, manufacturing=manufacturing)
