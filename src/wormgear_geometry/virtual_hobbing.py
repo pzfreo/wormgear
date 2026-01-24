@@ -450,8 +450,14 @@ class VirtualHobbingWheelGeometry:
         Returns:
             Trimmed envelope
         """
-        # Create a bounding cylinder slightly larger than the wheel
-        trim_radius = self.params.tip_diameter_mm / 2 + 1.0  # 1mm margin
+        # Calculate trim radius: must be large enough to contain hob at working position
+        # Hob is positioned at centre_distance from wheel center
+        # Hob extends to: centre_distance + hob_tip_radius
+        centre_distance = self.assembly_params.centre_distance_mm
+        hob_tip_radius = self.worm_params.tip_diameter_mm / 2
+
+        # Add small margin beyond hob envelope (0.5mm is enough)
+        trim_radius = centre_distance + hob_tip_radius + 0.5
         trim_height = self.face_width + 2.0  # 2mm margin
 
         bounding_cylinder = Cylinder(
