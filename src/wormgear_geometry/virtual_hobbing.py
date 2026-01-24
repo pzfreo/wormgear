@@ -599,9 +599,27 @@ class VirtualHobbingWheelGeometry:
             91.0
         )
 
+        # DEBUG: Check envelope validity before optimizations
+        if envelope is None:
+            print("    ⚠️  ERROR: Envelope is None after Phase 1!")
+            return blank
+
+        try:
+            env_volume = envelope.volume
+            print(f"    Envelope volume before optimizations: {env_volume:.2f} mm³")
+        except:
+            print(f"    ⚠️  WARNING: Cannot compute envelope volume (may be invalid)")
+
         # Optimization #1: Trim envelope to wheel boundaries
         # This removes excess hob geometry that doesn't cut anything
         envelope = self._trim_envelope_to_wheel_bounds(envelope)
+
+        # DEBUG: Check envelope after trim
+        try:
+            env_volume_trimmed = envelope.volume
+            print(f"    Envelope volume after trim: {env_volume_trimmed:.2f} mm³")
+        except:
+            print(f"    ⚠️  WARNING: Envelope invalid after trim!")
 
         # Optimization #3: Final simplification before Phase 2
         print(f"    Applying final simplification to envelope...")
@@ -610,6 +628,13 @@ class VirtualHobbingWheelGeometry:
         envelope = self._simplify_geometry(envelope, "final envelope")
         simplify_time = time.time() - simplify_start
         print(f"    ✓ Final simplification complete in {simplify_time:.1f}s")
+
+        # DEBUG: Check envelope after simplification
+        try:
+            env_volume_final = envelope.volume
+            print(f"    Envelope volume after simplification: {env_volume_final:.2f} mm³")
+        except:
+            print(f"    ⚠️  WARNING: Envelope invalid after simplification!")
 
         # Phase 2: Subtract envelope (this is a single complex boolean operation)
         self._report_progress(
