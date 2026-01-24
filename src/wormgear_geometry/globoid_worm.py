@@ -169,17 +169,11 @@ class GloboidWormGeometry:
         for start_idx in range(num_starts):
             # Progress: 20-80% is thread creation
             thread_progress = 20 + (start_idx / num_starts) * 60
-<<<<<<< HEAD
             # Only print to console for first thread or single-start worms
             self._report_progress(
                 f"  Creating thread {start_idx + 1}/{num_starts}...",
                 thread_progress,
                 verbose=(start_idx == 0 or num_starts == 1)
-=======
-            self._report_progress(
-                f"  Creating thread {start_idx + 1}/{num_starts}...",
-                thread_progress
->>>>>>> origin/main
             )
             thread = self._create_thread(start_idx)
             if thread:
