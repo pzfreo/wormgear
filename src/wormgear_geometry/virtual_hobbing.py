@@ -25,6 +25,8 @@ import sys
 import time
 from typing import Optional, Literal, Callable
 from build123d import *
+from OCP.ShapeFix import ShapeFix_Shape
+from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from .io import WheelParams, WormParams, AssemblyParams
 from .features import (
     BoreFeature,
@@ -198,7 +200,8 @@ class VirtualHobbingWheelGeometry:
         # Use provided hob geometry or create cylindrical hob
         if self.hob_geometry is not None:
             print(f"    Using provided worm geometry as hob (e.g., globoid)")
-            hob = self.hob_geometry
+            print(f"    Applying simplification to complex hob geometry...")
+            hob = self._create_simplified_hob(self.hob_geometry)
         else:
             # Create the hob (cutting tool based on worm geometry)
             hob = self._create_hob()
@@ -376,6 +379,104 @@ class VirtualHobbingWheelGeometry:
             except Exception as e:
                 pass  # Don't let callback errors break generation
 
+    def _simplify_geometry(self, part: Part, description: str = "") -> Part:
+        """
+        Simplify geometry using OpenCascade tools.
+
+        Optimization #3: Merge coplanar faces and unify same-domain surfaces
+        to reduce boolean operation complexity.
+
+        Args:
+            part: The part to simplify
+            description: Description for progress reporting
+
+        Returns:
+            Simplified part
+        """
+        try:
+            # UnifySameDomain merges faces that share the same underlying surface
+            unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
+            unifier.Build()
+            unified_shape = unifier.Shape()
+
+            # ShapeFix cleans up invalid geometry
+            fixer = ShapeFix_Shape(unified_shape)
+            fixer.Perform()
+            fixed_shape = fixer.Shape()
+
+            simplified = Part(fixed_shape)
+
+            if description:
+                print(f"    ✓ Simplified {description}")
+
+            return simplified
+        except Exception as e:
+            print(f"    ⚠️  Simplification failed ({description}): {e}, using original")
+            return part
+
+    def _create_simplified_hob(self, original_hob: Part) -> Part:
+        """
+        Create a simplified version of a complex hob (e.g., globoid).
+
+        Optimization #2: For globoid worms with many lofted sections,
+        create a coarser approximation that's much faster to process
+        while preserving tooth contact geometry.
+
+        Args:
+            original_hob: The original complex hob geometry
+
+        Returns:
+            Simplified hob (or original if simplification not needed/possible)
+        """
+        # First try OCC simplification
+        simplified = self._simplify_geometry(original_hob, "hob geometry (OCC tools)")
+
+        # TODO: If we detect a globoid, we could rebuild it with fewer sections
+        # For now, OCC simplification should help significantly
+
+        return simplified
+
+    def _trim_envelope_to_wheel_bounds(self, envelope: Part) -> Part:
+        """
+        Trim envelope to wheel boundaries.
+
+        Optimization #1: Remove all hob geometry outside the wheel's
+        cutting zone. This dramatically reduces the complexity of the
+        boolean subtraction in Phase 2.
+
+        Args:
+            envelope: The full hob envelope
+
+        Returns:
+            Trimmed envelope
+        """
+        # Create a bounding cylinder slightly larger than the wheel
+        trim_radius = self.params.tip_diameter_mm / 2 + 1.0  # 1mm margin
+        trim_height = self.face_width + 2.0  # 2mm margin
+
+        bounding_cylinder = Cylinder(
+            radius=trim_radius,
+            height=trim_height,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        )
+
+        print(f"    Trimming envelope to wheel bounds (r={trim_radius:.2f}mm, h={trim_height:.2f}mm)...")
+        sys.stdout.flush()
+
+        trim_start = time.time()
+
+        try:
+            # Intersect envelope with bounding cylinder
+            trimmed = envelope & bounding_cylinder
+            trim_time = time.time() - trim_start
+            print(f"    ✓ Envelope trimmed in {trim_time:.1f}s")
+            return trimmed
+        except Exception as e:
+            trim_time = time.time() - trim_start
+            print(f"    ⚠️  Envelope trimming failed after {trim_time:.1f}s: {e}")
+            print(f"    ⚠️  Using untrimmed envelope (Phase 2 will be slower)")
+            return envelope
+
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
         """
         Simulate the hobbing process by creating the envelope of all hob positions.
@@ -430,6 +531,10 @@ class VirtualHobbingWheelGeometry:
         # Build envelope by unioning all hob positions
         envelope = None
 
+        # Optimization #4: Periodic simplification interval
+        # Simplify every N steps to prevent complexity buildup
+        simplification_interval = max(3, self.hobbing_steps // 6)  # Every ~6th of total steps
+
         for step in range(self.hobbing_steps):
             # Current rotations
             wheel_angle = step * wheel_increment
@@ -446,6 +551,11 @@ class VirtualHobbingWheelGeometry:
                     envelope = envelope + hob_rotated
             except Exception as e:
                 self._report_progress(f"    WARNING: Step {step} union failed: {e}", -1)
+
+            # Optimization #4: Periodic simplification during envelope building
+            # Simplify every few steps to prevent exponential complexity growth
+            if envelope is not None and (step + 1) % simplification_interval == 0 and (step + 1) < self.hobbing_steps:
+                envelope = self._simplify_geometry(envelope, f"envelope at step {step + 1}")
 
             # Progress indicator (more frequent for WASM feedback)
             if (step + 1) % progress_interval == 0:
@@ -473,6 +583,18 @@ class VirtualHobbingWheelGeometry:
             f"    ✓ Phase 1 complete in {phase1_time:.1f}s ({self.hobbing_steps} unions)",
             91.0
         )
+
+        # Optimization #1: Trim envelope to wheel boundaries
+        # This removes excess hob geometry that doesn't cut anything
+        envelope = self._trim_envelope_to_wheel_bounds(envelope)
+
+        # Optimization #3: Final simplification before Phase 2
+        print(f"    Applying final simplification to envelope...")
+        sys.stdout.flush()
+        simplify_start = time.time()
+        envelope = self._simplify_geometry(envelope, "final envelope")
+        simplify_time = time.time() - simplify_start
+        print(f"    ✓ Final simplification complete in {simplify_time:.1f}s")
 
         # Phase 2: Subtract envelope (this is a single complex boolean operation)
         self._report_progress(
