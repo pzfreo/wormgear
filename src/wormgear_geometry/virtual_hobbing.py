@@ -393,6 +393,11 @@ class VirtualHobbingWheelGeometry:
         Returns:
             Simplified part
         """
+        if description:
+            print(f"    Simplifying {description}...", end="", flush=True)
+
+        simplify_start = time.time()
+
         try:
             # UnifySameDomain merges faces that share the same underlying surface
             unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
@@ -406,12 +411,14 @@ class VirtualHobbingWheelGeometry:
 
             simplified = Part(fixed_shape)
 
+            simplify_time = time.time() - simplify_start
             if description:
-                print(f"    ✓ Simplified {description}")
+                print(f" done in {simplify_time:.1f}s")
 
             return simplified
         except Exception as e:
-            print(f"    ⚠️  Simplification failed ({description}): {e}, using original")
+            simplify_time = time.time() - simplify_start
+            print(f" failed after {simplify_time:.1f}s: {e}, using original")
             return part
 
     def _create_simplified_hob(self, original_hob: Part) -> Part:
@@ -538,8 +545,10 @@ class VirtualHobbingWheelGeometry:
         envelope = None
 
         # Optimization #4: Periodic simplification interval
+        # Only do this for complex geometry (globoid) - skip for cylindrical
         # Simplify every N steps to prevent complexity buildup
-        simplification_interval = max(3, self.hobbing_steps // 6)  # Every ~6th of total steps
+        use_periodic_simplification = (self.hob_geometry is not None)  # Only if using provided geometry
+        simplification_interval = max(3, self.hobbing_steps // 6) if use_periodic_simplification else 999999
 
         for step in range(self.hobbing_steps):
             # Current rotations
@@ -558,9 +567,9 @@ class VirtualHobbingWheelGeometry:
             except Exception as e:
                 self._report_progress(f"    WARNING: Step {step} union failed: {e}", -1)
 
-            # Optimization #4: Periodic simplification during envelope building
+            # Optimization #4: Periodic simplification during envelope building (globoid only)
             # Simplify every few steps to prevent exponential complexity growth
-            if envelope is not None and (step + 1) % simplification_interval == 0 and (step + 1) < self.hobbing_steps:
+            if use_periodic_simplification and envelope is not None and (step + 1) % simplification_interval == 0 and (step + 1) < self.hobbing_steps:
                 envelope = self._simplify_geometry(envelope, f"envelope at step {step + 1}")
 
             # Progress indicator (more frequent for WASM feedback)
