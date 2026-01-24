@@ -207,7 +207,8 @@ class VirtualHobbingWheelGeometry:
             hob = self._create_hob()
 
         # Perform virtual hobbing
-        wheel = self._simulate_hobbing(wheel, hob)
+        # Use incremental approach (faster, more reliable than envelope)
+        wheel = self._simulate_hobbing_incremental(wheel, hob)
 
         # Add bore, keyway, and set screw if specified
         if self.bore is not None or self.keyway is not None or self.set_screw is not None:
@@ -504,6 +505,57 @@ class VirtualHobbingWheelGeometry:
             print(f"    ⚠️  Envelope trimming failed after {trim_time:.1f}s: {e}")
             print(f"    ⚠️  Using untrimmed envelope (Phase 2 will be slower)")
             return envelope
+
+    def _simulate_hobbing_incremental(self, blank: Part, hob: Part) -> Part:
+        """
+        Simulate hobbing by incrementally subtracting hob at each position.
+
+        ALTERNATIVE APPROACH: Instead of building envelope then subtracting,
+        subtract the hob from wheel at each step. Avoids complex envelope management.
+
+        Pros: Simpler, more predictable memory usage
+        Cons: More boolean operations, overlapping cuts
+        """
+        centre_distance = self.assembly_params.centre_distance_mm
+        wheel_teeth = self.params.num_teeth
+        worm_starts = self.worm_params.num_starts
+        ratio = wheel_teeth / worm_starts
+
+        wheel_increment = 360.0 / self.hobbing_steps
+        hob_increment = wheel_increment * ratio
+
+        self._report_progress(
+            f"    Hobbing simulation (INCREMENTAL): {self.hobbing_steps} steps, ratio 1:{ratio:.1f}",
+            0.0
+        )
+
+        progress_interval = max(1, self.hobbing_steps // 20)
+        wheel = blank
+
+        for step in range(self.hobbing_steps):
+            wheel_angle = step * wheel_increment
+            hob_angle = step * hob_increment
+
+            # Rotate hob to position
+            hob_rotated = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+
+            # Subtract from wheel
+            try:
+                wheel = wheel - hob_rotated
+            except Exception as e:
+                self._report_progress(f"    WARNING: Step {step} subtraction failed: {e}", -1)
+
+            # Progress
+            if (step + 1) % progress_interval == 0:
+                pct = ((step + 1) / self.hobbing_steps) * 100
+                self._report_progress(
+                    f"      {pct:.0f}% complete ({step + 1}/{self.hobbing_steps} cuts)",
+                    pct,
+                    verbose=(step + 1) in [self.hobbing_steps // 4, self.hobbing_steps // 2, 3 * self.hobbing_steps // 4]
+                )
+
+        self._report_progress(f"    ✓ Incremental hobbing complete", 100.0)
+        return wheel
 
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
         """
