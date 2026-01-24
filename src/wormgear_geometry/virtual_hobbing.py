@@ -21,7 +21,7 @@ Trade-offs:
 """
 
 import math
-from typing import Optional, Literal
+from typing import Optional, Literal, Callable
 from build123d import *
 from .io import WheelParams, WormParams, AssemblyParams
 from .features import (
@@ -34,6 +34,70 @@ from .features import (
 )
 
 ProfileType = Literal["ZA", "ZK"]
+
+# Step presets for virtual hobbing with estimated timings
+HOBBING_PRESETS = {
+    "preview": {
+        "steps": 36,
+        "description": "Quick preview - lower accuracy",
+        "native_time": "15-30 sec",
+        "wasm_time": "1-3 min"
+    },
+    "balanced": {
+        "steps": 72,
+        "description": "Good quality for most uses",
+        "native_time": "30-60 sec",
+        "wasm_time": "3-6 min"
+    },
+    "high": {
+        "steps": 144,
+        "description": "High accuracy - slow",
+        "native_time": "1-2 min",
+        "wasm_time": "6-12 min"
+    },
+    "ultra": {
+        "steps": 360,
+        "description": "Maximum accuracy - very slow",
+        "native_time": "3-5 min",
+        "wasm_time": "15-30 min (not recommended)"
+    }
+}
+
+# Progress callback type for WASM integration
+ProgressCallback = Callable[[str, float], None]  # (message, percent_complete)
+
+
+def get_hobbing_preset(name: str) -> dict:
+    """
+    Get hobbing preset by name.
+
+    Args:
+        name: Preset name ("preview", "balanced", "high", "ultra")
+
+    Returns:
+        dict with 'steps', 'description', 'native_time', 'wasm_time'
+
+    Raises:
+        ValueError if preset name not found
+    """
+    name_lower = name.lower()
+    if name_lower not in HOBBING_PRESETS:
+        valid = ", ".join(HOBBING_PRESETS.keys())
+        raise ValueError(f"Unknown preset '{name}'. Valid presets: {valid}")
+    return HOBBING_PRESETS[name_lower]
+
+
+def get_preset_steps(name: str) -> int:
+    """
+    Get number of steps for a preset name.
+
+    Args:
+        name: Preset name ("preview", "balanced", "high", "ultra")
+
+    Returns:
+        Number of hobbing steps
+    """
+    return get_hobbing_preset(name)["steps"]
 
 
 class VirtualHobbingWheelGeometry:
@@ -63,7 +127,8 @@ class VirtualHobbingWheelGeometry:
         set_screw: Optional[SetScrewFeature] = None,
         hub: Optional[HubFeature] = None,
         profile: ProfileType = "ZA",
-        hob_geometry: Optional[Part] = None
+        hob_geometry: Optional[Part] = None,
+        progress_callback: Optional[ProgressCallback] = None
     ):
         """
         Initialize virtual hobbing wheel generator.
@@ -75,7 +140,11 @@ class VirtualHobbingWheelGeometry:
             face_width: Wheel face width in mm (default: auto-calculated)
             hobbing_steps: Number of boolean operations per full wheel rotation
                           More steps = more accurate but slower
-                          Typical values: 72 (fast), 144 (balanced), 360 (high accuracy)
+                          Use HOBBING_PRESETS for recommended values:
+                          - "preview": 36 steps (1-3 min WASM)
+                          - "balanced": 72 steps (3-6 min WASM)
+                          - "high": 144 steps (6-12 min WASM)
+                          - "ultra": 360 steps (not recommended for WASM)
             bore: Optional bore feature specification
             keyway: Optional keyway feature specification (requires bore)
             set_screw: Optional set screw feature specification (requires bore)
@@ -84,6 +153,8 @@ class VirtualHobbingWheelGeometry:
             hob_geometry: Optional pre-built worm geometry to use as hob.
                          If provided, uses this exact shape (e.g., globoid worm).
                          If None, creates a cylindrical hob from worm_params.
+            progress_callback: Optional callback function(message, percent) for
+                              progress reporting in WASM/browser environments.
         """
         self.params = params
         self.worm_params = worm_params
@@ -95,6 +166,7 @@ class VirtualHobbingWheelGeometry:
         self.hub = hub
         self.profile = profile.upper() if isinstance(profile, str) else profile
         self.hob_geometry = hob_geometry
+        self.progress_callback = progress_callback
 
         # Set keyway as hub type if specified
         if self.keyway is not None:
@@ -286,6 +358,15 @@ class VirtualHobbingWheelGeometry:
         print(f"    ✓ Hob created: length={hob_length:.2f}mm, {self.worm_params.num_starts} start(s)")
         return hob
 
+    def _report_progress(self, message: str, percent: float):
+        """Report progress via callback if available."""
+        print(message)
+        if self.progress_callback:
+            try:
+                self.progress_callback(message, percent)
+            except Exception as e:
+                pass  # Don't let callback errors break generation
+
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
         """
         Simulate the hobbing process by creating the envelope of all hob positions.
@@ -309,11 +390,17 @@ class VirtualHobbingWheelGeometry:
         wheel_increment = 360.0 / self.hobbing_steps
         hob_increment = wheel_increment * ratio
 
-        print(f"    Hobbing simulation: {self.hobbing_steps} steps, ratio 1:{ratio:.1f}")
-        print(f"    Phase 1: Building hob envelope (union of all positions)...")
+        self._report_progress(
+            f"    Hobbing simulation: {self.hobbing_steps} steps, ratio 1:{ratio:.1f}",
+            0.0
+        )
+        self._report_progress(
+            f"    Phase 1: Building hob envelope (union of all positions)...",
+            1.0
+        )
 
-        # Track progress
-        progress_interval = max(1, self.hobbing_steps // 10)
+        # Track progress - more frequent updates for WASM
+        progress_interval = max(1, self.hobbing_steps // 20)
 
         # Build envelope by unioning all hob positions
         envelope = None
@@ -333,27 +420,31 @@ class VirtualHobbingWheelGeometry:
                 else:
                     envelope = envelope + hob_rotated
             except Exception as e:
-                print(f"    WARNING: Step {step} union failed: {e}")
+                self._report_progress(f"    WARNING: Step {step} union failed: {e}", -1)
 
-            # Progress indicator
+            # Progress indicator (more frequent for WASM feedback)
             if (step + 1) % progress_interval == 0:
-                pct = ((step + 1) / self.hobbing_steps) * 100
-                print(f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)")
+                # Phase 1 is 0-90% of total progress
+                pct = ((step + 1) / self.hobbing_steps) * 90
+                self._report_progress(
+                    f"      {pct:.0f}% envelope built ({step + 1}/{self.hobbing_steps} steps)",
+                    pct
+                )
 
         if envelope is None:
-            print(f"    ERROR: Failed to build envelope")
+            self._report_progress(f"    ERROR: Failed to build envelope", -1)
             return blank
 
-        print(f"    Phase 2: Subtracting envelope from wheel blank...")
+        self._report_progress(f"    Phase 2: Subtracting envelope from wheel blank...", 92.0)
 
         # Subtract the envelope from the wheel blank
         try:
             wheel = blank - envelope
         except Exception as e:
-            print(f"    ERROR: Envelope subtraction failed: {e}")
+            self._report_progress(f"    ERROR: Envelope subtraction failed: {e}", -1)
             return blank
 
-        print(f"    ✓ Virtual hobbing complete")
+        self._report_progress(f"    ✓ Virtual hobbing complete", 100.0)
         return wheel
 
     def show(self):

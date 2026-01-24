@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worm Gear WASM Performance Test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #00d4ff;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        h2 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        .test-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .test-row:last-child {
+            border-bottom: none;
+        }
+        .test-name {
+            flex: 1;
+        }
+        .test-status {
+            width: 120px;
+            text-align: center;
+        }
+        .test-time {
+            width: 150px;
+            text-align: right;
+            font-family: monospace;
+        }
+        .status-pending { color: #888; }
+        .status-running { color: #ffd700; }
+        .status-complete { color: #00ff88; }
+        .status-error { color: #ff4444; }
+        button {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        #console {
+            background: #0a0a15;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .log-info { color: #00d4ff; }
+        .log-success { color: #00ff88; }
+        .log-warning { color: #ffd700; }
+        .log-error { color: #ff4444; }
+        .progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .summary-item {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .summary-label {
+            color: #888;
+            font-size: 0.9em;
+        }
+        .note {
+            background: rgba(255, 215, 0, 0.1);
+            border-left: 3px solid #ffd700;
+            padding: 10px 15px;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WASM Performance Test</h1>
+        <p class="subtitle">Measure worm gear geometry generation times in your browser</p>
+
+        <div class="card">
+            <h2>Test Configuration</h2>
+            <p>This test measures actual generation times for different geometry types on your hardware.</p>
+            <div class="note">
+                <strong>Note:</strong> First run will be slower due to package loading (~30-60 seconds).
+                Subsequent tests use cached packages.
+            </div>
+            <div class="btn-container">
+                <button id="runTests" onclick="runAllTests()">Run Performance Tests</button>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="overallProgress"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Test Results</h2>
+            <div id="testResults">
+                <div class="test-row">
+                    <span class="test-name">Package Loading (Pyodide + build123d)</span>
+                    <span class="test-status status-pending" id="status-loading">Pending</span>
+                    <span class="test-time" id="time-loading">-</span>
+                </div>
+                <div class="test-row">
+                    <span class="test-name">Standard Worm (m2, 1 start)</span>
+                    <span class="test-status status-pending" id="status-worm">Pending</span>
+                    <span class="test-time" id="time-worm">-</span>
+                </div>
+                <div class="test-row">
+                    <span class="test-name">Standard Wheel (30 teeth, helical)</span>
+                    <span class="test-status status-pending" id="status-wheel">Pending</span>
+                    <span class="test-time" id="time-wheel">-</span>
+                </div>
+                <div class="test-row">
+                    <span class="test-name">Globoid Worm (hourglass)</span>
+                    <span class="test-status status-pending" id="status-globoid">Pending</span>
+                    <span class="test-time" id="time-globoid">-</span>
+                </div>
+                <div class="test-row">
+                    <span class="test-name">Virtual Hobbing - Preview (36 steps)</span>
+                    <span class="test-status status-pending" id="status-hobbing36">Pending</span>
+                    <span class="test-time" id="time-hobbing36">-</span>
+                </div>
+                <div class="test-row">
+                    <span class="test-name">Virtual Hobbing - Balanced (72 steps)</span>
+                    <span class="test-status status-pending" id="status-hobbing72">Pending</span>
+                    <span class="test-time" id="time-hobbing72">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="summaryCard" style="display: none;">
+            <h2>Performance Summary</h2>
+            <div class="summary" id="summary"></div>
+        </div>
+
+        <div class="card">
+            <h2>Console Output</h2>
+            <div id="console"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+    <script>
+        let pyodide = null;
+        const results = {};
+
+        function log(message, level = 'info') {
+            const console = document.getElementById('console');
+            const line = document.createElement('div');
+            line.className = `log-${level}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function updateStatus(testId, status, time = null) {
+            const statusEl = document.getElementById(`status-${testId}`);
+            const timeEl = document.getElementById(`time-${testId}`);
+
+            statusEl.className = `test-status status-${status}`;
+            statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+
+            if (time !== null) {
+                timeEl.textContent = formatTime(time);
+                results[testId] = time;
+            }
+        }
+
+        function formatTime(ms) {
+            if (ms < 1000) return `${ms.toFixed(0)} ms`;
+            if (ms < 60000) return `${(ms / 1000).toFixed(1)} sec`;
+            return `${(ms / 60000).toFixed(1)} min`;
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('overallProgress').style.width = `${percent}%`;
+        }
+
+        async function loadPyodide() {
+            log('Loading Pyodide runtime...', 'info');
+            const start = performance.now();
+            updateStatus('loading', 'running');
+
+            try {
+                pyodide = await loadPyodide();
+                log('Pyodide loaded, installing packages...', 'info');
+
+                await pyodide.loadPackage('micropip');
+                const micropip = pyodide.pyimport('micropip');
+
+                // Use Jojain's working installation method
+                await pyodide.runPythonAsync(`
+import micropip
+micropip.set_index_urls([
+    "https://yeicor.github.io/OCP.wasm",
+    "https://pypi.org/simple"
+])
+                `);
+
+                log('Installing lib3mf...', 'info');
+                await micropip.install('lib3mf');
+
+                log('Installing ssl...', 'info');
+                await micropip.install('ssl');
+
+                log('Installing ocp_vscode from Jojain fork...', 'info');
+                await micropip.install(
+                    'https://raw.githubusercontent.com/Jojain/vscode-ocp-cad-viewer/no_pyperclip/ocp_vscode-2.9.0-py3-none-any.whl'
+                );
+
+                log('Adding py-lib3mf mock...', 'info');
+                await pyodide.runPythonAsync(`
+import micropip
+micropip.add_mock_package(
+    "py-lib3mf",
+    "2.4.1",
+    modules={"py_lib3mf": 'from lib3mf import *'}
+)
+                `);
+
+                log('Installing build123d...', 'info');
+                await micropip.install(['build123d', 'sqlite3']);
+
+                // Test import
+                await pyodide.runPythonAsync(`
+import build123d
+print(f"build123d loaded: {build123d.__version__}")
+                `);
+
+                const elapsed = performance.now() - start;
+                updateStatus('loading', 'complete', elapsed);
+                log(`Packages loaded in ${formatTime(elapsed)}`, 'success');
+                return true;
+
+            } catch (error) {
+                const elapsed = performance.now() - start;
+                updateStatus('loading', 'error', elapsed);
+                log(`Package loading failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function runTest(testId, description, code) {
+            log(`Running: ${description}...`, 'info');
+            updateStatus(testId, 'running');
+
+            try {
+                const start = performance.now();
+                await pyodide.runPythonAsync(code);
+                const elapsed = performance.now() - start;
+
+                updateStatus(testId, 'complete', elapsed);
+                log(`${description}: ${formatTime(elapsed)}`, 'success');
+                return elapsed;
+
+            } catch (error) {
+                updateStatus(testId, 'error');
+                log(`${description} failed: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function runAllTests() {
+            const button = document.getElementById('runTests');
+            button.disabled = true;
+            button.textContent = 'Running...';
+
+            // Reset all statuses
+            ['loading', 'worm', 'wheel', 'globoid', 'hobbing36', 'hobbing72'].forEach(id => {
+                updateStatus(id, 'pending');
+                document.getElementById(`time-${id}`).textContent = '-';
+            });
+            document.getElementById('summaryCard').style.display = 'none';
+
+            updateProgress(0);
+
+            // Load packages
+            const loaded = await loadPyodide();
+            updateProgress(15);
+
+            if (!loaded) {
+                button.disabled = false;
+                button.textContent = 'Run Performance Tests';
+                return;
+            }
+
+            // Setup test parameters
+            await pyodide.runPythonAsync(`
+# Test design parameters (m2, ratio 30:1)
+worm_params = {
+    "module_mm": 2.0,
+    "num_starts": 1,
+    "pitch_diameter_mm": 16.0,
+    "tip_diameter_mm": 20.0,
+    "root_diameter_mm": 11.0,
+    "lead_mm": 6.283,
+    "lead_angle_deg": 7.0,
+    "addendum_mm": 2.0,
+    "dedendum_mm": 2.5,
+    "thread_thickness_mm": 3.14,
+    "hand": "right"
+}
+
+wheel_params = {
+    "module_mm": 2.0,
+    "num_teeth": 30,
+    "pitch_diameter_mm": 60.0,
+    "tip_diameter_mm": 64.0,
+    "root_diameter_mm": 55.0,
+    "throat_diameter_mm": 62.0,
+    "helix_angle_deg": 83.0,
+    "addendum_mm": 2.0,
+    "dedendum_mm": 2.5
+}
+
+assembly_params = {
+    "centre_distance_mm": 38.0,
+    "pressure_angle_deg": 20.0,
+    "backlash_mm": 0.05,
+    "hand": "right",
+    "ratio": 30
+}
+            `);
+
+            // Test 1: Standard Worm
+            await runTest('worm', 'Standard Worm', `
+from build123d import *
+
+# Simple worm geometry test
+pitch_radius = worm_params["pitch_diameter_mm"] / 2
+root_radius = worm_params["root_diameter_mm"] / 2
+tip_radius = worm_params["tip_diameter_mm"] / 2
+lead = worm_params["lead_mm"]
+length = 30
+
+# Create helix
+helix = Helix(pitch=lead, height=length, radius=pitch_radius, center=(0, 0, -length/2))
+
+# Create profile
+addendum = worm_params["addendum_mm"]
+dedendum = worm_params["dedendum_mm"]
+inner_r = root_radius - pitch_radius
+outer_r = tip_radius - pitch_radius
+half_width = worm_params["thread_thickness_mm"] / 2
+
+# Build sections and loft
+sections = []
+for i in range(25):
+    t = i / 24
+    point = helix @ t
+    tangent = helix % t
+    angle = __import__('math').atan2(point.Y, point.X)
+    radial = Vector(__import__('math').cos(angle), __import__('math').sin(angle), 0)
+    plane = Plane(origin=point, x_dir=radial, z_dir=tangent)
+    with BuildSketch(plane) as sk:
+        with BuildLine():
+            Line((inner_r, -half_width), (outer_r, -half_width*0.7))
+            Line((outer_r, -half_width*0.7), (outer_r, half_width*0.7))
+            Line((outer_r, half_width*0.7), (inner_r, half_width))
+            Line((inner_r, half_width), (inner_r, -half_width))
+        make_face()
+    sections.append(sk.sketch.faces()[0])
+
+thread = loft(sections, ruled=True)
+core = Cylinder(radius=root_radius, height=length, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+worm = core + thread
+print(f"Worm volume: {worm.volume:.2f} mm^3")
+            `);
+            updateProgress(30);
+
+            // Test 2: Standard Wheel
+            await runTest('wheel', 'Standard Wheel', `
+from build123d import *
+import math
+
+# Simple wheel with helical teeth
+num_teeth = wheel_params["num_teeth"]
+tip_radius = wheel_params["tip_diameter_mm"] / 2
+root_radius = wheel_params["root_diameter_mm"] / 2
+face_width = 12
+
+# Create blank
+blank = Cylinder(radius=tip_radius, height=face_width, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+
+# Create simple tooth slots
+pitch_radius = wheel_params["pitch_diameter_mm"] / 2
+tooth_depth = tip_radius - root_radius
+slot_width = 2.5
+
+for i in range(num_teeth):
+    angle = (360 / num_teeth) * i
+    x = pitch_radius * math.cos(math.radians(angle))
+    y = pitch_radius * math.sin(math.radians(angle))
+
+    slot = Box(tooth_depth * 2, slot_width, face_width + 2)
+    slot = Pos(x, y, 0) * Rot(Z=angle) * slot
+    blank = blank - slot
+
+print(f"Wheel volume: {blank.volume:.2f} mm^3")
+            `);
+            updateProgress(45);
+
+            // Test 3: Globoid Worm (simplified)
+            await runTest('globoid', 'Globoid Worm', `
+from build123d import *
+import math
+
+# Simplified globoid (hourglass) geometry
+length = 25
+throat_radius = 7.5
+nominal_radius = 8.0
+R_c = 30.0  # Curvature radius
+
+# Create hourglass profile points
+points = []
+for i in range(21):
+    t = i / 20
+    z = -length/2 + t * length
+    if abs(z) < R_c:
+        r = throat_radius + R_c - math.sqrt(R_c**2 - z**2)
+    else:
+        r = nominal_radius
+    r = max(throat_radius, min(nominal_radius * 1.05, r))
+    points.append((r - 1, z))  # Core radius
+
+# Create profile and revolve
+with BuildPart() as core_builder:
+    with BuildSketch(Plane.XZ) as profile_sketch:
+        pts = [Vector(r, 0, z) for r, z in points]
+        with BuildLine():
+            Polyline(*pts)
+            Line(pts[-1], Vector(0, 0, length/2))
+            Line(Vector(0, 0, length/2), Vector(0, 0, -length/2))
+            Line(Vector(0, 0, -length/2), pts[0])
+        make_face()
+    revolve(axis=Axis.Z)
+
+globoid_core = core_builder.part
+print(f"Globoid core volume: {globoid_core.volume:.2f} mm^3")
+            `);
+            updateProgress(60);
+
+            // Test 4: Virtual Hobbing Preview (36 steps)
+            await runTest('hobbing36', 'Virtual Hobbing (36 steps)', `
+from build123d import *
+import math
+
+# Simplified virtual hobbing simulation
+hobbing_steps = 36
+wheel_teeth = 30
+worm_starts = 1
+ratio = wheel_teeth / worm_starts
+
+tip_radius = 32.0
+face_width = 12.0
+centre_distance = 38.0
+hob_radius = 10.0
+hob_length = 20.0
+
+# Create wheel blank
+blank = Cylinder(radius=tip_radius, height=face_width, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+
+# Create simplified hob
+hob = Cylinder(radius=hob_radius, height=hob_length, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+
+# Build envelope
+envelope = None
+wheel_increment = 360.0 / hobbing_steps
+hob_increment = wheel_increment * ratio
+
+for step in range(hobbing_steps):
+    wheel_angle = step * wheel_increment
+    hob_angle = step * hob_increment
+
+    hob_pos = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+
+    if envelope is None:
+        envelope = hob_pos
+    else:
+        envelope = envelope + hob_pos
+
+# Subtract envelope
+wheel = blank - envelope
+print(f"Hobbed wheel volume: {wheel.volume:.2f} mm^3")
+            `);
+            updateProgress(80);
+
+            // Test 5: Virtual Hobbing Balanced (72 steps)
+            await runTest('hobbing72', 'Virtual Hobbing (72 steps)', `
+from build123d import *
+import math
+
+# Virtual hobbing with 72 steps
+hobbing_steps = 72
+wheel_teeth = 30
+worm_starts = 1
+ratio = wheel_teeth / worm_starts
+
+tip_radius = 32.0
+face_width = 12.0
+centre_distance = 38.0
+hob_radius = 10.0
+hob_length = 20.0
+
+blank = Cylinder(radius=tip_radius, height=face_width, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+hob = Cylinder(radius=hob_radius, height=hob_length, align=(Align.CENTER, Align.CENTER, Align.CENTER))
+
+envelope = None
+wheel_increment = 360.0 / hobbing_steps
+hob_increment = wheel_increment * ratio
+
+for step in range(hobbing_steps):
+    wheel_angle = step * wheel_increment
+    hob_angle = step * hob_increment
+    hob_pos = Rot(Z=wheel_angle) * Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=hob_angle) * hob
+
+    if envelope is None:
+        envelope = hob_pos
+    else:
+        envelope = envelope + hob_pos
+
+wheel = blank - envelope
+print(f"Hobbed wheel (72) volume: {wheel.volume:.2f} mm^3")
+            `);
+            updateProgress(100);
+
+            // Show summary
+            showSummary();
+
+            button.disabled = false;
+            button.textContent = 'Run Performance Tests';
+            log('All tests complete!', 'success');
+        }
+
+        function showSummary() {
+            const summaryCard = document.getElementById('summaryCard');
+            const summary = document.getElementById('summary');
+            summaryCard.style.display = 'block';
+
+            const items = [
+                { label: 'Package Load', value: results.loading },
+                { label: 'Worm', value: results.worm },
+                { label: 'Wheel', value: results.wheel },
+                { label: 'Globoid', value: results.globoid },
+                { label: 'Hobbing 36', value: results.hobbing36 },
+                { label: 'Hobbing 72', value: results.hobbing72 }
+            ];
+
+            summary.innerHTML = items.map(item => `
+                <div class="summary-item">
+                    <div class="summary-value">${item.value ? formatTime(item.value) : 'N/A'}</div>
+                    <div class="summary-label">${item.label}</div>
+                </div>
+            `).join('');
+
+            // Add recommendation
+            if (results.hobbing72) {
+                const recommendation = document.createElement('div');
+                recommendation.className = 'note';
+                recommendation.style.gridColumn = '1 / -1';
+
+                let rec = '<strong>Recommendations:</strong><br>';
+                if (results.hobbing72 < 180000) {
+                    rec += 'Your browser can handle virtual hobbing well. "Balanced" preset (72 steps) is recommended.';
+                } else if (results.hobbing72 < 360000) {
+                    rec += '"Preview" preset (36 steps) recommended for interactive use. Use Python CLI for higher quality.';
+                } else {
+                    rec += 'Virtual hobbing is slow on this device. Consider using the Python CLI for best results.';
+                }
+                recommendation.innerHTML = rec;
+                summary.appendChild(recommendation);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -6,7 +6,7 @@ This is a simplified prototype implementation.
 """
 
 import math
-from typing import Optional, Literal
+from typing import Optional, Literal, Callable
 from build123d import *
 from .io import WormParams, AssemblyParams
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
@@ -15,6 +15,9 @@ from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
 # ZK: Slightly convex flanks - better for 3D printing (reduces stress concentrations)
 ProfileType = Literal["ZA", "ZK"]
+
+# Progress callback type for WASM integration
+ProgressCallback = Callable[[str, float], None]  # (message, percent_complete)
 
 
 class GloboidWormGeometry:
@@ -38,7 +41,8 @@ class GloboidWormGeometry:
         bore: Optional[BoreFeature] = None,
         keyway: Optional[KeywayFeature] = None,
         set_screw: Optional[SetScrewFeature] = None,
-        profile: ProfileType = "ZA"
+        profile: ProfileType = "ZA",
+        progress_callback: Optional[ProgressCallback] = None
     ):
         """
         Initialize globoid worm geometry generator.
@@ -57,6 +61,8 @@ class GloboidWormGeometry:
             profile: Tooth profile type per DIN 3975:
                      "ZA" - Straight flanks (trapezoidal) - best for CNC (default)
                      "ZK" - Slightly convex flanks - better for 3D printing
+            progress_callback: Optional callback function(message, percent) for
+                              progress reporting in WASM/browser environments.
         """
         self.params = params
         self.assembly_params = assembly_params
@@ -66,6 +72,7 @@ class GloboidWormGeometry:
         self.keyway = keyway
         self.set_screw = set_screw
         self.profile = profile.upper() if isinstance(profile, str) else profile
+        self.progress_callback = progress_callback
 
         # Store basic parameters
         pitch_radius = params.pitch_diameter_mm / 2.0
@@ -122,6 +129,15 @@ class GloboidWormGeometry:
 
         self._part = None
 
+    def _report_progress(self, message: str, percent: float):
+        """Report progress via callback if available."""
+        print(message)
+        if self.progress_callback:
+            try:
+                self.progress_callback(message, percent)
+            except Exception:
+                pass  # Don't let callback errors break generation
+
     def build(self) -> Part:
         """
         Build the globoid worm geometry.
@@ -129,18 +145,32 @@ class GloboidWormGeometry:
         Returns:
             build123d Part object representing the worm
         """
-        print(f"Building globoid worm (throat_pitch_radius={self.throat_pitch_radius:.2f}mm, "
-              f"length={self.length:.2f}mm)...")
+        self._report_progress(
+            f"Building globoid worm (throat_pitch_radius={self.throat_pitch_radius:.2f}mm, "
+            f"length={self.length:.2f}mm)...",
+            0.0
+        )
 
         # Create hourglass core
+        self._report_progress("  Creating hourglass core...", 5.0)
         core = self._create_hourglass_core()
+        self._report_progress("  ✓ Core complete", 20.0)
 
         # Create threads for each start
         threads = []
-        for start_idx in range(self.params.num_starts):
+        num_starts = self.params.num_starts
+        for start_idx in range(num_starts):
+            # Progress: 20-80% is thread creation
+            thread_progress = 20 + (start_idx / num_starts) * 60
+            self._report_progress(
+                f"  Creating thread {start_idx + 1}/{num_starts}...",
+                thread_progress
+            )
             thread = self._create_thread(start_idx)
             if thread:
                 threads.append(thread)
+
+        self._report_progress("  Combining core and threads...", 80.0)
 
         # Union core and threads
         if len(threads) == 0:
@@ -154,8 +184,11 @@ class GloboidWormGeometry:
                 thread_union = thread_union + thread
             result = core + thread_union
 
+        self._report_progress("  ✓ Geometry combined", 90.0)
+
         # Add features (bore, keyway, set screw)
         if self.bore or self.keyway or self.set_screw:
+            self._report_progress("  Adding bore/keyway features...", 92.0)
             result = add_bore_and_keyway(
                 part=result,
                 part_length=self.length,
@@ -166,7 +199,7 @@ class GloboidWormGeometry:
             )
 
         self._part = result
-        print("Globoid worm geometry complete.")
+        self._report_progress("Globoid worm geometry complete.", 100.0)
         return self._part
 
     def _create_hourglass_core(self) -> Part:
