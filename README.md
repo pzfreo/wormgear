@@ -1,131 +1,23 @@
-# Worm Gear Geometry Generator
+# Wormgear - Complete Worm Gear Design System
 
-**Status: Phase 2 in progress - bore and keyway features complete**
+**Version:** 1.0.0-alpha
+**Status:** Unified package - calculator + geometry in one
 
-Python library for generating CNC-ready STEP files from worm gear parameters using build123d.
+Complete worm gear design system from engineering calculations to CNC-ready STEP files, supporting both traditional CNC manufacturing and 3D printing.
 
 ## Overview
 
-This is **Tool 2** in the worm gear design system. It takes validated parameters from the calculator (Tool 1) and produces exact 3D CAD models for CNC manufacturing.
+Wormgear is a unified Python package combining:
+- **Engineering calculations** (DIN 3975/DIN 3996 standards)
+- **3D geometry generation** (exact, watertight solids)
+- **Web calculator** (browser-based design tool)
+- **CLI tools** (batch processing and automation)
 
-**Calculator (Tool 1)**: https://github.com/pzfreo/wormgearcalc
-**Web Calculator**: https://pzfreo.github.io/wormgearcalc/
+**Design → Calculate → Validate → Generate → Manufacture**
 
-## Workflow
+## Quick Start
 
-### Option 1: Python Library (Full Features)
-
-```
-1. Design in calculator
-   https://pzfreo.github.io/wormgearcalc/
-   ↓
-2. Export JSON parameters
-   ↓
-3. Generate geometry (this tool)
-   python generate_pair.py design.json
-   ↓
-4. Get STEP files for CNC
-   worm_m2_z1.step
-   wheel_m2_z30.step
-   assembly.step
-```
-
-### Option 2: Web Interface (Browser-Based) 🆕
-
-```
-1. Design in calculator
-   https://pzfreo.github.io/wormgearcalc/
-   ↓
-2. Open web interface
-   https://your-site.com/worm-gear-3d-web/
-   ↓
-3. Upload/paste JSON
-   ↓
-4. Generate in browser
-   (No installation needed!)
-   ↓
-5. Download STEP files
-```
-
-See [web/README.md](web/README.md) for web interface documentation.
-
-## Target Manufacturing
-
-- **Worm**: 4-axis lathe with live tooling, or 5-axis mill
-- **Wheel**: 5-axis mill (true form), or indexed 4-axis with ball-nose finishing
-
-Geometry is exact and watertight - no approximations, no relying on manufacturing process to "fix" the model.
-
-## Features
-
-### Phase 1: Basic Geometry ✓ Complete
-- [x] JSON input from wormgearcalc
-- [x] Worm thread generation (helical sweep with trapezoidal profile)
-- [x] Wheel generation with two options:
-  - **Helical** (default): Pure helical gear teeth with flat root
-  - **Hobbed** (`--hobbed`): Throated teeth matching worm curvature for better contact
-- [x] STEP export
-- [x] Python API
-- [x] Command-line interface
-- [x] OCP viewer support (VS Code / Jupyter)
-- [x] Multi-start worm support
-- [x] Profile shift support
-- [x] Backlash handling
-
-### Phase 2: Features (In Progress)
-- [x] Bore with auto-calculation and custom diameters
-- [x] Keyways (ISO 6885 / DIN 6885 standard sizes)
-- [x] Small gear support (bores down to 2mm, below DIN 6885 range)
-- [x] Thin rim warnings for structural integrity
-- [ ] Set screw holes
-- [ ] Hub options (flush/extended/flanged)
-
-### Phase 3: Advanced (Future)
-- [ ] Envelope calculation for wheel (mathematical accuracy)
-- [ ] Assembly positioning
-- [ ] Manufacturing specs output (markdown)
-
-## Web Interface 🆕 (Experimental)
-
-Browser-based prototype using Pyodide (Python in WebAssembly):
-
-- **No installation required** - Run Python + build123d in your browser
-- **Drag-drop JSON files** from the calculator
-- **Generate STEP files** client-side (no server needed)
-- **3D preview** (coming soon)
-
-**Quick Start:**
-```bash
-cd web
-python3 -m http.server 8000
-# Open http://localhost:8000
-```
-
-**Status:** 🚧 **Experimental prototype** - Core generation works, but UI/UX improvements needed before production deployment.
-
-**Current capabilities:**
-- ✅ Pyodide + build123d + OCP.wasm integration
-- ✅ STEP file generation and download
-- 🚧 3D visualization (in progress)
-- 🚧 Progress indicators (in progress)
-
-**Try the prototype:**
-```bash
-cd web && python3 -m http.server 8000
-# Open http://localhost:8000
-```
-
-See [web/README.md](web/README.md) for technical details. A fully integrated web tool with enhanced UI is planned (see [docs/WEB_TOOL_SPEC_V2.md](docs/WEB_TOOL_SPEC_V2.md)).
-
-## Installation
-
-### Requirements
-
-- **Python 3.9+** (3.10 or 3.11 recommended)
-- **build123d >= 0.5.0** - Modern Python CAD library
-- **OCP** (OpenCascade bindings) - Installed automatically with build123d
-
-### Install
+### Installation
 
 ```bash
 pip install build123d
@@ -135,14 +27,191 @@ pip install -e .
 pip install ocp-vscode
 ```
 
-**Note:** build123d has platform-specific builds. If you encounter installation issues, see the [build123d installation guide](https://build123d.readthedocs.io/en/latest/installation.html).
-
-## Usage
-
-### Command Line
+### Web Calculator (Recommended for Design)
 
 ```bash
-# Generate both worm and wheel (with auto-calculated bores and keyways by default)
+cd web
+python3 -m http.server 8000
+# Open http://localhost:8000
+```
+
+Design your worm gear pair in the browser, get validated JSON parameters, then generate STEP files.
+
+### Command Line Geometry Generation
+
+```bash
+# Generate both worm and wheel with auto-sized bores and keyways
+wormgear-geometry design.json
+
+# For 3D printing: use ZK profile (convex flanks)
+wormgear-geometry design.json --profile ZK
+
+# For CNC machining: use ZA profile (straight flanks, default)
+wormgear-geometry design.json --profile ZA
+
+# Globoid worm (hourglass shape for better contact)
+wormgear-geometry design.json --globoid
+```
+
+### Python API
+
+```python
+from wormgear.calculator import calculate_design_from_module, validate_design
+from wormgear.core import WormGeometry, BoreFeature, KeywayFeature
+from wormgear.io import save_design_json
+
+# Calculate parameters
+design = calculate_design_from_module(module=2.0, ratio=30)
+validation = validate_design(design)
+
+if validation.valid:
+    # Save design
+    save_design_json(design, "design.json")
+
+    # Generate 3D models
+    worm = WormGeometry(
+        params=design.worm,
+        assembly_params=design.assembly,
+        length=40.0,
+        bore=BoreFeature(diameter=8.0),
+        keyway=KeywayFeature()
+    )
+    worm.build().export_step("worm.step")
+```
+
+## Architecture
+
+The package uses a 4-layer architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     wormgear Package                         │
+│                                                              │
+│  Layer 1: Core (Geometry) - WormGeometry, WheelGeometry    │
+│  Layer 2a: Calculator - design_from_module, validate       │
+│  Layer 2b: IO - JSON Schema v1.0, load/save functions      │
+│  Layer 3: CLI - wormgear-geometry command                  │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    Web Calculator                            │
+│  Runs in browser using Pyodide (Python in WASM)            │
+│  Same calculation code, exports JSON Schema v1.0           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+
+## Manufacturing Support
+
+### CNC Machining (ZA Profile - Default)
+
+**Target Methods:**
+- **Worm**: 4-axis lathe with live tooling, or 5-axis mill
+- **Wheel**: 5-axis mill (true form), or indexed 4-axis with ball-nose finishing
+
+**Tooth Profile:** Straight trapezoidal flanks (ZA per DIN 3975)
+
+**Features:**
+- Exact geometry - no approximations
+- Watertight solids for reliable CAM toolpath generation
+- Bores and keyways (ISO 6885 / DIN 6885)
+- Set screws and hubs (coming soon)
+
+**Example:**
+```bash
+wormgear-geometry design.json --profile ZA
+```
+
+### 3D Printing (ZK Profile Recommended)
+
+**Target Methods:**
+- FDM (PLA, PETG, Nylon)
+- SLA/DLP resin printing
+- SLS (nylon powder)
+
+**Tooth Profile:** Slightly convex flanks (ZK per DIN 3975)
+
+**Benefits:**
+- Reduces stress concentrations
+- Better layer adhesion in FDM
+- Smoother surfaces for resin printing
+
+**Example:**
+```bash
+wormgear-geometry design.json --profile ZK
+```
+
+**3D Printing Tips:**
+- Use high infill (80-100%) for strength
+- Orient parts to minimize support material
+- Consider nylon or PETG for better wear resistance
+- Add lubrication for smoother operation
+
+## Features
+
+### Phase 1: Basic Geometry ✓ Complete
+- [x] Engineering calculations (DIN 3975/DIN 3996)
+- [x] Validation with errors/warnings
+- [x] JSON Schema v1.0 (calculator ↔ geometry)
+- [x] Worm thread generation (helical sweep)
+- [x] Wheel generation (helical or virtual hobbing)
+- [x] Globoid worm support (hourglass shape)
+- [x] STEP export
+- [x] Python API and CLI
+- [x] OCP viewer support
+- [x] Multi-start worm support
+- [x] Profile shift support
+- [x] Backlash handling
+- [x] Web calculator UI
+
+### Phase 2: Features ✓ Complete
+- [x] Bore with auto-calculation and custom diameters
+- [x] Keyways (ISO 6885 / DIN 6885 standard sizes)
+- [x] Small gear support (bores down to 2mm)
+- [x] Thin rim warnings for structural integrity
+
+### Phase 3: Advanced (Future)
+- [ ] Set screw holes
+- [ ] Hub options (flush/extended/flanged)
+- [ ] Envelope calculation for wheel (mathematical accuracy)
+- [ ] Assembly positioning with correct orientation
+- [ ] Manufacturing specs output (markdown with tolerances)
+- [ ] WASM build (full calculator + geometry in browser)
+
+## Web Calculator
+
+Browser-based design tool using Pyodide (Python in WebAssembly):
+
+**Features:**
+- Calculate worm gear parameters from engineering constraints
+- Real-time validation with DIN 3975/DIN 3996 standards
+- Multiple design modes:
+  - Envelope (fit within worm OD and wheel OD)
+  - From wheel OD (reverse-calculate from wheel size)
+  - From module (standard module-based design)
+  - From centre distance (fit specific spacing)
+- Export JSON Schema v1.0 for geometry generation
+- Download markdown specifications
+- Share designs via URL
+
+**Quick Start:**
+```bash
+cd web
+python3 -m http.server 8000
+# Open http://localhost:8000
+```
+
+**Live Demo:** (Deploy to GitHub Pages for public access)
+
+See [web/README.md](web/README.md) for web calculator documentation.
+
+## Command Line Interface
+
+### Basic Usage
+
+```bash
+# Generate both worm and wheel (auto-sized bores and keyways)
 wormgear-geometry design.json
 
 # Generate solid parts without bores
@@ -163,9 +232,24 @@ wormgear-geometry design.json --worm-length 50 --wheel-width 12
 # Generate only worm or wheel
 wormgear-geometry design.json --worm-only
 wormgear-geometry design.json --wheel-only
+```
 
-# Generate hobbed wheel with throated teeth (better worm contact)
-wormgear-geometry design.json --hobbed
+### Advanced Options
+
+```bash
+# Globoid worm (hourglass shape for better contact)
+wormgear-geometry design.json --globoid
+
+# Virtual hobbing for wheel (accurate throated teeth)
+wormgear-geometry design.json --virtual-hobbing
+
+# Use hobbing preset for speed/quality tradeoff
+wormgear-geometry design.json --virtual-hobbing --hobbing-preset balanced
+# Presets: fast (6 steps), balanced (18 steps), precise (36 steps)
+
+# Tooth profile selection
+wormgear-geometry design.json --profile ZA  # CNC machining (default)
+wormgear-geometry design.json --profile ZK  # 3D printing
 
 # View in OCP viewer without saving files
 wormgear-geometry design.json --view --no-save
@@ -174,26 +258,81 @@ wormgear-geometry design.json --view --no-save
 wormgear-geometry design.json --view --mesh-aligned
 ```
 
-### Python API
+## Python API
+
+### Calculator
 
 ```python
-from wormgear_geometry import load_design_json, WormGeometry, WheelGeometry
-from wormgear_geometry.features import BoreFeature, KeywayFeature
+from wormgear.calculator import (
+    calculate_design_from_module,
+    calculate_design_from_centre_distance,
+    calculate_design_from_wheel,
+    validate_design,
+    STANDARD_MODULES
+)
 
-# Load parameters from calculator
+# Design from standard module and ratio
+design = calculate_design_from_module(module=2.0, ratio=30)
+
+# Design from centre distance
+design = calculate_design_from_centre_distance(
+    centre_distance=40.0,
+    ratio=30
+)
+
+# Design from wheel outside diameter
+design = calculate_design_from_wheel(
+    wheel_od=65.0,
+    ratio=30,
+    target_lead_angle=8.0
+)
+
+# Validate design
+validation = validate_design(design)
+if not validation.valid:
+    for error in validation.errors:
+        print(f"ERROR: {error.message}")
+    for warning in validation.warnings:
+        print(f"WARNING: {warning.message}")
+```
+
+### Geometry Generation
+
+```python
+from wormgear.core import (
+    WormGeometry,
+    WheelGeometry,
+    GloboidWormGeometry,
+    VirtualHobbingWheelGeometry,
+    BoreFeature,
+    KeywayFeature,
+    get_hobbing_preset
+)
+from wormgear.io import load_design_json, save_design_json
+
+# Load parameters
 design = load_design_json("design.json")
 
-# Build and export worm with bore and keyway
+# Build cylindrical worm with bore and keyway
 worm_geo = WormGeometry(
     params=design.worm,
     assembly_params=design.assembly,
-    length=40,  # mm
-    bore=BoreFeature(diameter=8.0),  # Optional
-    keyway=KeywayFeature()  # Optional: DIN 6885 auto-sized
+    length=40,
+    bore=BoreFeature(diameter=8.0),
+    keyway=KeywayFeature()
 )
 worm_geo.export_step("worm.step")
 
-# Build and export wheel (helical - default) with features
+# Build globoid worm (hourglass shape)
+globoid_worm_geo = GloboidWormGeometry(
+    params=design.worm,
+    assembly_params=design.assembly,
+    wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
+    length=40
+)
+globoid_worm_geo.export_step("globoid_worm.step")
+
+# Build helical wheel (default, simple)
 wheel_geo = WheelGeometry(
     params=design.wheel,
     worm_params=design.worm,
@@ -203,34 +342,55 @@ wheel_geo = WheelGeometry(
 )
 wheel_geo.export_step("wheel.step")
 
-# Build and export hobbed wheel (throated for better contact)
-wheel_geo_hobbed = WheelGeometry(
+# Build virtual hobbing wheel (accurate throated teeth)
+hobbed_wheel_geo = VirtualHobbingWheelGeometry(
     params=design.wheel,
     worm_params=design.worm,
     assembly_params=design.assembly,
-    throated=True  # Enable throating
+    wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
+    hobbing_steps=18  # Or use get_hobbing_preset("balanced")
 )
-wheel_geo_hobbed.export_step("wheel_hobbed.step")
+hobbed_wheel_geo.export_step("hobbed_wheel.step")
+
+# Save design to JSON
+save_design_json(design, "design.json")
 ```
 
-### Visualization (OCP Viewer)
+### Visualization
 
 ```python
 # Display in VS Code with OCP CAD Viewer extension
-worm_geo.show()  # Opens worm in viewer
-wheel_geo.show()  # Opens wheel in viewer
+worm_geo.show()
+wheel_geo.show()
 
 # Or use the viewer script
-python examples/view_design.py design.json
+# python examples/view_design.py design.json
 ```
-
-See `examples/` directory for more usage patterns.
 
 ## Documentation
 
-- **CLAUDE.md** - Context for Claude Code (AI assistant)
-- **docs/GEOMETRY.md** - Full technical specification
-- **docs/ENGINEERING_CONTEXT.md** - Standards and formulas
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture and design decisions
+- **[CLAUDE.md](CLAUDE.md)** - Development best practices and project context
+- **[docs/GEOMETRY.md](docs/GEOMETRY.md)** - Full technical specification
+- **[docs/ENGINEERING_CONTEXT.md](docs/ENGINEERING_CONTEXT.md)** - Standards and formulas
+- **[web/README.md](web/README.md)** - Web calculator documentation
+
+## Standards Compliance
+
+### DIN 3975
+Worm gear geometry standard:
+- Profile types: ZA (straight flanks), ZK (convex flanks)
+- Module series per ISO 54
+- Pressure angles: 20° (standard), 14.5°, 25°
+
+### ISO 54 / DIN 780
+Standard modules (37 values from 0.3mm to 25mm):
+- 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0...
+
+### DIN 6885
+Keyway dimensions for bores 6mm-95mm:
+- Automatic keyway sizing based on bore diameter
+- Standard key sizes for common bore ranges
 
 ## Troubleshooting
 
@@ -251,65 +411,84 @@ See `examples/` directory for more usage patterns.
 **Solutions:**
 - Use `--no-bore` to generate solid parts
 - Specify smaller custom bore: `--worm-bore 4 --wheel-bore 6`
-- Note: Auto-calculated bores leave ≥1mm rim thickness. Thin rims (<1.5mm) generate warnings but still work.
+- Auto-calculated bores leave ≥1mm rim thickness
+- Thin rims (<1.5mm) generate warnings but still work
 
 **Problem:** "Bore outside DIN 6885 range" when using keyways
 
 **Solutions:**
-- For bores <6mm or >95mm, keyways cannot be auto-sized from DIN 6885
-- Either use `--no-keyway` or upgrade to custom keyway dimensions (Python API)
-- Small gears (<6mm bore) are typically used without keyways
+- For bores <6mm or >95mm, keyways cannot be auto-sized
+- Use `--no-keyway` for small/large gears
+- Small gears (<6mm bore) typically don't need keyways
 
 **Problem:** STEP file won't import to CAD/CAM software
 
 **Solutions:**
-- Verify the STEP file is not empty (should be >100KB for typical gears)
-- Try a different CAD program (FreeCAD is free and handles most STEP files)
+- Verify the STEP file is not empty (should be >100KB)
+- Try a different CAD program (FreeCAD is free)
 - Check for generation errors in console output
-- Reduce geometry complexity: use `--no-bore --no-keyway` to test
+- Reduce complexity: `--no-bore --no-keyway` to test
 
-### Visualization Issues
+### Virtual Hobbing Performance
 
-**Problem:** OCP viewer not working in VS Code
-
-**Solutions:**
-- Install the VS Code extension: "OCP CAD Viewer" from the marketplace
-- Install Python package: `pip install ocp-vscode`
-- Restart VS Code after installation
-- Alternative: Use `--no-view` and open STEP files in FreeCAD or other CAD software
-
-**Problem:** `--view` option shows nothing or crashes
+**Problem:** Virtual hobbing is very slow
 
 **Solutions:**
-- OCP viewer requires significant memory. Close other applications.
-- Try viewing worm and wheel separately: `--worm-only --view` or `--wheel-only --view`
-- Use external CAD software instead
+- Use presets: `--hobbing-preset fast` (6 steps, ~10s)
+- Default: `--hobbing-preset balanced` (18 steps, ~20s)
+- High quality: `--hobbing-preset precise` (36 steps, ~60s)
+- For testing, use helical wheel instead (no virtual hobbing)
 
-### Parameter Issues
+### 3D Printing Issues
 
-**Problem:** Generated gear dimensions don't match expectations
+**Problem:** Parts don't mesh smoothly after printing
 
 **Solutions:**
-- Verify the input JSON is from the calculator (not hand-edited)
-- Check that worm length and wheel width are appropriate for your application
-- Default wheel width is auto-calculated. Override with `--wheel-width` if needed
-- Use `--hobbed` flag if you want throated wheel teeth instead of helical
+- Use ZK profile for 3D printing: `--profile ZK`
+- Increase printer resolution (smaller layer height)
+- Add backlash in calculator (0.1-0.2mm recommended)
+- Post-process with fine sanding on contact surfaces
+- Apply dry lubricant (graphite powder or PTFE spray)
+
+**Problem:** Parts break under load
+
+**Solutions:**
+- Use 100% infill for gear teeth area
+- Choose stronger materials (nylon, PETG, or resin)
+- Scale up the design (larger module)
+- Reduce load or speed in application
+- Consider hybrid design (metal worm, printed wheel)
 
 ### Getting Help
 
 If you encounter issues not covered here:
-1. Check the [GitHub Issues](https://github.com/pzfreo/worm-gear-3d/issues) for similar problems
-2. Review the detailed technical docs in [docs/GEOMETRY.md](docs/GEOMETRY.md)
-3. For calculator-related issues, see [wormgearcalc](https://github.com/pzfreo/wormgearcalc)
+1. Check the [GitHub Issues](https://github.com/pzfreo/worm-gear-3d/issues)
+2. Review [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/GEOMETRY.md](docs/GEOMETRY.md)
+3. For calculation questions, see [docs/ENGINEERING_CONTEXT.md](docs/ENGINEERING_CONTEXT.md)
 
-## Dependencies
+## Performance
 
-- **build123d** - Modern Python CAD library
-- **OCP** - OpenCascade bindings (via build123d)
+### Geometry Generation Times
+
+- **Worm (cylindrical)**: ~0.5-2 seconds (36 sections/turn)
+- **Worm (globoid)**: ~2-4 seconds (complex throat)
+- **Wheel (helical)**: ~1-3 seconds (30 teeth)
+- **Wheel (virtual hobbing)**: ~10-60 seconds (depends on steps)
+  - Fast preset (6 steps): ~10 seconds
+  - Balanced preset (18 steps): ~20 seconds
+  - Precise preset (36 steps): ~60 seconds
+
+### STEP File Sizes
+
+- **Worm**: ~50-200 KB
+- **Wheel**: ~100-500 KB
+- **Complex features**: +10-50 KB each
 
 ## Background
 
-Created for custom worm gear design in luthier (violin making) applications, where standard gears often don't fit unusual envelope constraints. The calculator determines if a design is feasible; this tool makes it manufacturable.
+Created for custom worm gear design in luthier (violin making) applications, where standard gears often don't fit unusual envelope constraints. Extended to support both CNC machining and 3D printing for makers, hobbyists, and professional engineers.
+
+The calculator determines if a design is feasible; the geometry generator makes it manufacturable.
 
 ## Author
 
