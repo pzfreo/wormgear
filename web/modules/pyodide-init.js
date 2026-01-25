@@ -111,13 +111,24 @@ from wormgear.calculator.core import (
     design_from_module,
     design_from_centre_distance,
     design_from_wheel,
-    Hand,
-    WormProfile,
-    WormType,
     nearest_standard_module
 )
 from wormgear.calculator.validation import validate_design
 from wormgear.calculator.output import to_json, to_markdown, to_summary
+
+# Compatibility: Create simple enum-like classes for JavaScript code
+# Unified package uses strings, but JS code uses Hand.RIGHT syntax
+class Hand:
+    RIGHT = 'right'
+    LEFT = 'left'
+
+class WormProfile:
+    ZA = 'ZA'
+    ZK = 'ZK'
+
+class WormType:
+    CYLINDRICAL = 'cylindrical'
+    GLOBOID = 'globoid'
 
 # Legacy compatibility - allow old wormcalc imports
 import wormgear.calculator as wormcalc
