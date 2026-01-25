@@ -39,7 +39,11 @@ REQUIRED_FILES=(
     "src/wormgear/core/worm.py"
     "src/wormgear/core/wheel.py"
     "src/wormgear/core/features.py"
+    "src/wormgear/core/globoid_worm.py"
+    "src/wormgear/core/virtual_hobbing.py"
     "src/wormgear/io/__init__.py"
+    "src/wormgear/io/loaders.py"
+    "src/wormgear/io/schema.py"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do

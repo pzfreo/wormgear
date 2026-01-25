@@ -506,6 +506,8 @@ if '/home/pyodide' not in sys.path:
             { path: 'wormgear/core/globoid_worm.py', pyPath: '/home/pyodide/wormgear/core/globoid_worm.py' },
             { path: 'wormgear/core/virtual_hobbing.py', pyPath: '/home/pyodide/wormgear/core/virtual_hobbing.py' },
             { path: 'wormgear/io/__init__.py', pyPath: '/home/pyodide/wormgear/io/__init__.py' },
+            { path: 'wormgear/io/loaders.py', pyPath: '/home/pyodide/wormgear/io/loaders.py' },
+            { path: 'wormgear/io/schema.py', pyPath: '/home/pyodide/wormgear/io/schema.py' },
         ];
 
         let loadedCount = 0;
