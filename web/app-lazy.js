@@ -374,19 +374,32 @@ function getInputs(mode) {
 }
 
 function formatArgs(inputs) {
+    // Parameters that should NOT be passed to calculator functions
+    const skipParams = [
+        'virtual_hobbing',        // Generator param, not calculator
+        'hobbing_steps',           // Generator param
+        'use_recommended_dims',    // UI state, not design param
+        'worm_length',             // Dimension, not design param
+        'wheel_width',             // Dimension, not design param
+        'worm_bore_type',          // Feature, not design param
+        'worm_bore_diameter',      // Feature
+        'worm_keyway',             // Feature
+        'wheel_bore_type',         // Feature
+        'wheel_bore_diameter',     // Feature
+        'wheel_keyway'             // Feature
+    ];
+
     return Object.entries(inputs)
         .filter(([key, value]) => value !== null && value !== undefined)  // Skip null/undefined values
+        .filter(([key, value]) => !skipParams.includes(key))  // Skip non-calculator params
         .map(([key, value]) => {
             if (key === 'hand') return `hand=Hand.${value}`;
             if (key === 'profile') return `profile=WormProfile.${value}`;
             if (key === 'worm_type') return `worm_type=WormType.${value.toUpperCase()}`;
             // Convert JavaScript booleans to Python booleans
             if (typeof value === 'boolean') return `${key}=${value ? 'True' : 'False'}`;
-            // Skip bore/keyway settings - they go in features section
-            if (key.includes('bore_type') || key.includes('bore_diameter') || key.includes('keyway')) return null;
             return `${key}=${value}`;
         })
-        .filter(arg => arg !== null)  // Remove skipped args
         .join(', ');
 }
 
@@ -414,8 +427,18 @@ function calculate() {
             wheel_keyway: inputs.wheel_keyway
         };
 
-        // Set bore settings as a global so Python can access it
+        // Prepare manufacturing settings (for JSON export, not calculation)
+        const manufacturingSettings = {
+            virtual_hobbing: inputs.virtual_hobbing || false,
+            hobbing_steps: inputs.hobbing_steps || 72,
+            worm_length: inputs.worm_length || null,
+            wheel_width: inputs.wheel_width || null,
+            use_recommended_dims: inputs.use_recommended_dims !== false  // Default true
+        };
+
+        // Set as globals so Python can access them
         calculatorPyodide.globals.set('bore_settings_dict', boreSettings);
+        calculatorPyodide.globals.set('manufacturing_settings_dict', manufacturingSettings);
 
         // Run calculation (simplified from original)
         const result = calculatorPyodide.runPython(`
@@ -427,8 +450,14 @@ validation = validate_design(design)
 globals()['current_design'] = design
 globals()['current_validation'] = validation
 
-# Get bore settings from JavaScript
+# Get settings from JavaScript
 bore_settings = bore_settings_dict.to_py() if 'bore_settings_dict' in dir() else None
+mfg_settings = manufacturing_settings_dict.to_py() if 'manufacturing_settings_dict' in dir() else None
+
+# Update manufacturing params with UI settings if present
+if mfg_settings and design.manufacturing:
+    design.manufacturing.virtual_hobbing = mfg_settings.get('virtual_hobbing', False)
+    design.manufacturing.hobbing_steps = mfg_settings.get('hobbing_steps', 72)
 
 json.dumps({
     'summary': to_summary(design),
