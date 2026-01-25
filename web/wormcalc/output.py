@@ -64,8 +64,12 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
     # Add custom worm length if specified
     if manufacturing_settings:
         worm_length = manufacturing_settings.get('worm_length')
-        if worm_length is not None:
-            worm_dict["length_mm"] = float(worm_length)
+        # Check for valid numeric value (handles None, null, undefined, JsNull from Pyodide)
+        if worm_length is not None and worm_length not in (None, '', False):
+            try:
+                worm_dict["length_mm"] = float(worm_length)
+            except (TypeError, ValueError):
+                pass  # Skip invalid values
 
     # Build wheel section
     wheel_dict = {
@@ -84,8 +88,12 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
     # Add custom wheel width if specified
     if manufacturing_settings:
         wheel_width = manufacturing_settings.get('wheel_width')
-        if wheel_width is not None:
-            wheel_dict["width_mm"] = float(wheel_width)
+        # Check for valid numeric value (handles None, null, undefined, JsNull from Pyodide)
+        if wheel_width is not None and wheel_width not in (None, '', False):
+            try:
+                wheel_dict["width_mm"] = float(wheel_width)
+            except (TypeError, ValueError):
+                pass  # Skip invalid values
 
     # Build assembly section (includes efficiency and self-locking)
     assembly_dict = {
