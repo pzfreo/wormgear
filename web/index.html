@@ -3,169 +3,318 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Worm Gear Calculator</title>
+    <title>Wormgear - Complete Design System</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Tab styling */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            background: #f8f9fa;
+            margin: 0;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 1em;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .lazy-load-notice {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .lazy-load-notice h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .lazy-load-notice p {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .lazy-load-notice button {
+            background: #ffc107;
+            color: #000;
+        }
+    </style>
 </head>
 <body>
     <div id="app">
         <header>
-            <h1>Worm Gear Calculator</h1>
-            <p class="subtitle">Design worm gear pairs for CNC manufacture</p>
+            <h1>Wormgear Complete Design System</h1>
+            <p class="subtitle">Calculate parameters and generate 3D geometry - all in your browser</p>
         </header>
 
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab active" data-tab="calculator">Calculator</button>
+            <button class="tab" data-tab="generator">3D Generator</button>
+        </div>
+
         <main>
-            <section id="inputs-section">
-                <h2>Inputs</h2>
+            <!-- Calculator Tab -->
+            <div id="calculator-tab" class="tab-content active">
+                <section id="inputs-section">
+                    <h2>Inputs</h2>
 
-                <label for="mode">Design Mode:</label>
-                <select id="mode">
-                    <option value="envelope">Envelope (both ODs)</option>
-                    <option value="from-wheel">From Wheel OD</option>
-                    <option value="from-module">From Module</option>
-                    <option value="from-centre-distance">From Centre Distance</option>
-                </select>
+                    <label for="mode">Design Mode:</label>
+                    <select id="mode">
+                        <option value="envelope">Envelope (both ODs)</option>
+                        <option value="from-wheel">From Wheel OD</option>
+                        <option value="from-module">From Module</option>
+                        <option value="from-centre-distance">From Centre Distance</option>
+                    </select>
 
-                <div id="mode-inputs">
-                    <!-- Envelope mode inputs (default) -->
-                    <div class="input-group" data-mode="envelope">
-                        <label for="worm-od">Worm OD (mm):</label>
-                        <input type="number" id="worm-od" value="20" step="0.1">
+                    <div id="mode-inputs">
+                        <!-- Envelope mode inputs (default) -->
+                        <div class="input-group" data-mode="envelope">
+                            <label for="worm-od">Worm OD (mm):</label>
+                            <input type="number" id="worm-od" value="20" step="0.1">
 
-                        <label for="wheel-od">Wheel OD (mm):</label>
-                        <input type="number" id="wheel-od" value="65" step="0.1">
+                            <label for="wheel-od">Wheel OD (mm):</label>
+                            <input type="number" id="wheel-od" value="65" step="0.1">
 
-                        <label for="ratio">Ratio:</label>
-                        <input type="number" id="ratio" value="30" step="1">
+                            <label for="ratio">Ratio:</label>
+                            <input type="number" id="ratio" value="30" step="1">
 
-                        <div class="checkbox-option" style="margin-top: 0.5rem;">
-                            <input type="checkbox" id="od-as-maximum">
-                            <label for="od-as-maximum">Treat ODs as maximum constraints (find largest standard module that fits)</label>
+                            <div class="checkbox-option" style="margin-top: 0.5rem;">
+                                <input type="checkbox" id="od-as-maximum">
+                                <label for="od-as-maximum">Treat ODs as maximum constraints (find largest standard module that fits)</label>
+                            </div>
+                        </div>
+
+                        <!-- From wheel mode inputs -->
+                        <div class="input-group" data-mode="from-wheel" style="display: none;">
+                            <label for="wheel-od-fw">Wheel OD (mm):</label>
+                            <input type="number" id="wheel-od-fw" value="65" step="0.1">
+
+                            <label for="ratio-fw">Ratio:</label>
+                            <input type="number" id="ratio-fw" value="30" step="1">
+
+                            <label for="target-lead-angle">Target Lead Angle (degrees):</label>
+                            <input type="number" id="target-lead-angle" value="8" step="0.1">
+                        </div>
+
+                        <!-- From module mode inputs -->
+                        <div class="input-group" data-mode="from-module" style="display: none;">
+                            <label for="module">Module (mm):</label>
+                            <input type="number" id="module" value="2.0" step="0.01">
+
+                            <label for="ratio-fm">Ratio:</label>
+                            <input type="number" id="ratio-fm" value="30" step="1">
+                        </div>
+
+                        <!-- From centre distance mode inputs -->
+                        <div class="input-group" data-mode="from-centre-distance" style="display: none;">
+                            <label for="centre-distance">Centre Distance (mm):</label>
+                            <input type="number" id="centre-distance" value="40" step="0.1">
+
+                            <label for="ratio-fcd">Ratio:</label>
+                            <input type="number" id="ratio-fcd" value="30" step="1">
                         </div>
                     </div>
 
-                    <!-- From wheel mode inputs -->
-                    <div class="input-group" data-mode="from-wheel" style="display: none;">
-                        <label for="wheel-od-fw">Wheel OD (mm):</label>
-                        <input type="number" id="wheel-od-fw" value="65" step="0.1">
+                    <details open>
+                        <summary>Options</summary>
+                        <div id="options-inputs">
+                            <label for="pressure-angle">Pressure Angle (degrees):</label>
+                            <input type="number" id="pressure-angle" value="20" step="0.1">
 
-                        <label for="ratio-fw">Ratio:</label>
-                        <input type="number" id="ratio-fw" value="30" step="1">
+                            <label for="backlash">Backlash (mm):</label>
+                            <input type="number" id="backlash" value="0" step="0.01">
 
-                        <label for="target-lead-angle">Target Lead Angle (degrees):</label>
-                        <input type="number" id="target-lead-angle" value="8" step="0.1">
-                    </div>
+                            <label for="num-starts">Number of Starts:</label>
+                            <input type="number" id="num-starts" value="1" step="1" min="1">
 
-                    <!-- From module mode inputs -->
-                    <div class="input-group" data-mode="from-module" style="display: none;">
-                        <label for="module">Module (mm):</label>
-                        <input type="number" id="module" value="2.0" step="0.01">
+                            <label for="hand">Hand:</label>
+                            <select id="hand">
+                                <option value="RIGHT">Right</option>
+                                <option value="LEFT">Left</option>
+                            </select>
 
-                        <label for="ratio-fm">Ratio:</label>
-                        <input type="number" id="ratio-fm" value="30" step="1">
-                    </div>
+                            <label for="profile-shift">Profile Shift Coefficient:</label>
+                            <input type="number" id="profile-shift" value="0" step="0.01" min="-0.5" max="0.8">
 
-                    <!-- From centre distance mode inputs -->
-                    <div class="input-group" data-mode="from-centre-distance" style="display: none;">
-                        <label for="centre-distance">Centre Distance (mm):</label>
-                        <input type="number" id="centre-distance" value="40" step="0.1">
+                            <div class="checkbox-option">
+                                <input type="checkbox" id="use-standard-module" checked>
+                                <label for="use-standard-module">Round to nearest standard module (ISO 54)</label>
+                            </div>
+                        </div>
+                    </details>
 
-                        <label for="ratio-fcd">Ratio:</label>
-                        <input type="number" id="ratio-fcd" value="30" step="1">
-                    </div>
+                    <details>
+                        <summary>Manufacturing Options</summary>
+                        <div id="manufacturing-inputs">
+                            <label for="profile">Tooth Profile (DIN 3975):</label>
+                            <select id="profile">
+                                <option value="ZA" selected>ZA - Straight (CNC machining)</option>
+                                <option value="ZK">ZK - Convex (3D printing)</option>
+                            </select>
+
+                            <label for="worm-type">Worm Type:</label>
+                            <select id="worm-type">
+                                <option value="cylindrical" selected>Cylindrical (standard)</option>
+                                <option value="globoid">Globoid (hourglass - better contact)</option>
+                            </select>
+
+                            <div id="throat-reduction-group" style="display: none;">
+                                <label for="throat-reduction">Throat Reduction (mm):</label>
+                                <input type="number" id="throat-reduction" value="0.05" step="0.01" min="0">
+                                <small class="hint">Typical: 0.05-0.1mm for small gears, 0.1-0.2mm for medium, 0.2-0.5mm for large</small>
+                            </div>
+
+                            <div class="checkbox-option">
+                                <input type="checkbox" id="wheel-throated">
+                                <label for="wheel-throated">Throated wheel teeth (hobbed, better contact)</label>
+                            </div>
+                        </div>
+                    </details>
+                </section>
+
+                <section id="validation-section">
+                    <h2>Validation</h2>
+                    <div id="validation-status" class="status-pending">Waiting for calculation...</div>
+                    <div id="module-info" class="module-info" style="display: none;"></div>
+                    <ul id="validation-messages"></ul>
+                </section>
+
+                <section id="results-section">
+                    <h2>Results</h2>
+                    <pre id="results-text">Enter parameters and click Calculate</pre>
+                </section>
+
+                <section id="export-section">
+                    <h2>Export</h2>
+                    <button id="copy-json" disabled>Copy JSON</button>
+                    <button id="download-json" disabled>Download JSON</button>
+                    <button id="download-md" disabled>Download Markdown</button>
+                    <button id="copy-link" disabled>Copy Share Link</button>
+                </section>
+            </div>
+
+            <!-- Generator Tab -->
+            <div id="generator-tab" class="tab-content">
+                <div id="generator-lazy-load" class="lazy-load-notice">
+                    <h3>3D Geometry Generator</h3>
+                    <p>Generate CNC-ready STEP files directly in your browser using WebAssembly.</p>
+                    <p><strong>Note:</strong> This will load ~50MB of dependencies (Pyodide, OCP, build123d). It may take 30-60 seconds on first load.</p>
+                    <button id="load-generator-btn">Load Generator</button>
                 </div>
 
-                <details open>
-                    <summary>Options</summary>
-                    <div id="options-inputs">
-                        <label for="pressure-angle">Pressure Angle (degrees):</label>
-                        <input type="number" id="pressure-angle" value="20" step="0.1">
+                <div id="generator-content" style="display: none;">
+                    <section class="generator-section">
+                        <h2>JSON Input</h2>
+                        <p>Paste your design JSON from the Calculator tab or upload a file:</p>
 
-                        <label for="backlash">Backlash (mm):</label>
-                        <input type="number" id="backlash" value="0" step="0.01">
-
-                        <label for="num-starts">Number of Starts:</label>
-                        <input type="number" id="num-starts" value="1" step="1" min="1">
-
-                        <label for="hand">Hand:</label>
-                        <select id="hand">
-                            <option value="RIGHT">Right</option>
-                            <option value="LEFT">Left</option>
-                        </select>
-
-                        <label for="profile-shift">Profile Shift Coefficient:</label>
-                        <input type="number" id="profile-shift" value="0" step="0.01" min="-0.5" max="0.8">
-
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="use-standard-module" checked>
-                            <label for="use-standard-module">Round to nearest standard module (ISO 54)</label>
+                        <div class="json-input-area">
+                            <textarea id="json-input" placeholder="Paste JSON here or use Calculator tab..."></textarea>
+                            <div style="margin-top: 10px;">
+                                <button id="load-from-calculator">Load from Calculator</button>
+                                <input type="file" id="json-file-input" accept=".json" style="display: none;">
+                                <button id="load-json-file">Upload JSON File</button>
+                            </div>
                         </div>
-                    </div>
-                </details>
+                    </section>
 
-                <details>
-                    <summary>Manufacturing Options</summary>
-                    <div id="manufacturing-inputs">
-                        <label for="profile">Tooth Profile (DIN 3975):</label>
-                        <select id="profile">
-                            <option value="ZA" selected>ZA - Straight (CNC machining)</option>
-                            <option value="ZK">ZK - Convex (3D printing)</option>
-                        </select>
-
-                        <label for="worm-type">Worm Type:</label>
-                        <select id="worm-type">
-                            <option value="cylindrical" selected>Cylindrical (standard)</option>
-                            <option value="globoid">Globoid (hourglass - better contact)</option>
-                        </select>
-
-                        <div id="throat-reduction-group" style="display: none;">
-                            <label for="throat-reduction">Throat Reduction (mm):</label>
-                            <input type="number" id="throat-reduction" value="0.05" step="0.01" min="0">
-                            <small class="hint">Typical: 0.05-0.1mm for small gears, 0.1-0.2mm for medium, 0.2-0.5mm for large</small>
+                    <section class="generator-section">
+                        <h2>Generation Options</h2>
+                        <div class="controls">
+                            <div class="control-group">
+                                <label for="gen-worm-length">Worm Length (mm):</label>
+                                <input type="number" id="gen-worm-length" value="40" step="1" min="10">
+                            </div>
+                            <div class="control-group">
+                                <label for="gen-wheel-width">Wheel Width (mm):</label>
+                                <input type="number" id="gen-wheel-width" placeholder="Auto" step="1" min="5">
+                            </div>
                         </div>
 
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="wheel-throated">
-                            <label for="wheel-throated">Throated wheel teeth (hobbed, better contact)</label>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="gen-globoid">
+                            <label for="gen-globoid">Generate globoid worm (hourglass shape)</label>
                         </div>
-                    </div>
-                </details>
-            </section>
 
-            <section id="validation-section">
-                <h2>Validation</h2>
-                <div id="validation-status" class="status-pending">Waiting for calculation...</div>
-                <div id="module-info" class="module-info" style="display: none;"></div>
-                <ul id="validation-messages"></ul>
-            </section>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="gen-virtual-hobbing">
+                            <label for="gen-virtual-hobbing">Use virtual hobbing for wheel (slower, more accurate)</label>
+                        </div>
+                    </section>
 
-            <section id="results-section">
-                <h2>Results</h2>
-                <pre id="results-text">Enter parameters and click Calculate</pre>
-            </section>
+                    <section class="generator-section">
+                        <h2>Generate</h2>
+                        <div class="button-group">
+                            <button id="generate-worm-btn">Generate Worm</button>
+                            <button id="generate-wheel-btn">Generate Wheel</button>
+                            <button id="generate-both-btn">Generate Both</button>
+                        </div>
+                    </section>
 
-            <section id="export-section">
-                <h2>Export</h2>
-                <button id="copy-json" disabled>Copy JSON</button>
-                <button id="download-json" disabled>Download JSON</button>
-                <button id="download-md" disabled>Download Markdown</button>
-                <button id="copy-link" disabled>Copy Share Link</button>
-            </section>
+                    <section class="generator-section">
+                        <h2>Console Output</h2>
+                        <div id="console-output" class="console">
+                            <div>Ready to generate geometry...</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
         </main>
 
         <footer>
-            <p>Created by Paul Fremantle | <a href="https://github.com/pzfreo/wormgearcalc">GitHub</a></p>
+            <p>Created by Paul Fremantle | <a href="https://github.com/pzfreo/worm-gear-3d">GitHub</a></p>
         </footer>
     </div>
 
-    <div id="loading">
+    <!-- Loading overlays -->
+    <div id="loading-calculator" class="loading-overlay" style="display: none;">
         <div class="loading-content">
             <div class="spinner"></div>
             <p>Loading calculator...</p>
-            <p class="loading-detail">Initializing Pyodide WebAssembly environment</p>
+            <p class="loading-detail">Initializing Pyodide calculator environment</p>
+        </div>
+    </div>
+
+    <div id="loading-generator" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Loading 3D generator...</p>
+            <p class="loading-detail">Loading Pyodide, OCP, and build123d (~50MB)</p>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
-    <script src="app.js"></script>
+    <script src="app-lazy.js"></script>
 </body>
 </html>
