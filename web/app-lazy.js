@@ -117,7 +117,7 @@ from wormcalc import (
 // GENERATOR - LAZY LOADING
 // ============================================================================
 
-async function initGenerator() {
+async function initGenerator(showModal = true) {
     if (generatorWorker) {
         // Already initialized, just show content
         document.getElementById('generator-lazy-load').style.display = 'none';
@@ -126,8 +126,10 @@ async function initGenerator() {
     }
 
     try {
-        // Show loading screen
-        document.getElementById('loading-generator').style.display = 'flex';
+        // Show loading screen (only if not background loading)
+        if (showModal) {
+            document.getElementById('loading-generator').style.display = 'flex';
+        }
 
         // Create Web Worker
         appendToConsole('🚀 Initializing generator in background thread...');
@@ -154,10 +156,12 @@ async function initGenerator() {
             generatorWorker.addEventListener('message', handleInit);
         });
 
-        // Hide loading, show generator UI
-        document.getElementById('loading-generator').style.display = 'none';
-        document.getElementById('generator-lazy-load').style.display = 'none';
-        document.getElementById('generator-content').style.display = 'block';
+        // Hide loading, show generator UI (only if modal was shown)
+        if (showModal) {
+            document.getElementById('loading-generator').style.display = 'none';
+            document.getElementById('generator-lazy-load').style.display = 'none';
+            document.getElementById('generator-content').style.display = 'block';
+        }
 
     } catch (error) {
         console.error('Failed to initialize generator:', error);
@@ -419,19 +423,22 @@ function calculate() {
 import json
 
 design = ${func}(${args})
-validation = validate_design(design)
 
-globals()['current_design'] = design
-globals()['current_validation'] = validation
-
-# Get settings from JavaScript
+# Get settings from JavaScript BEFORE validation
 bore_settings = bore_settings_dict.to_py() if 'bore_settings_dict' in dir() else None
 mfg_settings = manufacturing_settings_dict.to_py() if 'manufacturing_settings_dict' in dir() else None
 
 # Update manufacturing params with UI settings if present
+# IMPORTANT: Do this BEFORE validation so the validator sees the correct virtual_hobbing flag
 if mfg_settings and design.manufacturing:
     design.manufacturing.virtual_hobbing = mfg_settings.get('virtual_hobbing', False)
     design.manufacturing.hobbing_steps = mfg_settings.get('hobbing_steps', 72)
+
+# Now validate with the updated settings
+validation = validate_design(design)
+
+globals()['current_design'] = design
+globals()['current_validation'] = validation
 
 json.dumps({
     'summary': to_summary(design),
@@ -785,7 +792,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start loading generator in background (don't await - let it load asynchronously)
     // This means the generator will be ready faster when user switches to generator tab
-    initGenerator().catch(err => {
+    // Pass false to skip showing the modal during background loading
+    initGenerator(false).catch(err => {
         console.log('Generator background loading failed (non-fatal):', err);
     });
 
