@@ -56,6 +56,13 @@ from .enums import (
     WormType,
 )
 
+from .output import (
+    # Output formatters
+    to_json,
+    to_markdown,
+    to_summary,
+)
+
 # Convenience imports
 from ..io import WormParams, WheelParams, AssemblyParams, WormGearDesign, ManufacturingParams
 
@@ -255,4 +262,9 @@ __all__ = [
     "Severity",
     "ValidationMessage",
     "ValidationResult",
+
+    # Output formatters
+    "to_json",
+    "to_markdown",
+    "to_summary",
 ]
