@@ -27,7 +27,7 @@ from typing import Optional, Literal, Callable
 from build123d import *
 from OCP.ShapeFix import ShapeFix_Shape
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
-from .io import WheelParams, WormParams, AssemblyParams
+from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from .features import (
     BoreFeature,
     KeywayFeature,

@@ -3,31 +3,34 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wormgear-geometry"
-version = "0.1.0"
-description = "CNC-ready STEP file generator for worm gear pairs using build123d"
+name = "wormgear"
+version = "1.0.0a1"
+description = "Unified worm gear calculator and CNC-ready 3D geometry generator"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
     {name = "Paul Fremantle", email = "paul@fremantle.org"}
 ]
-keywords = ["worm gear", "CAD", "build123d", "CNC", "STEP", "manufacturing"]
+keywords = ["worm gear", "gear calculator", "CAD", "build123d", "CNC", "STEP", "manufacturing"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Manufacturing",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Computer Aided Design (CAD)",
 ]
 
 dependencies = [
     "build123d>=0.6.0",
+    "click>=8.0",  # For CLI
 ]
 
 [project.optional-dependencies]
@@ -39,14 +42,16 @@ dev = [
 ]
 
 [project.scripts]
-wormgear-geometry = "wormgear_geometry.cli:main"
+# New unified CLI (to be implemented)
+wormgear = "wormgear.cli.main:main"
+# Backwards compatible generator CLI
+wormgear-geometry = "wormgear.cli.generate:main"
 
 [project.urls]
-Homepage = "https://github.com/pzfreo/wormgear-geometry"
-Documentation = "https://github.com/pzfreo/wormgear-geometry/blob/main/README.md"
-Repository = "https://github.com/pzfreo/wormgear-geometry"
-"Calculator (Tool 1)" = "https://github.com/pzfreo/wormgearcalc"
-"Web Calculator" = "https://pzfreo.github.io/wormgearcalc/"
+Homepage = "https://github.com/pzfreo/worm-gear-3d"
+Documentation = "https://github.com/pzfreo/worm-gear-3d/blob/main/README.md"
+Repository = "https://github.com/pzfreo/worm-gear-3d"
+Issues = "https://github.com/pzfreo/worm-gear-3d/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

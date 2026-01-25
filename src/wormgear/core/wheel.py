@@ -9,7 +9,7 @@ Creates worm wheel with two options:
 import math
 from typing import Optional, Literal
 from build123d import *
-from .io import WheelParams, WormParams, AssemblyParams
+from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from .features import (
     BoreFeature,
     KeywayFeature,

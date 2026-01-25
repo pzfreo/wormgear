@@ -27,11 +27,17 @@ from .core import (
     WheelGeometry,
     GloboidWormGeometry,
     VirtualHobbingWheelGeometry,
+    HOBBING_PRESETS,
+    get_hobbing_preset,
+    get_preset_steps,
     BoreFeature,
     KeywayFeature,
     DDCutFeature,
     SetScrewFeature,
     HubFeature,
+    calculate_default_bore,
+    calculate_default_ddcut,
+    get_din_6885_keyway,
 )
 
 # Calculator (Layer 2a)
@@ -62,6 +68,9 @@ __all__ = [
     "WheelGeometry",
     "GloboidWormGeometry",
     "VirtualHobbingWheelGeometry",
+    "HOBBING_PRESETS",
+    "get_hobbing_preset",
+    "get_preset_steps",
 
     # Features
     "BoreFeature",
@@ -69,6 +78,9 @@ __all__ = [
     "DDCutFeature",
     "SetScrewFeature",
     "HubFeature",
+    "calculate_default_bore",
+    "calculate_default_ddcut",
+    "get_din_6885_keyway",
 
     # IO
     "load_design_json",

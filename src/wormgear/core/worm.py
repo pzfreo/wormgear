@@ -7,7 +7,7 @@ Creates CNC-ready worm geometry with helical threads.
 import math
 from typing import Optional, Literal
 from build123d import *
-from .io import WormParams, AssemblyParams
+from ..io.loaders import WormParams, AssemblyParams
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
 
 # Profile types per DIN 3975

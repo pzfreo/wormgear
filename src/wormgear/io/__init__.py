@@ -17,8 +17,8 @@ Example:
     >>> loaded = load_design_json("design.json")
 """
 
-# Temporarily import from parent (will be moved here)
-from ..io import (
+# Import from loaders module
+from .loaders import (
     load_design_json,
     save_design_json,
     WormParams,
@@ -31,11 +31,23 @@ from ..io import (
     SetScrewSpec,
     HubSpec,
     ManufacturingParams,
+    ManufacturingFeatures,  # Legacy
+)
+
+# Import from schema module
+from .schema import (
+    SCHEMA_VERSION,
+    get_schema_v1,
+    validate_json_schema,
+    create_example_schema_v1,
 )
 
 __all__ = [
+    # Loaders
     "load_design_json",
     "save_design_json",
+
+    # Parameters
     "WormParams",
     "WheelParams",
     "AssemblyParams",
@@ -46,4 +58,11 @@ __all__ = [
     "SetScrewSpec",
     "HubSpec",
     "ManufacturingParams",
+    "ManufacturingFeatures",  # Legacy
+
+    # Schema
+    "SCHEMA_VERSION",
+    "get_schema_v1",
+    "validate_json_schema",
+    "create_example_schema_v1",
 ]

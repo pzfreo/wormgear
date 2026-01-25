@@ -6,18 +6,18 @@ import argparse
 import sys
 from pathlib import Path
 
-from .io import (
+from ..io.loaders import (
     load_design_json,
     save_design_json,
     WormGearDesign,
     ManufacturingParams,
     ManufacturingFeatures
 )
-from .worm import WormGeometry
-from .globoid_worm import GloboidWormGeometry
-from .wheel import WheelGeometry
-from .virtual_hobbing import VirtualHobbingWheelGeometry
-from .features import (
+from ..core.worm import WormGeometry
+from ..core.globoid_worm import GloboidWormGeometry
+from ..core.wheel import WheelGeometry
+from ..core.virtual_hobbing import VirtualHobbingWheelGeometry
+from ..core.features import (
     BoreFeature,
     KeywayFeature,
     DDCutFeature,
