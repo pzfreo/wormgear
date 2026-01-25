@@ -9,10 +9,8 @@ import json
 from dataclasses import asdict
 from typing import Optional
 
-from .core import (
-    WormGearDesign, WormParameters, WheelParameters, Hand,
-    WormProfile, WormType, ManufacturingParams
-)
+from .core import Hand, WormProfile, WormType
+from ..io import WormGearDesign, WormParams, WheelParams, ManufacturingParams
 from .js_bridge import validate_manufacturing_settings, validate_bore_settings
 from .json_schema import validate_design_json
 from .validation import ValidationResult, ValidationMessage, Severity
