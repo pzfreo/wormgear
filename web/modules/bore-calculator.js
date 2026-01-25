@@ -72,17 +72,20 @@ export function updateBoreDisplaysAndDefaults(design) {
     // Show recommended values
     document.getElementById('worm-bore-info').style.display = 'block';
     document.getElementById('wheel-bore-info').style.display = 'block';
-    document.getElementById('worm-bore-recommended').textContent = calculatedWormBore.toFixed(1);
-    document.getElementById('wheel-bore-recommended').textContent = calculatedWheelBore.toFixed(1);
 
-    // Add warning if too small for DIN 6885
+    // Include mm and warning in the span content
     if (calculatedWormBore < 6.0) {
         document.getElementById('worm-bore-recommended').innerHTML =
-            `${calculatedWormBore.toFixed(1)} <span style="color: #c75; font-style: italic;">(too small for DIN 6885)</span>`;
+            `${calculatedWormBore.toFixed(1)} mm <span style="color: #c75; font-style: italic;">(too small for DIN 6885)</span>`;
+    } else {
+        document.getElementById('worm-bore-recommended').textContent = `${calculatedWormBore.toFixed(1)} mm`;
     }
+
     if (calculatedWheelBore < 6.0) {
         document.getElementById('wheel-bore-recommended').innerHTML =
-            `${calculatedWheelBore.toFixed(1)} <span style="color: #c75; font-style: italic;">(too small for DIN 6885)</span>`;
+            `${calculatedWheelBore.toFixed(1)} mm <span style="color: #c75; font-style: italic;">(too small for DIN 6885)</span>`;
+    } else {
+        document.getElementById('wheel-bore-recommended').textContent = `${calculatedWheelBore.toFixed(1)} mm`;
     }
 
     // Update anti-rotation options
