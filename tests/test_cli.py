@@ -15,7 +15,7 @@ class TestCLIBasic:
     def test_cli_help(self):
         """Test that --help works."""
         result = subprocess.run(
-            [sys.executable, "-m", "wormgear_geometry.cli", "--help"],
+            [sys.executable, "-m", "wormgear.cli.generate", "--help"],
             capture_output=True,
             text=True
         )
@@ -25,7 +25,7 @@ class TestCLIBasic:
     def test_cli_missing_file(self):
         """Test error handling for missing input file."""
         result = subprocess.run(
-            [sys.executable, "-m", "wormgear_geometry.cli", "nonexistent.json", "--no-save"],
+            [sys.executable, "-m", "wormgear.cli.generate", "nonexistent.json", "--no-save"],
             capture_output=True,
             text=True
         )
@@ -37,7 +37,7 @@ class TestCLIBasic:
         invalid_file.write_text("not valid json {")
 
         result = subprocess.run(
-            [sys.executable, "-m", "wormgear_geometry.cli", str(invalid_file), "--no-save"],
+            [sys.executable, "-m", "wormgear.cli.generate", str(invalid_file), "--no-save"],
             capture_output=True,
             text=True
         )
@@ -54,7 +54,7 @@ class TestCLIGeneration:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--worm-length", "10",
@@ -80,7 +80,7 @@ class TestCLIGeneration:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--worm-only",
@@ -107,7 +107,7 @@ class TestCLIGeneration:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--wheel-only"
@@ -129,7 +129,7 @@ class TestCLIGeneration:
         """Test --no-save option doesn't create files."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "--no-save",
                 "--worm-length", "10",
@@ -151,7 +151,7 @@ class TestCLIGeneration:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--worm-only",
@@ -172,7 +172,7 @@ class TestCLIGeneration:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--wheel-only",
@@ -193,7 +193,7 @@ class TestCLIGeneration:
         for sections in [8, 24, 72]:
             result = subprocess.run(
                 [
-                    sys.executable, "-m", "wormgear_geometry.cli",
+                    sys.executable, "-m", "wormgear.cli.generate",
                     str(temp_json_file),
                     "-o", str(output_dir),
                     "--worm-only",
@@ -215,7 +215,7 @@ class TestCLIOutput:
         """Test that design summary is printed."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "--no-save",
                 "--worm-length", "10",
@@ -236,7 +236,7 @@ class TestCLIOutput:
         """Test that volumes are reported."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "--no-save",
                 "--worm-length", "10",
@@ -266,7 +266,7 @@ class TestCLIWithExamples:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(example_file),
                 "-o", str(output_dir),
                 "--worm-length", "7",
@@ -289,7 +289,7 @@ class TestCLIMeshAligned:
         """Test that --mesh-aligned option is accepted."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "--no-save",
                 "--mesh-aligned",
@@ -312,7 +312,7 @@ class TestCLIGloboid:
         """Test that --globoid flag is accepted."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "--no-save",
                 "--globoid",
@@ -334,7 +334,7 @@ class TestCLIGloboid:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--globoid",
@@ -357,7 +357,7 @@ class TestCLIGloboid:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--globoid",
@@ -384,7 +384,7 @@ class TestCLIGloboid:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--globoid",
@@ -409,7 +409,7 @@ class TestCLIGloboid:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(temp_json_file),
                 "-o", str(output_dir),
                 "--globoid",
@@ -444,7 +444,7 @@ class TestCLIGloboid:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "wormgear_geometry.cli",
+                sys.executable, "-m", "wormgear.cli.generate",
                 str(example_file),
                 "-o", str(output_dir),
                 "--globoid",

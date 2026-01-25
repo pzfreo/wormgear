@@ -6,7 +6,7 @@ import json
 import pytest
 from pathlib import Path
 
-from wormgear_geometry.io import (
+from wormgear import (
     load_design_json,
     save_design_json,
     WormParams,
@@ -14,8 +14,8 @@ from wormgear_geometry.io import (
     AssemblyParams,
     WormGearDesign,
     ManufacturingParams,
-    ManufacturingFeatures,
 )
+from wormgear.io.loaders import ManufacturingFeatures
 
 
 class TestLoadDesignJson:

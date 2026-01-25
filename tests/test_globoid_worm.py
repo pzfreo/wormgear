@@ -5,9 +5,11 @@ Tests for globoid (double-enveloping) worm geometry generation.
 import math
 import pytest
 
-from wormgear_geometry.io import load_design_json, WormParams, AssemblyParams
-from wormgear_geometry.globoid_worm import GloboidWormGeometry
-from wormgear_geometry.features import BoreFeature, KeywayFeature, SetScrewFeature
+from wormgear import (
+    load_design_json, WormParams, AssemblyParams,
+    GloboidWormGeometry,
+    BoreFeature, KeywayFeature, SetScrewFeature,
+)
 
 
 class TestGloboidWormGeometry:

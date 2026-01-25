@@ -5,8 +5,7 @@ Tests for worm geometry generation.
 import math
 import pytest
 
-from wormgear_geometry.io import load_design_json, WormParams, AssemblyParams
-from wormgear_geometry.worm import WormGeometry
+from wormgear import load_design_json, WormParams, AssemblyParams, WormGeometry
 
 
 class TestWormGeometry:

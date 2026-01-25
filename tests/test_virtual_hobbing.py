@@ -8,9 +8,10 @@ valid geometry through kinematic simulation of the hobbing process.
 import math
 import pytest
 
-from wormgear_geometry.io import WormParams, WheelParams, AssemblyParams
-from wormgear_geometry.virtual_hobbing import VirtualHobbingWheelGeometry
-from wormgear_geometry.wheel import WheelGeometry
+from wormgear import (
+    WormParams, WheelParams, AssemblyParams,
+    VirtualHobbingWheelGeometry, WheelGeometry,
+)
 
 
 class TestVirtualHobbingWheelGeometry:

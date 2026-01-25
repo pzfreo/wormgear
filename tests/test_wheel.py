@@ -5,8 +5,7 @@ Tests for wheel geometry generation.
 import math
 import pytest
 
-from wormgear_geometry.io import load_design_json, WormParams, WheelParams, AssemblyParams
-from wormgear_geometry.wheel import WheelGeometry
+from wormgear import load_design_json, WormParams, WheelParams, AssemblyParams, WheelGeometry
 
 
 class TestWheelGeometry:

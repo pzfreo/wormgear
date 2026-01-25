@@ -7,9 +7,10 @@ import pytest
 from pathlib import Path
 import tempfile
 
-from wormgear_geometry.io import load_design_json, WormParams, WheelParams, AssemblyParams
-from wormgear_geometry.worm import WormGeometry
-from wormgear_geometry.wheel import WheelGeometry
+from wormgear import (
+    load_design_json, WormParams, WheelParams, AssemblyParams,
+    WormGeometry, WheelGeometry,
+)
 
 
 class TestWormWheelPair:

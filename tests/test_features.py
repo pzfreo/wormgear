@@ -5,21 +5,15 @@ Tests for bore and keyway features.
 import math
 import pytest
 
-from wormgear_geometry.io import load_design_json, WormParams, WheelParams, AssemblyParams
-from wormgear_geometry.worm import WormGeometry
-from wormgear_geometry.wheel import WheelGeometry
-from wormgear_geometry.features import (
-    BoreFeature,
-    KeywayFeature,
-    DDCutFeature,
-    get_din_6885_keyway,
-    calculate_default_bore,
-    calculate_default_ddcut,
-    create_bore,
-    create_keyway,
-    create_ddcut,
-    add_bore_and_keyway,
-    DIN_6885_KEYWAYS,
+from wormgear import (
+    load_design_json, WormParams, WheelParams, AssemblyParams,
+    WormGeometry, WheelGeometry,
+    BoreFeature, KeywayFeature, DDCutFeature,
+    get_din_6885_keyway, calculate_default_bore, calculate_default_ddcut,
+)
+from wormgear.core.features import (
+    create_bore, create_keyway, create_ddcut,
+    add_bore_and_keyway, DIN_6885_KEYWAYS,
 )
 from build123d import Cylinder, Axis, Align
 
