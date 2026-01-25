@@ -1,5 +1,5 @@
-# Python source (not needed for web deployment)
-src/
+# Python source (needed by build script to copy to web/src/)
+# src/ - DO NOT IGNORE, needed by web/build.sh
 tests/
 *.pyc
 __pycache__/

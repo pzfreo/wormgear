@@ -145,8 +145,22 @@ web/
 ### Generator Tab
 - **Initial load**: <1 second (shows "Load Generator" button)
 - **Full load**: 30-60 seconds (when user clicks "Load Generator")
-- **Generation**: 2-30 seconds depending on complexity
+- **Generation**:
+  - Worm (cylindrical): 2-5 seconds
+  - Wheel (helical): 3-8 seconds
+  - Wheel (virtual hobbing): 20-60 seconds (with progress callbacks)
 - **Total data**: ~50MB (OCP + build123d are large)
+
+### Progress Callbacks
+
+Virtual hobbing wheel generation uses progress callbacks to keep the UI responsive:
+
+- **Progress bar**: Shows percentage complete
+- **Status updates**: Real-time messages about current operation
+- **Console throttling**: Updates every 500ms to avoid spam
+- **Browser responsiveness**: Frequent callbacks yield to event loop
+
+This prevents browser "unresponsive script" warnings during long operations (30-60s for complex wheels).
 
 ## Browser Compatibility
 

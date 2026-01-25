@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wormgear - Complete Design System</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css">
     <style>
         /* Tab styling */
@@ -69,6 +70,43 @@
             background: #ffc107;
             color: #000;
         }
+
+        /* Calculator two-column layout */
+        .calculator-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .calculator-layout #inputs-section {
+            grid-column: 1;
+            grid-row: 1 / 4;
+        }
+
+        .calculator-layout #validation-section {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .calculator-layout #results-section {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        .calculator-layout #export-section {
+            grid-column: 2;
+            grid-row: 3;
+        }
+
+        @media (max-width: 768px) {
+            .calculator-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .calculator-layout #inputs-section {
+                grid-row: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -87,6 +125,7 @@
         <main>
             <!-- Calculator Tab -->
             <div id="calculator-tab" class="tab-content active">
+                <div class="calculator-layout">
                 <section id="inputs-section">
                     <h2>Inputs</h2>
 
@@ -182,6 +221,7 @@
                             <select id="profile">
                                 <option value="ZA" selected>ZA - Straight (CNC machining)</option>
                                 <option value="ZK">ZK - Convex (3D printing)</option>
+                                <option value="ZI">ZI - Involute (high precision)</option>
                             </select>
 
                             <label for="worm-type">Worm Type:</label>
@@ -196,9 +236,97 @@
                                 <small class="hint">Typical: 0.05-0.1mm for small gears, 0.1-0.2mm for medium, 0.2-0.5mm for large</small>
                             </div>
 
+                            <label for="wheel-generation">Wheel Tooth Generation:</label>
+                            <select id="wheel-generation">
+                                <option value="helical" selected>Helical (simple, fast)</option>
+                                <option value="virtual-hobbing">Virtual Hobbing (accurate throating)</option>
+                            </select>
+
+                            <div id="hobbing-precision-group" style="display: none;">
+                                <label for="hobbing-precision">Virtual Hobbing Precision:</label>
+                                <select id="hobbing-precision">
+                                    <option value="preview">Preview (36 steps, 1-3 min)</option>
+                                    <option value="balanced" selected>Balanced (72 steps, 3-6 min)</option>
+                                    <option value="high">High (144 steps, 6-12 min)</option>
+                                </select>
+                                <small class="hint">Times shown for WASM in browser</small>
+                            </div>
+
+                            <div id="throat-option-group">
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="wheel-throated">
+                                    <label for="wheel-throated">Throated wheel teeth (better contact)</label>
+                                    <small class="hint" style="display: block; margin-left: 1.5rem;">Note: Virtual hobbing automatically creates throated teeth</small>
+                                </div>
+                            </div>
+
+                            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Dimensions</h3>
+
                             <div class="checkbox-option">
-                                <input type="checkbox" id="wheel-throated">
-                                <label for="wheel-throated">Throated wheel teeth (hobbed, better contact)</label>
+                                <input type="checkbox" id="use-recommended-dims" checked>
+                                <label for="use-recommended-dims">Use recommended dimensions</label>
+                            </div>
+
+                            <div id="custom-dims-group" style="display: none;">
+                                <label for="worm-length">Worm Length (mm):</label>
+                                <input type="number" id="worm-length" value="40" step="1" min="5">
+
+                                <label for="wheel-width">Wheel Width (mm):</label>
+                                <input type="number" id="wheel-width" value="10" step="1" min="5">
+                            </div>
+
+                            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Bores & Keyways</h3>
+
+                            <label for="worm-bore-type">Worm Bore:</label>
+                            <select id="worm-bore-type">
+                                <option value="none">Solid (no bore)</option>
+                                <option value="auto" selected>Auto-calculated</option>
+                                <option value="custom">Custom diameter</option>
+                            </select>
+
+                            <!-- Always show recommended bore as reference -->
+                            <div id="worm-bore-info" style="font-size: 0.85em; color: #666; margin-top: 0.25rem;">
+                                Recommended: <span id="worm-bore-recommended">--</span> mm
+                            </div>
+
+                            <div id="worm-bore-custom" style="display: none; margin-top: 0.5rem;">
+                                <label for="worm-bore-diameter">Custom Bore Diameter (mm):</label>
+                                <input type="number" id="worm-bore-diameter" value="8" step="0.5" min="2">
+                            </div>
+
+                            <div id="worm-anti-rotation-group" style="display: none; margin-top: 0.5rem;">
+                                <label for="worm-anti-rotation">Worm Anti-Rotation:</label>
+                                <select id="worm-anti-rotation">
+                                    <option value="none">None</option>
+                                    <option value="DIN6885">DIN 6885 Keyway</option>
+                                    <option value="DD-cut">DD-Cut (flat sides)</option>
+                                </select>
+                            </div>
+
+                            <label for="wheel-bore-type">Wheel Bore:</label>
+                            <select id="wheel-bore-type">
+                                <option value="none">Solid (no bore)</option>
+                                <option value="auto" selected>Auto-calculated</option>
+                                <option value="custom">Custom diameter</option>
+                            </select>
+
+                            <!-- Always show recommended bore as reference -->
+                            <div id="wheel-bore-info" style="font-size: 0.85em; color: #666; margin-top: 0.25rem;">
+                                Recommended: <span id="wheel-bore-recommended">--</span> mm
+                            </div>
+
+                            <div id="wheel-bore-custom" style="display: none; margin-top: 0.5rem;">
+                                <label for="wheel-bore-diameter">Custom Bore Diameter (mm):</label>
+                                <input type="number" id="wheel-bore-diameter" value="12" step="0.5" min="2">
+                            </div>
+
+                            <div id="wheel-anti-rotation-group" style="display: none; margin-top: 0.5rem;">
+                                <label for="wheel-anti-rotation">Wheel Anti-Rotation:</label>
+                                <select id="wheel-anti-rotation">
+                                    <option value="none">None</option>
+                                    <option value="DIN6885">DIN 6885 Keyway</option>
+                                    <option value="DD-cut">DD-Cut (flat sides)</option>
+                                </select>
                             </div>
                         </div>
                     </details>
@@ -223,6 +351,7 @@
                     <button id="download-md" disabled>Download Markdown</button>
                     <button id="copy-link" disabled>Copy Share Link</button>
                 </section>
+                </div><!-- end calculator-layout -->
             </div>
 
             <!-- Generator Tab -->
@@ -255,26 +384,19 @@
                     </section>
 
                     <section class="generator-section">
-                        <h2>Generation Options</h2>
-                        <p class="hint">Profile, worm type, and wheel type are defined in the design JSON above.</p>
-                        <div class="controls">
-                            <div class="control-group">
-                                <label for="gen-worm-length">Worm Length (mm):</label>
-                                <input type="number" id="gen-worm-length" value="40" step="1" min="10">
-                            </div>
-                            <div class="control-group">
-                                <label for="gen-wheel-width">Wheel Width (mm):</label>
-                                <input type="number" id="gen-wheel-width" placeholder="Auto" step="1" min="5">
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="generator-section">
                         <h2>Generate</h2>
                         <div class="button-group">
                             <button id="generate-worm-btn">Generate Worm</button>
                             <button id="generate-wheel-btn">Generate Wheel</button>
                             <button id="generate-both-btn">Generate Both</button>
+                        </div>
+
+                        <!-- Progress indicator -->
+                        <div id="generation-progress" style="display: none; margin-top: 1rem;">
+                            <div style="background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 24px;">
+                                <div id="progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85em; font-weight: bold;"></div>
+                            </div>
+                            <div id="progress-text" style="margin-top: 0.5rem; font-size: 0.9em; color: #666;"></div>
                         </div>
                     </section>
 
@@ -310,7 +432,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
-    <script src="app-lazy.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
+    <script type="module" src="app-lazy.js"></script>
 </body>
 </html>

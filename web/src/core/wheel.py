@@ -91,9 +91,6 @@ class WheelGeometry:
         else:
             self.face_width = face_width
 
-        # Cache for built geometry (avoids rebuilding on export)
-        self._part = None
-
     def build(self) -> Part:
         """
         Build the complete wheel geometry.
@@ -101,10 +98,6 @@ class WheelGeometry:
         Returns:
             build123d Part object ready for export
         """
-        # Return cached geometry if already built
-        if self._part is not None:
-            return self._part
-
         # Create helical gear (throating is built into the tooth profile)
         gear = self._create_helical_gear()
 
@@ -132,8 +125,6 @@ class WheelGeometry:
                 axis=Axis.Z
             )
 
-        # Cache the built geometry
-        self._part = gear
         return gear
 
     def _create_helical_gear(self) -> Part:
@@ -347,14 +338,13 @@ class WheelGeometry:
         return wheel
 
     def export_step(self, filepath: str):
-        """Export wheel to STEP file (builds if not already built)."""
-        if self._part is None:
-            self.build()
+        """Build and export wheel to STEP file."""
+        wheel = self.build()
 
-        if hasattr(self._part, 'export_step'):
-            self._part.export_step(filepath)
+        if hasattr(wheel, 'export_step'):
+            wheel.export_step(filepath)
         else:
             from build123d import export_step as exp_step
-            exp_step(self._part, filepath)
+            exp_step(wheel, filepath)
 
         print(f"Exported wheel to {filepath}")

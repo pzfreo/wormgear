@@ -68,9 +68,6 @@ class WormGeometry:
         if self.keyway is not None:
             self.keyway.is_shaft = True
 
-        # Cache for built geometry (avoids rebuilding on export)
-        self._part = None
-
     def build(self) -> Part:
         """
         Build the complete worm geometry.
@@ -78,10 +75,6 @@ class WormGeometry:
         Returns:
             build123d Part object ready for export
         """
-        # Return cached geometry if already built
-        if self._part is not None:
-            return self._part
-
         root_radius = self.params.root_diameter_mm / 2
         tip_radius = self.params.tip_diameter_mm / 2
         lead = self.params.lead_mm
@@ -211,8 +204,6 @@ class WormGeometry:
             )
 
         print(f"    ✓ Final worm volume: {worm.volume:.2f} mm³")
-        # Cache the built geometry
-        self._part = worm
         return worm
 
     def _create_threads(self) -> Part:
@@ -465,15 +456,14 @@ class WormGeometry:
         return worm
 
     def export_step(self, filepath: str):
-        """Export worm to STEP file (builds if not already built)."""
-        if self._part is None:
-            self.build()
+        """Build and export worm to STEP file."""
+        worm = self.build()
 
-        print(f"    Exporting worm: volume={self._part.volume:.2f} mm³")
-        if hasattr(self._part, 'export_step'):
-            self._part.export_step(filepath)
+        print(f"    Exporting worm: volume={worm.volume:.2f} mm³")
+        if hasattr(worm, 'export_step'):
+            worm.export_step(filepath)
         else:
             from build123d import export_step as exp_step
-            exp_step(self._part, filepath)
+            exp_step(worm, filepath)
 
         print(f"Exported worm to {filepath}")

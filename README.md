@@ -494,6 +494,34 @@ If you encounter issues not covered here:
 - **Wheel**: ~100-500 KB
 - **Complex features**: +10-50 KB each
 
+## Testing
+
+### Web Build Tests
+
+Ensure the browser-based geometry generator doesn't break:
+
+```bash
+# Run web build tests
+pytest tests/test_web_build.py -v
+
+# Run all tests
+pytest tests/ -v
+```
+
+**What's tested:**
+- Build script executes successfully
+- All required Python files are copied to `web/src/`
+- JavaScript references all necessary files
+- No cache files in output
+- Vercel configuration is correct
+- Pyodide versions are consistent
+- **JSON field names match Python dataclass parameters** (prevents TypeError from field name mismatches)
+- **JavaScript uses correct field names** (catches typos like `throat_pitch_radius_mm` vs `throat_curvature_radius_mm`)
+
+**CI/CD:** GitHub Actions automatically runs these tests on PRs touching `web/` or `src/wormgear/`.
+
+See [web/MAINTAINING.md](web/MAINTAINING.md) for details on maintaining the web interface.
+
 ## Background
 
 Created for custom worm gear design in luthier (violin making) applications, where standard gears often don't fit unusual envelope constraints. Extended to support both CNC machining and 3D printing for makers, hobbyists, and professional engineers.

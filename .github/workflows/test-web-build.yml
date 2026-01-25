@@ -1,0 +1,82 @@
+name: Test Web Build
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'src/wormgear/**'
+      - '.github/workflows/test-web-build.yml'
+      - 'tests/test_web_build.py'
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+      - 'src/wormgear/**'
+
+jobs:
+  test-web-build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest
+
+    - name: Make build script executable
+      run: chmod +x web/build.sh
+
+    - name: Run web build tests
+      run: pytest tests/test_web_build.py -v
+
+    - name: Verify build output exists
+      run: |
+        if [ ! -d "web/src/wormgear" ]; then
+          echo "ERROR: web/src/wormgear directory not created by build"
+          exit 1
+        fi
+
+        echo "✅ Build output verified"
+        ls -la web/src/wormgear/
+
+    - name: Check for missing files
+      run: |
+        cd web/src
+
+        # List of critical files that MUST exist
+        CRITICAL_FILES=(
+          "wormgear/__init__.py"
+          "wormgear/core/__init__.py"
+          "wormgear/core/worm.py"
+          "wormgear/core/wheel.py"
+          "wormgear/io/__init__.py"
+          "wormgear/io/loaders.py"
+          "wormgear/calculator/__init__.py"
+        )
+
+        ALL_OK=true
+        for file in "${CRITICAL_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ MISSING: $file"
+            ALL_OK=false
+          else
+            echo "✅ Found: $file"
+          fi
+        done
+
+        if [ "$ALL_OK" = false ]; then
+          echo ""
+          echo "ERROR: Some critical files are missing from web build output!"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ All critical files present"

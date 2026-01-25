@@ -180,23 +180,20 @@ def _validate_module(design: WormGearDesign) -> List[ValidationMessage]:
         nearest = nearest_standard_module(module)
         deviation = abs(module - nearest) / nearest * 100
 
-        # Only show message if module differs significantly from nearest standard
-        # If deviation < 0.1%, user likely already rounded to standard (avoid confusing message)
-        if deviation >= 10:
+        if deviation > 10:
             messages.append(ValidationMessage(
                 severity=Severity.WARNING,
                 code="MODULE_NON_STANDARD",
                 message=f"Module {module:.3f}mm is non-standard (ISO 54)",
                 suggestion=f"Nearest standard module: {nearest}mm. Consider adjusting envelope constraints."
             ))
-        elif deviation >= 0.1:  # Between 0.1% and 10%
+        else:
             messages.append(ValidationMessage(
                 severity=Severity.INFO,
                 code="MODULE_NEAR_STANDARD",
                 message=f"Module {module:.3f}mm is close to standard {nearest}mm",
                 suggestion=f"Could round to {nearest}mm with minor OD changes"
             ))
-        # else: deviation < 0.1%, skip message (already at standard)
 
     return messages
 

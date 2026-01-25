@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "./build.sh",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/(.*)",
