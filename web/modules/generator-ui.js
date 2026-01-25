@@ -103,14 +103,14 @@ function updateSubProgress(percent, message = null) {
         // Show and update sub-progress
         subProgress.style.display = 'block';
 
-        // Track start time on first progress update (even at 0%)
-        if (hobbingStartTime === null) {
+        // Track start time when actual work begins (percent > 0, not at 0%)
+        if (hobbingStartTime === null && percent > 0) {
             hobbingStartTime = Date.now();
-            console.log('[Time Tracking] Started at', new Date(hobbingStartTime).toISOString());
+            console.log('[Time Tracking] Started at', new Date(hobbingStartTime).toISOString(), 'percent=', percent);
         }
 
         // Calculate time estimate after 5% completion
-        if (percent >= 5 && hobbingStartTime !== null && percent > 0) {
+        if (percent >= 5 && hobbingStartTime !== null) {
             const elapsed = (Date.now() - hobbingStartTime) / 1000; // seconds
             // percent is 0-100, so estimatedTotal = elapsed / (percent/100) = (elapsed * 100) / percent
             const estimatedTotal = (elapsed * 100) / percent;
