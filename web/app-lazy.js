@@ -156,7 +156,7 @@ globals()['current_validation'] = validation
 
 json.dumps({
     'summary': to_summary(design),
-    'json_output': to_json(design, validation, bore_settings=bore_settings, manufacturing_settings=mfg_settings),
+    'json_output': to_json(design, bore_settings=bore_settings, manufacturing_settings=mfg_settings),
     'markdown': to_markdown(design, validation),
     'valid': validation.valid,
     'messages': [

@@ -209,13 +209,14 @@ def to_json(
 
     Args:
         design: The worm gear design
-        validation: Optional validation result to include
+        validation: Optional validation result to include (deprecated - validation
+                   should be in markdown output only, not in generator input JSON)
         indent: JSON indentation (default 2)
         bore_settings: Optional bore configuration from UI
         manufacturing_settings: Optional manufacturing/dimension settings from UI
 
     Returns:
-        JSON string compatible with wormgear package
+        JSON string compatible with wormgear package (pure input parameters)
     """
     data = design_to_dict(design, bore_settings=bore_settings, manufacturing_settings=manufacturing_settings)
 
