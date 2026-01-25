@@ -347,7 +347,7 @@ function formatArgs(calculatorParams) {
 
 function updateAutoBoreDisplays() {
     // Update displays showing what auto-calculated bore sizes will be
-    if (!currentDesign) {
+    if (!currentDesign || !currentDesign.worm || !currentDesign.wheel) {
         document.getElementById('worm-bore-auto-info').style.display = 'none';
         document.getElementById('wheel-bore-auto-info').style.display = 'none';
         return;
@@ -356,6 +356,13 @@ function updateAutoBoreDisplays() {
     // Calculate auto bore for worm (25% of pitch diameter, constrained by root)
     const wormPitch = currentDesign.worm.pitch_diameter_mm;
     const wormRoot = currentDesign.worm.root_diameter_mm;
+
+    // Safety check for undefined values
+    if (!wormPitch || !wormRoot) {
+        document.getElementById('worm-bore-auto-info').style.display = 'none';
+        document.getElementById('wheel-bore-auto-info').style.display = 'none';
+        return;
+    }
     const wormBoreTarget = wormPitch * 0.25;
     const wormBoreMax = wormRoot - 2.0; // Leave at least 1mm rim
     let wormBore = Math.min(wormBoreTarget, wormBoreMax);
