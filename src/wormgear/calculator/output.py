@@ -265,7 +265,7 @@ def to_markdown(
     worm_type_str = "Cylindrical"
     wheel_type_str = "Helical"
     if design.manufacturing:
-        worm_type_str = design.worm.type.title() if design.worm.type else "Cylindrical"
+        worm_type_str = design.worm.type.title() if design.worm.type else "Cylindrical" if design.worm.type else "Cylindrical"
         wheel_type_str = "Throated (Hobbed)" if design.manufacturing.throated_wheel else "Helical"
 
     lines = [
@@ -347,7 +347,7 @@ def to_markdown(
             "",
             f"| Parameter | Value |",
             f"|-----------|-------|",
-            f"| Worm Type | {design.worm.type.title()} |",
+            f"| Worm Type | {design.worm.type.title() if design.worm.type else "Cylindrical"} |",
             f"| Profile | {design.manufacturing.profile} |",
             f"| Recommended Worm Length | {design.worm.length_mm if design.worm.length_mm else 0:.2f} mm |",
             f"| Recommended Wheel Width | {design.wheel.width_mm if design.wheel.width_mm else 0:.2f} mm |",
