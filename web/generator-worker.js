@@ -237,7 +237,7 @@ import json
 import base64
 import tempfile
 import os
-from wormgear.core import WormGeometry, WheelGeometry, VirtualHobbingWheelGeometry, BoreFeature, KeywayFeature
+from wormgear.core import WormGeometry, WheelGeometry, VirtualHobbingWheelGeometry, BoreFeature, KeywayFeature, calculate_default_bore
 from wormgear.io import WormParams, WheelParams, AssemblyParams
 
 print("📋 Parsing parameters...")
@@ -263,36 +263,68 @@ features = design_data.get('features', {})
 # Worm features
 worm_bore = None
 worm_keyway = None
+worm_bore_diameter = None
+
 if 'worm' in features:
     worm_feat = features['worm']
     if 'bore_diameter_mm' in worm_feat:
-        bore_diameter = worm_feat['bore_diameter_mm']
-        print(f"Worm bore: {bore_diameter} mm (custom)")
-        worm_bore = BoreFeature(diameter=bore_diameter)
+        worm_bore_diameter = worm_feat['bore_diameter_mm']
+        print(f"Worm bore: {worm_bore_diameter} mm (custom)")
     elif 'auto_bore' in worm_feat and worm_feat['auto_bore']:
-        print(f"Worm bore: auto-calculated")
-        worm_bore = BoreFeature()  # No diameter = auto-calculate
+        # Calculate default bore diameter
+        worm_bore_diameter, thin_rim_warning = calculate_default_bore(
+            worm_params.pitch_diameter_mm,
+            worm_params.root_diameter_mm
+        )
+        if worm_bore_diameter:
+            print(f"Worm bore: {worm_bore_diameter} mm (auto-calculated)")
+        else:
+            print("Worm bore: skipped (gear too small)")
 
-    if 'anti_rotation' in worm_feat and worm_feat['anti_rotation'] == 'DIN6885':
-        print(f"Worm keyway: DIN 6885")
-        worm_keyway = KeywayFeature()
+    # Create bore feature if diameter was determined
+    if worm_bore_diameter is not None:
+        worm_bore = BoreFeature(diameter=worm_bore_diameter)
+
+        # Add keyway if appropriate (DIN 6885 requires bore >= 6mm)
+        if 'anti_rotation' in worm_feat and worm_feat['anti_rotation'] == 'DIN6885':
+            if worm_bore_diameter >= 6.0:
+                print(f"Worm keyway: DIN 6885")
+                worm_keyway = KeywayFeature()
+            else:
+                print(f"Worm keyway: skipped (bore {worm_bore_diameter}mm < 6mm minimum for DIN 6885)")
 
 # Wheel features
 wheel_bore = None
 wheel_keyway = None
+wheel_bore_diameter = None
+
 if 'wheel' in features:
     wheel_feat = features['wheel']
     if 'bore_diameter_mm' in wheel_feat:
-        bore_diameter = wheel_feat['bore_diameter_mm']
-        print(f"Wheel bore: {bore_diameter} mm (custom)")
-        wheel_bore = BoreFeature(diameter=bore_diameter)
+        wheel_bore_diameter = wheel_feat['bore_diameter_mm']
+        print(f"Wheel bore: {wheel_bore_diameter} mm (custom)")
     elif 'auto_bore' in wheel_feat and wheel_feat['auto_bore']:
-        print(f"Wheel bore: auto-calculated")
-        wheel_bore = BoreFeature()  # No diameter = auto-calculate
+        # Calculate default bore diameter
+        wheel_bore_diameter, thin_rim_warning = calculate_default_bore(
+            wheel_params.pitch_diameter_mm,
+            wheel_params.root_diameter_mm
+        )
+        if wheel_bore_diameter:
+            print(f"Wheel bore: {wheel_bore_diameter} mm (auto-calculated)")
+        else:
+            print("Wheel bore: skipped (gear too small)")
 
-    if 'anti_rotation' in wheel_feat and wheel_feat['anti_rotation'] == 'DIN6885':
-        print(f"Wheel keyway: DIN 6885")
-        wheel_keyway = KeywayFeature()
+    # Create bore feature if diameter was determined
+    if wheel_bore_diameter is not None:
+        wheel_bore = BoreFeature(diameter=wheel_bore_diameter)
+
+        # Add keyway if appropriate (DIN 6885 requires bore >= 6mm)
+        if 'anti_rotation' in wheel_feat and wheel_feat['anti_rotation'] == 'DIN6885':
+            if wheel_bore_diameter >= 6.0:
+                print(f"Wheel keyway: DIN 6885")
+                wheel_keyway = KeywayFeature()
+            else:
+                print(f"Wheel keyway: skipped (bore {wheel_bore_diameter}mm < 6mm minimum for DIN 6885)")
 
 print("✓ Parameters parsed")
 print("")
