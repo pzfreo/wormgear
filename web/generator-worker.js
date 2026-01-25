@@ -241,7 +241,7 @@ import json
 import base64
 import tempfile
 import os
-from wormgear.core import WormGeometry, WheelGeometry, VirtualHobbingWheelGeometry, BoreFeature, KeywayFeature, calculate_default_bore
+from wormgear.core import WormGeometry, WheelGeometry, VirtualHobbingWheelGeometry, BoreFeature, KeywayFeature, DDCutFeature, calculate_default_bore
 from wormgear.io import WormParams, WheelParams, AssemblyParams
 
 print("📋 Parsing parameters...")
@@ -267,6 +267,7 @@ features = design_data.get('features', {})
 # Worm features
 worm_bore = None
 worm_keyway = None
+worm_ddcut = None
 worm_bore_diameter = None
 
 if 'worm' in features:
@@ -289,17 +290,28 @@ if 'worm' in features:
     if worm_bore_diameter is not None:
         worm_bore = BoreFeature(diameter=worm_bore_diameter)
 
-        # Add keyway if appropriate (DIN 6885 requires bore >= 6mm)
-        if 'anti_rotation' in worm_feat and worm_feat['anti_rotation'] == 'DIN6885':
-            if worm_bore_diameter >= 6.0:
-                print(f"Worm keyway: DIN 6885")
-                worm_keyway = KeywayFeature()
-            else:
-                print(f"Worm keyway: skipped (bore {worm_bore_diameter}mm < 6mm minimum for DIN 6885)")
+        # Add anti-rotation feature if specified (keyway and ddcut are mutually exclusive)
+        if 'anti_rotation' in worm_feat:
+            anti_rot = worm_feat['anti_rotation']
+
+            if anti_rot == 'DIN6885':
+                if worm_bore_diameter >= 6.0:
+                    print(f"Worm keyway: DIN 6885")
+                    worm_keyway = KeywayFeature()
+                else:
+                    print(f"Worm keyway: skipped (bore {worm_bore_diameter}mm < 6mm minimum for DIN 6885)")
+
+            elif anti_rot == 'DD-cut':
+                print(f"Worm DD-cut: double-D flat anti-rotation")
+                worm_ddcut = DDCutFeature()
+
+            elif anti_rot not in ['none', '']:
+                print(f"Worm anti-rotation: unknown type '{anti_rot}', skipping")
 
 # Wheel features
 wheel_bore = None
 wheel_keyway = None
+wheel_ddcut = None
 wheel_bore_diameter = None
 
 if 'wheel' in features:
@@ -322,13 +334,23 @@ if 'wheel' in features:
     if wheel_bore_diameter is not None:
         wheel_bore = BoreFeature(diameter=wheel_bore_diameter)
 
-        # Add keyway if appropriate (DIN 6885 requires bore >= 6mm)
-        if 'anti_rotation' in wheel_feat and wheel_feat['anti_rotation'] == 'DIN6885':
-            if wheel_bore_diameter >= 6.0:
-                print(f"Wheel keyway: DIN 6885")
-                wheel_keyway = KeywayFeature()
-            else:
-                print(f"Wheel keyway: skipped (bore {wheel_bore_diameter}mm < 6mm minimum for DIN 6885)")
+        # Add anti-rotation feature if specified (keyway and ddcut are mutually exclusive)
+        if 'anti_rotation' in wheel_feat:
+            anti_rot = wheel_feat['anti_rotation']
+
+            if anti_rot == 'DIN6885':
+                if wheel_bore_diameter >= 6.0:
+                    print(f"Wheel keyway: DIN 6885")
+                    wheel_keyway = KeywayFeature()
+                else:
+                    print(f"Wheel keyway: skipped (bore {wheel_bore_diameter}mm < 6mm minimum for DIN 6885)")
+
+            elif anti_rot == 'DD-cut':
+                print(f"Wheel DD-cut: double-D flat anti-rotation")
+                wheel_ddcut = DDCutFeature()
+
+            elif anti_rot not in ['none', '']:
+                print(f"Wheel anti-rotation: unknown type '{anti_rot}', skipping")
 
 print("✓ Parameters parsed")
 print("")
@@ -351,7 +373,8 @@ if generate_type in ['worm', 'both']:
             length=worm_length,
             sections_per_turn=36,
             bore=worm_bore,
-            keyway=worm_keyway
+            keyway=worm_keyway,
+            ddcut=worm_ddcut
         )
         print("  Building 3D model...")
         worm = worm_geo.build()
@@ -440,7 +463,8 @@ if generate_type in ['wheel', 'both']:
                 hobbing_steps=hobbing_steps_val,
                 progress_callback=progress_callback_fn,
                 bore=wheel_bore,
-                keyway=wheel_keyway
+                keyway=wheel_keyway,
+                ddcut=wheel_ddcut
             )
         else:
             # Regular helical wheel (no progress callbacks needed - it's fast)
@@ -450,7 +474,8 @@ if generate_type in ['wheel', 'both']:
                 assembly_params=assembly_params,
                 face_width=wheel_width,
                 bore=wheel_bore,
-                keyway=wheel_keyway
+                keyway=wheel_keyway,
+                ddcut=wheel_ddcut
             )
         print("  Building 3D model (this is the slowest step)...")
         wheel = wheel_geo.build()

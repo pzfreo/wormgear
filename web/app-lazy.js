@@ -311,6 +311,53 @@ function handleFileUpload(event) {
     reader.readAsText(file);
 }
 
+/**
+ * Cancel ongoing generation
+ */
+async function cancelGeneration() {
+    const generatorWorker = getGeneratorWorker();
+    if (!generatorWorker) {
+        return;
+    }
+
+    // Terminate the worker
+    generatorWorker.terminate();
+
+    // Append to console
+    const { appendToConsole, hideProgressIndicator } = await import('./modules/generator-ui.js');
+    appendToConsole('⚠️ Generation cancelled by user');
+
+    // Hide progress and reset UI
+    hideProgressIndicator();
+
+    // Reinitialize the worker for future generations
+    const { initGenerator } = await import('./modules/pyodide-init.js');
+    const setupGeneratorMessageHandler = (worker) => {
+        worker.addEventListener('message', async (e) => {
+            const { type, message, percent } = e.data;
+
+            switch (type) {
+                case 'LOG':
+                    // Process LOG messages through progress indicator too
+                    handleProgress(message, null);
+                    break;
+                case 'PROGRESS':
+                    handleProgress(message, percent);
+                    break;
+                case 'GENERATE_COMPLETE':
+                    handleGenerateComplete(e.data);
+                    break;
+                case 'GENERATE_ERROR':
+                    handleGenerateError(message);
+                    break;
+            }
+        });
+    };
+
+    await initGenerator(false, setupGeneratorMessageHandler);
+    appendToConsole('Ready for new generation');
+}
+
 async function generateGeometry(type) {
     const generatorWorker = getGeneratorWorker();
     if (!generatorWorker) {
@@ -364,6 +411,10 @@ async function generateGeometry(type) {
             indicator.classList.remove('active', 'complete');
         });
 
+        // Show cancel button, hide generate button
+        const { showCancelButton } = await import('./modules/generator-ui.js');
+        showCancelButton();
+
         // Store design data globally for download
         window.currentGeneratedDesign = designData;
 
@@ -405,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('load-json-file').addEventListener('click', loadJSONFile);
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
     document.getElementById('generate-btn').addEventListener('click', () => generateGeometry('both'));
+    document.getElementById('cancel-generate-btn').addEventListener('click', cancelGeneration);
 
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {

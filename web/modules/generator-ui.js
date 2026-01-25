@@ -106,15 +106,17 @@ function updateSubProgress(percent, message = null) {
         // Track start time on first progress update (even at 0%)
         if (hobbingStartTime === null) {
             hobbingStartTime = Date.now();
+            console.log('[Time Tracking] Started at', new Date(hobbingStartTime).toISOString());
         }
 
         // Calculate time estimate after 5% completion
         if (percent >= 5 && hobbingStartTime !== null && percent > 0) {
             const elapsed = (Date.now() - hobbingStartTime) / 1000; // seconds
-            const estimatedTotal = (elapsed / percent) * 100;
-            const remaining = estimatedTotal - elapsed;
+            // percent is 0-100, so estimatedTotal = elapsed / (percent/100) = (elapsed * 100) / percent
+            const estimatedTotal = (elapsed * 100) / percent;
+            const remaining = Math.max(0, estimatedTotal - elapsed);
             hobbingTimeEstimate = remaining;
-            console.log('[Time Estimate]', `${percent}% in ${elapsed.toFixed(1)}s, est. ${remaining.toFixed(1)}s remaining`);
+            console.log(`[Time Estimate] ${percent.toFixed(1)}% in ${elapsed.toFixed(1)}s, estimated total ${estimatedTotal.toFixed(1)}s, ${remaining.toFixed(1)}s remaining`);
         }
 
         if (progressBar) {
@@ -140,6 +142,22 @@ function updateSubProgress(percent, message = null) {
             progressText.textContent = displayMessage;
         }
     }
+}
+
+/**
+ * Show cancel button and hide generate button
+ */
+export function showCancelButton() {
+    document.getElementById('generate-btn').style.display = 'none';
+    document.getElementById('cancel-generate-btn').style.display = 'block';
+}
+
+/**
+ * Hide cancel button and show generate button
+ */
+export function hideCancelButton() {
+    document.getElementById('generate-btn').style.display = 'block';
+    document.getElementById('cancel-generate-btn').style.display = 'none';
 }
 
 /**
@@ -211,6 +229,9 @@ export function hideProgressIndicator() {
 
     // Hide sub-progress
     updateSubProgress(null);
+
+    // Hide cancel button, show generate button
+    hideCancelButton();
 }
 
 /**
