@@ -38,14 +38,23 @@ def design_to_dict(design: WormGearDesign) -> dict:
         "profile_shift": 0.0,  # Worm doesn't use profile shift
     }
 
+    # Determine worm type from manufacturing params if available
+    is_globoid = False
+    if design.manufacturing and hasattr(design.manufacturing, 'worm_type'):
+        is_globoid = design.manufacturing.worm_type.value == "globoid"
+    elif design.worm.throat_reduction is not None:
+        is_globoid = True
+
+    worm_dict["type"] = "globoid" if is_globoid else "cylindrical"
+
     # Add globoid parameters if present (for information only)
     if design.worm.throat_reduction is not None:
         worm_dict["throat_reduction_mm"] = round(design.worm.throat_reduction, 3)
 
     if design.worm.throat_pitch_radius is not None:
-        worm_dict["throat_pitch_radius_mm"] = round(design.worm.throat_pitch_radius, 3)
-        worm_dict["throat_tip_radius_mm"] = round(design.worm.throat_tip_radius, 3)
-        worm_dict["throat_root_radius_mm"] = round(design.worm.throat_root_radius, 3)
+        # Use throat_curvature_radius_mm to match WormParams dataclass
+        worm_dict["throat_curvature_radius_mm"] = round(design.worm.throat_pitch_radius, 3)
+        # Note: throat_tip_radius and throat_root_radius are not in WormParams schema v1.0
 
     # Build wheel section
     wheel_dict = {
