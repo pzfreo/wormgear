@@ -49,7 +49,7 @@ from .validation import (
     ValidationResult,
 )
 
-from .enums import (
+from ..enums import (
     # Type-safe enums
     Hand,
     WormProfile,

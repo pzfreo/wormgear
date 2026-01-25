@@ -13,7 +13,7 @@ Reference standards:
 from math import pi, tan, atan, degrees, radians, cos, sin, sqrt
 from typing import Optional, Tuple, Union
 
-from .enums import Hand, WormProfile, WormType
+from ..enums import Hand, WormProfile, WormType
 
 # ISO 54 / DIN 780 standard modules (mm)
 STANDARD_MODULES = [

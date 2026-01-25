@@ -40,6 +40,13 @@ from .core import (
     get_din_6885_keyway,
 )
 
+# Enums (shared types)
+from .enums import (
+    Hand,
+    WormProfile,
+    WormType,
+)
+
 # Calculator (Layer 2a)
 from .calculator import (
     STANDARD_MODULES,
@@ -92,6 +99,11 @@ __all__ = [
     "calculate_default_bore",
     "calculate_default_ddcut",
     "get_din_6885_keyway",
+
+    # Enums (type-safe)
+    "Hand",
+    "WormProfile",
+    "WormType",
 
     # Calculator
     "STANDARD_MODULES",

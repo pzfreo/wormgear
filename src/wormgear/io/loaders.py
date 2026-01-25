@@ -10,7 +10,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional, Union, Dict, Any
 
-from ..calculator.enums import Hand, WormType, WormProfile
+from ..enums import Hand, WormType, WormProfile
 
 
 @dataclass
