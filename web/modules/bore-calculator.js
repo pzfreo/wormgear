@@ -119,6 +119,14 @@ function updateAntiRotationForPart(partName, calculatedBore) {
         effectiveBore = parseFloat(document.getElementById(`${partName}-bore-diameter`).value) || calculatedBore;
     }
 
+    console.log(`[Anti-Rotation] ${partName}: bore=${effectiveBore}mm, current=${antiRotSelect.value}`);
+
+    // Skip if bore not calculated yet
+    if (!effectiveBore || effectiveBore <= 0) {
+        console.log(`[Anti-Rotation] ${partName}: skipping (no bore calculated yet)`);
+        return;
+    }
+
     // Enable/disable DIN 6885 based on bore size
     const din6885Option = Array.from(antiRotSelect.options).find(opt => opt.value === 'DIN6885');
     if (din6885Option) {
@@ -130,10 +138,13 @@ function updateAntiRotationForPart(partName, calculatedBore) {
 
     // Auto-select sensible default
     if (antiRotSelect.value === 'DIN6885' && effectiveBore < 6.0) {
+        console.log(`[Anti-Rotation] ${partName}: switching from DIN6885 to DD-cut (bore too small)`);
         antiRotSelect.value = 'DD-cut'; // Switch to DD-cut for small bores
     } else if (antiRotSelect.value === '' || antiRotSelect.value === 'none') {
         // Set initial default based on bore size
-        antiRotSelect.value = effectiveBore < 6.0 ? 'DD-cut' : 'DIN6885';
+        const newValue = effectiveBore < 6.0 ? 'DD-cut' : 'DIN6885';
+        console.log(`[Anti-Rotation] ${partName}: setting default to ${newValue} (bore ${effectiveBore}mm)`);
+        antiRotSelect.value = newValue;
     }
 }
 
