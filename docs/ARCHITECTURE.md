@@ -41,15 +41,17 @@ Wormgear is a unified Python package for worm gear design, combining engineering
 
 ┌─────────────────────────────────────────────────────────────┐
 │                    Web Calculator                            │
-│  • Runs in browser using Pyodide                            │
-│  • Same Python code as package                              │
+│  • Runs in browser using Pyodide (Python WASM)             │
+│  • Loads UNIFIED package: src/wormgear/calculator/          │
+│  • NO separate implementation - true code reuse             │
 │  • Exports JSON Schema v1.0                                 │
+│  • Build artifact: web/wormgear/ (gitignored)               │
 └───────────────────┬─────────────────────────────────────────┘
-                    │ JSON
+                    │ Uses unified calculator
                     ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    wormgear Package                          │
-│  load_design_json() → Geometry Generation → STEP Export     │
+│  Calculator → JSON → Geometry Generation → STEP Export      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -196,21 +198,36 @@ wormgear-geometry design.json --globoid
 
 ### Web Calculator Workflow
 
+**Architecture**: Unified package loaded via Pyodide (Python WASM)
+
 ```
 User Input (browser)
    ↓
 Pyodide (Python in browser)
    ↓
-wormcalc Python code
+wormgear.calculator (SAME code as Python package)
    ↓
 JSON Schema v1.0
    ↓
 Download JSON
    ↓
-wormgear-geometry CLI
+wormgear-geometry CLI (or direct geometry generation in browser)
    ↓
 STEP files for CNC
 ```
+
+**Implementation Details**:
+- Build script (`web/build.sh`) copies `src/wormgear/` to `web/wormgear/` (gitignored)
+- Pyodide loads from build artifact: `from wormgear.calculator import ...`
+- NO separate web calculator implementation
+- Single source of truth: `src/wormgear/calculator/`
+- Bug fixes automatically apply to web, CLI, and Python API
+
+**Why This Matters**:
+- Before: 2 implementations (~2600 lines duplicated), manual sync required
+- After: 1 implementation, automatic sync across all platforms
+- Industry-standard Pyodide pattern (used by matplotlib, scipy, pandas)
+- Test coverage applies universally
 
 ## Key Dataclasses
 

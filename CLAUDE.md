@@ -271,12 +271,31 @@ cp -r ../src/wormgear web/
 find web/wormgear -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 ```
 
-**Historical mistake (2025-01)**:
-- Created `web/src/` as tracked directory duplicating `src/wormgear/`
-- Maintained separate `web/wormcalc/` implementation (840 lines) vs `src/wormgear/calculator/` (556 lines)
+**Historical mistake and resolution (2025-01 → 2026-01)**:
+
+**The Problem**:
+- Created `web/src/` as tracked directory duplicating `src/wormgear/` (6315 lines)
+- Maintained separate `web/wormcalc/` implementation (2579 lines) vs `src/wormgear/calculator/` (556 lines)
 - Build script created `web/src/wormgear/` but nothing used it
 - Globoid worm bugs required THREE separate fixes
-- Architecture cleanup required removing duplicates and unifying to single implementation
+- Total duplicate code: ~9000 lines
+- Documentation claimed "same code" but reality was separate implementations
+
+**The Refactoring (2026-01-25)**:
+- ✅ Deleted `web/src/` (6315 lines removed from git)
+- ✅ Deleted `web/wormcalc/` (2579 lines removed from git)
+- ✅ Migrated web-specific utilities (output.py, js_bridge.py) to unified package
+- ✅ Updated Pyodide loader to use `from wormgear.calculator import ...`
+- ✅ Updated build script to create clean build artifact at `web/wormgear/` (gitignored)
+- ✅ Updated documentation to reflect actual architecture
+
+**The Result**:
+- Single source of truth: `src/wormgear/calculator/`
+- Web loads unified package via Pyodide (industry-standard pattern)
+- Bug fixes apply everywhere automatically
+- Test coverage is universal
+- ~9000 lines of duplicate code eliminated
+- Architecture now matches documentation
 
 **Self-check before committing**:
 - [ ] Am I tracking any build artifacts? (If yes, STOP and gitignore them)
