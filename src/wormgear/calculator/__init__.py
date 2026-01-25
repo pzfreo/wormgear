@@ -39,6 +39,16 @@ from .core import (
     design_from_wheel,
 )
 
+from .validation import (
+    # Validation
+    validate_design,
+    calculate_minimum_teeth,
+    calculate_recommended_profile_shift,
+    Severity,
+    ValidationMessage,
+    ValidationResult,
+)
+
 # Convenience imports
 from ..io import WormParams, WheelParams, AssemblyParams, WormGearDesign, ManufacturingParams
 
@@ -204,4 +214,12 @@ __all__ = [
     "calculate_design_from_module",
     "calculate_design_from_centre_distance",
     "calculate_design_from_wheel",
+
+    # Validation
+    "validate_design",
+    "calculate_minimum_teeth",
+    "calculate_recommended_profile_shift",
+    "Severity",
+    "ValidationMessage",
+    "ValidationResult",
 ]
