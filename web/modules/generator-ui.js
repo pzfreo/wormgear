@@ -261,13 +261,45 @@ from wormcalc.core import WormGearDesign, WormParameters, WheelParameters, Manuf
 # Parse design
 design_data = json.loads(design_json_str)
 
+# Map JSON field names (with _mm, _deg suffixes) to Python field names (without suffixes)
+def map_worm_params(worm_json):
+    return {
+        'module': worm_json.get('module_mm'),
+        'num_starts': worm_json.get('num_starts'),
+        'pitch_diameter': worm_json.get('pitch_diameter_mm'),
+        'tip_diameter': worm_json.get('tip_diameter_mm'),
+        'root_diameter': worm_json.get('root_diameter_mm'),
+        'lead': worm_json.get('lead_mm'),
+        'axial_pitch': worm_json.get('lead_mm') / worm_json.get('num_starts', 1),  # Calculate from lead
+        'lead_angle': worm_json.get('lead_angle_deg'),
+        'addendum': worm_json.get('addendum_mm'),
+        'dedendum': worm_json.get('dedendum_mm'),
+        'thread_thickness': worm_json.get('thread_thickness_mm'),
+        'throat_reduction': worm_json.get('throat_reduction_mm'),
+        'throat_pitch_radius': worm_json.get('throat_curvature_radius_mm'),
+    }
+
+def map_wheel_params(wheel_json):
+    return {
+        'module': wheel_json.get('module_mm'),
+        'num_teeth': wheel_json.get('num_teeth'),
+        'pitch_diameter': wheel_json.get('pitch_diameter_mm'),
+        'tip_diameter': wheel_json.get('tip_diameter_mm'),
+        'root_diameter': wheel_json.get('root_diameter_mm'),
+        'throat_diameter': wheel_json.get('throat_diameter_mm'),
+        'helix_angle': wheel_json.get('helix_angle_deg'),
+        'addendum': wheel_json.get('addendum_mm'),
+        'dedendum': wheel_json.get('dedendum_mm'),
+    }
+
 # Extract assembly parameters from JSON
 assembly = design_data['assembly']
+manufacturing = design_data.get('manufacturing', {})
 
-# Create WormGearDesign with individual parameters
+# Create WormGearDesign with mapped parameters
 design = WormGearDesign(
-    worm=WormParameters(**design_data['worm']),
-    wheel=WheelParameters(**design_data['wheel']),
+    worm=WormParameters(**map_worm_params(design_data['worm'])),
+    wheel=WheelParameters(**map_wheel_params(design_data['wheel'])),
     centre_distance=assembly['centre_distance_mm'],
     ratio=assembly['ratio'],
     pressure_angle=assembly['pressure_angle_deg'],
@@ -275,16 +307,16 @@ design = WormGearDesign(
     hand=Hand.RIGHT if assembly['hand'].lower() == 'right' else Hand.LEFT,
     efficiency_estimate=assembly.get('efficiency_percent', 0) / 100.0,
     self_locking=assembly.get('self_locking', False),
-    profile=WormProfile[design_data.get('manufacturing', {}).get('profile', 'ZA')],
+    profile=WormProfile[manufacturing.get('profile', 'ZA')],
     manufacturing=ManufacturingParams(
-        worm_type=WormType[design_data['manufacturing']['worm_type'].upper()] if 'worm_type' in design_data.get('manufacturing', {}) else WormType.CYLINDRICAL,
-        worm_length=design_data['manufacturing'].get('worm_length', 40.0),
-        wheel_width=design_data['manufacturing'].get('wheel_width', 10.0),
-        wheel_throated=design_data['manufacturing'].get('throated_wheel', False),
-        profile=WormProfile[design_data['manufacturing'].get('profile', 'ZA')],
-        virtual_hobbing=design_data['manufacturing'].get('virtual_hobbing', False),
-        hobbing_steps=design_data['manufacturing'].get('hobbing_steps', 18)
-    ) if 'manufacturing' in design_data else None
+        worm_type=WormType[manufacturing.get('worm_type', 'cylindrical').upper()],
+        worm_length=manufacturing.get('worm_length', 40.0),
+        wheel_width=manufacturing.get('wheel_width', 10.0),
+        wheel_throated=manufacturing.get('throated_wheel', False),
+        profile=WormProfile[manufacturing.get('profile', 'ZA')],
+        virtual_hobbing=manufacturing.get('virtual_hobbing', False),
+        hobbing_steps=manufacturing.get('hobbing_steps', 18)
+    ) if manufacturing else None
 )
 
 # Validate and generate markdown (return the result)
