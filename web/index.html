@@ -245,10 +245,11 @@
                             <div id="hobbing-precision-group" style="display: none;">
                                 <label for="hobbing-precision">Virtual Hobbing Precision:</label>
                                 <select id="hobbing-precision">
-                                    <option value="fast">Fast (6 steps, ~10s)</option>
-                                    <option value="balanced" selected>Balanced (18 steps, ~20s)</option>
-                                    <option value="precise">Precise (36 steps, ~60s)</option>
+                                    <option value="preview">Preview (36 steps, 1-3 min)</option>
+                                    <option value="balanced" selected>Balanced (72 steps, 3-6 min)</option>
+                                    <option value="high">High (144 steps, 6-12 min)</option>
                                 </select>
+                                <small class="hint">Times shown for WASM in browser</small>
                             </div>
 
                             <div id="throat-option-group">

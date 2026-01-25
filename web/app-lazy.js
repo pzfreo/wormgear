@@ -302,6 +302,14 @@ function getInputs(mode) {
     const wormLength = safeParseFloat(document.getElementById('worm-length').value);
     const wheelWidth = safeParseFloat(document.getElementById('wheel-width').value);
 
+    // Map hobbing precision to steps
+    const hobbingStepsMap = {
+        'preview': 36,
+        'balanced': 72,
+        'high': 144
+    };
+    const hobbingSteps = hobbingStepsMap[hobbingPrecision] || 72;
+
     const baseInputs = {
         pressure_angle: pressureAngle,
         backlash: backlash,
@@ -311,8 +319,8 @@ function getInputs(mode) {
         profile: profile,
         worm_type: wormType,
         throat_reduction: throatReduction,
-        wheel_generation: wheelGeneration,
-        hobbing_precision: hobbingPrecision,
+        virtual_hobbing: wheelGeneration === 'virtual-hobbing',
+        hobbing_steps: hobbingSteps,
         wheel_throated: wheelThroated,
         use_recommended_dims: useRecommendedDims,
         worm_length: wormLength,
@@ -659,7 +667,8 @@ async function generateGeometry(type) {
         // Get settings from design JSON
         const manufacturing = designData.manufacturing || {};
         const isGloboid = designData.worm.throat_curvature_radius_mm !== undefined;
-        const isThroated = manufacturing.throated_wheel || false;
+        const virtualHobbing = manufacturing.virtual_hobbing || false;
+        const hobbingSteps = manufacturing.hobbing_steps || 72;
         const profile = manufacturing.profile || 'ZA';
 
         appendToConsole('Starting geometry generation...');
@@ -668,9 +677,9 @@ async function generateGeometry(type) {
         appendToConsole(`  Ratio: ${designData.assembly.ratio}:1`);
         appendToConsole(`  Worm length: ${wormLength} mm`);
         appendToConsole(`  Wheel width: ${wheelWidth || 'auto'} mm`);
-        appendToConsole(`  Profile: ${profile} (${profile === 'ZK' ? '3D printing' : 'CNC machining'})`);
+        appendToConsole(`  Profile: ${profile}`);
         appendToConsole(`  Worm: ${isGloboid ? 'Globoid' : 'Cylindrical'}`);
-        appendToConsole(`  Wheel: ${isThroated ? 'Throated (virtual hobbing)' : 'Helical'}`);
+        appendToConsole(`  Wheel: ${virtualHobbing ? `Virtual Hobbing (${hobbingSteps} steps)` : 'Helical'}`);
         appendToConsole('');
 
         appendToConsole('⏳ Generating 3D geometry (please wait)...');
@@ -728,7 +737,8 @@ progress_callback
         generatorPyodide.globals.set('design_json_str', JSON.stringify(designData));
         generatorPyodide.globals.set('worm_length', wormLength);
         generatorPyodide.globals.set('wheel_width_val', wheelWidth || null);
-        generatorPyodide.globals.set('throated_val', isThroated);
+        generatorPyodide.globals.set('virtual_hobbing_val', virtualHobbing);
+        generatorPyodide.globals.set('hobbing_steps_val', hobbingSteps);
         generatorPyodide.globals.set('generate_type', type);
         generatorPyodide.globals.set('progress_callback_fn', progressCallback);
 
@@ -809,18 +819,17 @@ if generate_type in ['wheel', 'both']:
     print("⚙️  Generating wheel gear...")
     try:
         print("  Creating wheel geometry object...")
-        # Use VirtualHobbingWheelGeometry if throated, otherwise regular WheelGeometry
-        if throated_val:
+        # Use VirtualHobbingWheelGeometry if virtual_hobbing enabled, otherwise regular WheelGeometry
+        if virtual_hobbing_val:
             # Virtual hobbing supports progress callbacks
-            from wormgear.core import get_hobbing_preset
-            preset = get_hobbing_preset("balanced")  # Use balanced preset for reasonable speed
+            print(f"  Using virtual hobbing with {hobbing_steps_val} steps...")
 
             wheel_geo = VirtualHobbingWheelGeometry(
                 params=wheel_params,
                 worm_params=worm_params,
                 assembly_params=assembly_params,
-                wheel_pitch_diameter=wheel_params.pitch_diameter_mm,
-                hobbing_steps=preset['steps'],
+                face_width=wheel_width,
+                hobbing_steps=hobbing_steps_val,
                 progress_callback=progress_callback_fn
             )
         else:
