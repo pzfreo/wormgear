@@ -51,7 +51,7 @@ jobs:
       run: |
         cd web
 
-        # List of critical calculator files that MUST exist (new unified architecture)
+        # List of critical files that MUST exist (calculator + io modules)
         CRITICAL_FILES=(
           "wormgear/__init__.py"
           "wormgear/calculator/__init__.py"
@@ -60,6 +60,9 @@ jobs:
           "wormgear/calculator/output.py"
           "wormgear/calculator/js_bridge.py"
           "wormgear/calculator/json_schema.py"
+          "wormgear/io/__init__.py"
+          "wormgear/io/loaders.py"
+          "wormgear/io/schema.py"
         )
 
         ALL_OK=true
@@ -79,4 +82,4 @@ jobs:
         fi
 
         echo ""
-        echo "✅ All critical calculator files present"
+        echo "✅ All critical files present"

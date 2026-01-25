@@ -19,23 +19,19 @@ SRC_DIR = REPO_ROOT / "src" / "wormgear"
 EXAMPLES_DIR = REPO_ROOT / "examples"
 
 
-# List of all files that MUST be present after build for WASM to work
+# List of all files that MUST be present after build for web calculator to work
+# Web only needs calculator + io modules (no geometry/core for now)
 REQUIRED_WASM_FILES = [
     "wormgear/__init__.py",
-    "wormgear/core/__init__.py",
-    "wormgear/core/worm.py",
-    "wormgear/core/wheel.py",
-    "wormgear/core/features.py",
-    "wormgear/core/globoid_worm.py",
-    "wormgear/core/virtual_hobbing.py",
-    "wormgear/io/__init__.py",
-    "wormgear/io/loaders.py",
-    "wormgear/io/schema.py",
     "wormgear/calculator/__init__.py",
     "wormgear/calculator/core.py",
     "wormgear/calculator/validation.py",
+    "wormgear/calculator/output.py",
     "wormgear/calculator/js_bridge.py",
     "wormgear/calculator/json_schema.py",
+    "wormgear/io/__init__.py",
+    "wormgear/io/loaders.py",
+    "wormgear/io/schema.py",
 ]
 
 
@@ -118,25 +114,15 @@ def test_source_files_exist():
 
 
 def test_build_script_validation_list_matches():
-    """Build script REQUIRED_FILES should include critical calculator files."""
+    """Build script REQUIRED_FILES should include critical files for web."""
     build_script_content = BUILD_SCRIPT.read_text()
 
     # Extract REQUIRED_FILES array from bash script
     assert "REQUIRED_FILES=(" in build_script_content, "REQUIRED_FILES not found in build.sh"
 
-    # Build script now only validates critical calculator files (not all wormgear files)
-    # It checks for "wormgear/__init__.py" format (in build artifact location)
-    critical_files = [
-        "wormgear/__init__.py",
-        "wormgear/calculator/__init__.py",
-        "wormgear/calculator/core.py",
-        "wormgear/calculator/validation.py",
-        "wormgear/calculator/output.py",
-        "wormgear/calculator/js_bridge.py",
-        "wormgear/calculator/json_schema.py",
-    ]
-
-    for required_file in critical_files:
+    # Build script validates calculator + io files (web doesn't need geometry/core)
+    # Checks for "wormgear/calculator/__init__.py" format (in build artifact location)
+    for required_file in REQUIRED_WASM_FILES:
         assert f'"{required_file}"' in build_script_content, (
             f"File '{required_file}' not in build.sh REQUIRED_FILES validation list"
         )
