@@ -452,30 +452,10 @@ elif generate_type == 'both':
     else:
         print("❌ Both parts failed to generate")
 
-# Generate markdown documentation
-print("📄 Generating markdown documentation...")
-from wormgear.calculator import validate_design, to_markdown
-
-# Re-parse design for validation and markdown
-from wormgear.calculator.core import WormGearDesign, WormParams, WheelParams, AssemblyParams, ManufacturingParams, WormProfile, WormType, Hand
-
-design = WormGearDesign(
-    worm=WormParams(**design_data['worm']),
-    wheel=WheelParams(**design_data['wheel']),
-    assembly=AssemblyParams(**design_data['assembly']),
-    manufacturing=ManufacturingParams(**design_data['manufacturing']) if 'manufacturing' in design_data else None
-)
-
-validation = validate_design(design)
-markdown = to_markdown(design, validation)
-
-print("✓ Markdown generated")
-
-# Return results
+# Return results (markdown will be generated on main thread using calculator Pyodide)
 {
     'worm': worm_b64,
     'wheel': wheel_b64,
-    'markdown': markdown,
     'success': (generate_type == 'worm' and worm_b64 is not None) or
                (generate_type == 'wheel' and wheel_b64 is not None) or
                (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)
@@ -486,14 +466,12 @@ print("✓ Markdown generated")
         const success = result.get('success');
         const wormB64 = result.get('worm');
         const wheelB64 = result.get('wheel');
-        const markdown = result.get('markdown');
 
         self.postMessage({
             type: 'GENERATE_COMPLETE',
             success: success,
             worm: wormB64,
-            wheel: wheelB64,
-            markdown: markdown
+            wheel: wheelB64
         });
 
     } catch (error) {

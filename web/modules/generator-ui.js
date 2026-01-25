@@ -4,6 +4,8 @@
  * Handles generator tab UI functions: console output, progress, file loading.
  */
 
+import { getCalculatorPyodide } from './pyodide-init.js';
+
 /**
  * Append message to console output
  * @param {string} message - Message to append
@@ -81,15 +83,14 @@ export function hideProgressIndicator() {
  * Handle generation completion
  * @param {object} data - Completion data from worker
  */
-export function handleGenerateComplete(data) {
+export async function handleGenerateComplete(data) {
     console.log('[DEBUG] handleGenerateComplete received:', {
         hasWorm: !!data.worm,
         hasWheel: !!data.wheel,
-        hasMarkdown: !!data.markdown,
         success: data.success
     });
 
-    const { worm, wheel, markdown, success } = data;
+    const { worm, wheel, success } = data;
 
     appendToConsole('✓ Generation complete');
     hideProgressIndicator();
@@ -97,6 +98,46 @@ export function handleGenerateComplete(data) {
     if (!success) {
         appendToConsole('⚠️ Generation completed with errors');
         return;
+    }
+
+    // Generate markdown using calculator Pyodide (which has wormcalc module loaded)
+    appendToConsole('Generating documentation...');
+    let markdown = '';
+
+    try {
+        // Get calculator Pyodide instance
+        const calculatorPyodide = getCalculatorPyodide();
+
+        if (calculatorPyodide && window.currentGeneratedDesign) {
+            // Set design data in Python
+            calculatorPyodide.globals.set('design_json_str', JSON.stringify(window.currentGeneratedDesign));
+
+            // Generate markdown
+            markdown = calculatorPyodide.runPython(`
+import json
+from wormcalc import to_markdown, validate_design
+from wormcalc.core import WormGearDesign, WormParams, WheelParams, AssemblyParams, ManufacturingParams
+
+# Parse design
+design_data = json.loads(design_json_str)
+design = WormGearDesign(
+    worm=WormParams(**design_data['worm']),
+    wheel=WheelParams(**design_data['wheel']),
+    assembly=AssemblyParams(**design_data['assembly']),
+    manufacturing=ManufacturingParams(**design_data['manufacturing']) if 'manufacturing' in design_data else None
+)
+
+# Validate and generate markdown
+validation = validate_design(design)
+to_markdown(design, validation)
+            `);
+            appendToConsole('✓ Documentation generated');
+        } else {
+            appendToConsole('⚠️ Calculator not loaded - markdown will be empty');
+        }
+    } catch (error) {
+        console.error('Error generating markdown:', error);
+        appendToConsole(`⚠️ Could not generate markdown: ${error.message}`);
     }
 
     // Store data for ZIP creation
