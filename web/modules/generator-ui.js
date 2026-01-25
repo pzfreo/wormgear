@@ -204,7 +204,7 @@ export async function handleGenerateComplete(data) {
             calculatorPyodide.globals.set('design_json_str', JSON.stringify(window.currentGeneratedDesign));
 
             // Generate markdown
-            markdown = calculatorPyodide.runPython(`
+            const result = calculatorPyodide.runPython(`
 import json
 from wormcalc import to_markdown, validate_design
 from wormcalc.core import WormGearDesign, WormParams, WheelParams, AssemblyParams, ManufacturingParams
@@ -218,11 +218,15 @@ design = WormGearDesign(
     manufacturing=ManufacturingParams(**design_data['manufacturing']) if 'manufacturing' in design_data else None
 )
 
-# Validate and generate markdown
+# Validate and generate markdown (return the result)
 validation = validate_design(design)
 to_markdown(design, validation)
             `);
-            appendToConsole('✓ Documentation generated');
+
+            // Convert Pyodide result to string
+            markdown = String(result);
+            console.log('[DEBUG] Generated markdown length:', markdown.length);
+            appendToConsole(`✓ Documentation generated (${markdown.length} bytes)`);
         } else {
             appendToConsole('⚠️ Calculator not loaded - markdown will be empty');
         }
@@ -290,6 +294,14 @@ async function createAndDownloadZip() {
             throw new Error('No generated data available');
         }
 
+        console.log('[DEBUG] Creating ZIP with:', {
+            hasDesign: !!design,
+            hasWorm: !!stepData.worm,
+            hasWheel: !!stepData.wheel,
+            hasMarkdown: !!stepData.markdown,
+            markdownLength: stepData.markdown ? stepData.markdown.length : 0
+        });
+
         // Create ZIP
         const zip = new JSZip();
 
@@ -297,8 +309,11 @@ async function createAndDownloadZip() {
         zip.file('design.json', JSON.stringify(design, null, 2));
 
         // Add markdown file
-        if (stepData.markdown) {
+        if (stepData.markdown && stepData.markdown.length > 0) {
             zip.file('design.md', stepData.markdown);
+            appendToConsole(`  ✓ Added design.md (${stepData.markdown.length} bytes)`);
+        } else {
+            appendToConsole('  ⚠️ No markdown documentation available');
         }
 
         // Add STEP files (decode from base64)
@@ -309,6 +324,7 @@ async function createAndDownloadZip() {
                 wormBytes[i] = wormBinary.charCodeAt(i);
             }
             zip.file('worm.step', wormBytes);
+            appendToConsole(`  ✓ Added worm.step (${(wormBytes.length / 1024).toFixed(1)} KB)`);
         }
 
         if (stepData.wheel) {
@@ -318,6 +334,7 @@ async function createAndDownloadZip() {
                 wheelBytes[i] = wheelBinary.charCodeAt(i);
             }
             zip.file('wheel.step', wheelBytes);
+            appendToConsole(`  ✓ Added wheel.step (${(wheelBytes.length / 1024).toFixed(1)} KB)`);
         }
 
         // Generate ZIP blob
