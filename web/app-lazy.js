@@ -343,8 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     setupBoreEventListeners();
 
-    // Setup event listeners for calculator
-    document.getElementById('calculate').addEventListener('click', calculate);
+    // Setup event listeners for calculator (no explicit calculate button - auto-recalculates on input change)
     document.getElementById('copy-json').addEventListener('click', copyJSON);
     document.getElementById('download-json').addEventListener('click', downloadJSON);
     document.getElementById('download-md').addEventListener('click', downloadMarkdown);
@@ -391,6 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const wheelBoreType = document.getElementById('wheel-bore-type');
     if (wormBoreType) wormBoreType.dispatchEvent(new Event('change'));
     if (wheelBoreType) wheelBoreType.dispatchEvent(new Event('change'));
+
+    // Calculator tab is active by default, so initialize it
+    initCalculatorTab();
 
     // Start loading generator in background (non-blocking)
     initGeneratorTab(false).catch(err => {
