@@ -50,7 +50,7 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
     # Determine worm type from manufacturing params if available
     is_globoid = False
     if design.manufacturing and hasattr(design.manufacturing, 'worm_type'):
-        is_globoid = design.manufacturing.worm_type == "globoid"
+        is_globoid = design.worm.type == "globoid"
     elif design.worm.throat_reduction_mm is not None:
         is_globoid = True
 
@@ -111,12 +111,15 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
 
     # Update from design manufacturing params if present
     if design.manufacturing is not None:
-        manufacturing_dict["throated_wheel"] = design.manufacturing.wheel_throated
+        manufacturing_dict["throated_wheel"] = design.manufacturing.throated_wheel
         manufacturing_dict["profile"] = design.manufacturing.profile
-        manufacturing_dict["worm_type"] = design.manufacturing.worm_type  # Add worm type
+        manufacturing_dict["worm_type"] = design.worm.type if design.worm.type else "cylindrical"  # Add worm type
         # Add recommended dimensions (always present, needed for UI defaults)
-        manufacturing_dict["worm_length"] = design.manufacturing.worm_length
-        manufacturing_dict["wheel_width"] = design.manufacturing.wheel_width
+        # Recommended dimensions come from worm/wheel params
+        if design.worm.length_mm:
+            manufacturing_dict["worm_length"] = design.worm.length_mm
+        if design.wheel.width_mm:
+            manufacturing_dict["wheel_width"] = design.wheel.width_mm
         # Add virtual hobbing settings if available
         if hasattr(design.manufacturing, 'virtual_hobbing'):
             manufacturing_dict["virtual_hobbing"] = design.manufacturing.virtual_hobbing
@@ -262,8 +265,8 @@ def to_markdown(
     worm_type_str = "Cylindrical"
     wheel_type_str = "Helical"
     if design.manufacturing:
-        worm_type_str = design.manufacturing.worm_type.title()
-        wheel_type_str = "Throated (Hobbed)" if design.manufacturing.wheel_throated else "Helical"
+        worm_type_str = design.worm.type.title()
+        wheel_type_str = "Throated (Hobbed)" if design.manufacturing.throated_wheel else "Helical"
 
     lines = [
         f"# {title}",
@@ -287,8 +290,8 @@ def to_markdown(
     # Add manufacturing dimensions to summary if available
     if design.manufacturing:
         lines.extend([
-            f"| **Worm Length** | **{design.manufacturing.worm_length:.2f} mm** |",
-            f"| **Wheel Width** | **{design.manufacturing.wheel_width:.2f} mm** |",
+            f"| **Worm Length** | **{design.worm.length_mm if design.worm.length_mm else 0:.2f} mm** |",
+            f"| **Wheel Width** | **{design.wheel.width_mm if design.wheel.width_mm else 0:.2f} mm** |",
         ])
 
     lines.extend([
@@ -344,11 +347,11 @@ def to_markdown(
             "",
             f"| Parameter | Value |",
             f"|-----------|-------|",
-            f"| Worm Type | {design.manufacturing.worm_type.title()} |",
+            f"| Worm Type | {design.worm.type.title()} |",
             f"| Profile | {design.manufacturing.profile} |",
-            f"| Recommended Worm Length | {design.manufacturing.worm_length:.2f} mm |",
-            f"| Recommended Wheel Width | {design.manufacturing.wheel_width:.2f} mm |",
-            f"| Wheel Throated | {'Yes' if design.manufacturing.wheel_throated else 'No'} |",
+            f"| Recommended Worm Length | {design.worm.length_mm if design.worm.length_mm else 0:.2f} mm |",
+            f"| Recommended Wheel Width | {design.wheel.width_mm if design.wheel.width_mm else 0:.2f} mm |",
+            f"| Wheel Throated | {'Yes' if design.manufacturing.throated_wheel else 'No'} |",
             "",
         ])
 
@@ -421,7 +424,7 @@ def to_summary(design: WormGearDesign) -> str:
     # Get worm type for display
     worm_type_str = "cylindrical"
     if design.manufacturing:
-        worm_type_str = design.manufacturing.worm_type
+        worm_type_str = design.worm.type
 
     lines = [
         "═══ Worm Gear Design ═══",
@@ -462,8 +465,8 @@ def to_summary(design: WormGearDesign) -> str:
         lines.extend([
             "",
             "Recommended Dimensions:",
-            f"  Worm length:  {design.manufacturing.worm_length:.2f} mm",
-            f"  Wheel width:  {design.manufacturing.wheel_width:.2f} mm",
+            f"  Worm length:  {design.worm.length_mm if design.worm.length_mm else 0:.2f} mm",
+            f"  Wheel width:  {design.wheel.width_mm if design.wheel.width_mm else 0:.2f} mm",
         ])
 
     return "\n".join(lines)
