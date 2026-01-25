@@ -82,6 +82,14 @@ export function hideProgressIndicator() {
  * @param {object} data - Completion data from worker
  */
 export function handleGenerateComplete(data) {
+    console.log('[DEBUG] handleGenerateComplete received:', {
+        hasWorm: !!data.worm,
+        hasWheel: !!data.wheel,
+        success: data.success,
+        wormLength: data.worm ? data.worm.length : 0,
+        wheelLength: data.wheel ? data.wheel.length : 0
+    });
+
     const { worm, wheel, success } = data;
 
     appendToConsole('✓ Generation complete');
@@ -96,38 +104,63 @@ export function handleGenerateComplete(data) {
     let wormUrl = null;
     let wheelUrl = null;
 
-    if (worm) {
-        const wormBinary = atob(worm);
-        const wormBytes = new Uint8Array(wormBinary.length);
-        for (let i = 0; i < wormBinary.length; i++) {
-            wormBytes[i] = wormBinary.charCodeAt(i);
+    try {
+        if (worm) {
+            console.log('[DEBUG] Decoding worm base64...');
+            const wormBinary = atob(worm);
+            const wormBytes = new Uint8Array(wormBinary.length);
+            for (let i = 0; i < wormBinary.length; i++) {
+                wormBytes[i] = wormBinary.charCodeAt(i);
+            }
+            const wormBlob = new Blob([wormBytes], { type: 'application/octet-stream' });
+            wormUrl = URL.createObjectURL(wormBlob);
+            console.log('[DEBUG] Worm blob URL created:', wormUrl);
         }
-        const wormBlob = new Blob([wormBytes], { type: 'application/octet-stream' });
-        wormUrl = URL.createObjectURL(wormBlob);
-    }
 
-    if (wheel) {
-        const wheelBinary = atob(wheel);
-        const wheelBytes = new Uint8Array(wheelBinary.length);
-        for (let i = 0; i < wheelBinary.length; i++) {
-            wheelBytes[i] = wheelBinary.charCodeAt(i);
+        if (wheel) {
+            console.log('[DEBUG] Decoding wheel base64...');
+            const wheelBinary = atob(wheel);
+            const wheelBytes = new Uint8Array(wheelBinary.length);
+            for (let i = 0; i < wheelBinary.length; i++) {
+                wheelBytes[i] = wheelBinary.charCodeAt(i);
+            }
+            const wheelBlob = new Blob([wheelBytes], { type: 'application/octet-stream' });
+            wheelUrl = URL.createObjectURL(wheelBlob);
+            console.log('[DEBUG] Wheel blob URL created:', wheelUrl);
         }
-        const wheelBlob = new Blob([wheelBytes], { type: 'application/octet-stream' });
-        wheelUrl = URL.createObjectURL(wheelBlob);
+    } catch (error) {
+        console.error('[DEBUG] Error creating blob URLs:', error);
+        appendToConsole(`Error preparing downloads: ${error.message}`);
+        return;
     }
 
     // Enable download buttons
     const wormBtn = document.getElementById('download-worm');
     const wheelBtn = document.getElementById('download-wheel');
 
+    console.log('[DEBUG] Download buttons:', {
+        wormBtn: !!wormBtn,
+        wheelBtn: !!wheelBtn,
+        wormUrl: !!wormUrl,
+        wheelUrl: !!wheelUrl
+    });
+
     if (wormBtn && wormUrl) {
         wormBtn.disabled = false;
-        wormBtn.onclick = () => downloadFile(wormUrl, 'worm.step');
+        wormBtn.onclick = () => {
+            console.log('[DEBUG] Worm download clicked');
+            downloadFile(wormUrl, 'worm.step');
+        };
+        console.log('[DEBUG] Worm button enabled');
     }
 
     if (wheelBtn && wheelUrl) {
         wheelBtn.disabled = false;
-        wheelBtn.onclick = () => downloadFile(wheelUrl, 'wheel.step');
+        wheelBtn.onclick = () => {
+            console.log('[DEBUG] Wheel download clicked');
+            downloadFile(wheelUrl, 'wheel.step');
+        };
+        console.log('[DEBUG] Wheel button enabled');
     }
 
     appendToConsole('STEP files ready for download');
@@ -139,8 +172,13 @@ export function handleGenerateComplete(data) {
  * @param {string} filename - Filename for download
  */
 function downloadFile(url, filename) {
+    console.log('[DEBUG] downloadFile called:', { url, filename });
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    console.log('[DEBUG] Download triggered');
 }
