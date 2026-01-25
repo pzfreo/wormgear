@@ -440,8 +440,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Use recommended dimensions toggle
     document.getElementById('use-recommended-dims').addEventListener('change', (e) => {
-        const customDims = document.getElementById('custom-dimensions');
-        customDims.style.display = e.target.checked ? 'none' : 'block';
+        const customDims = document.getElementById('custom-dims-group');
+        if (customDims) {
+            customDims.style.display = e.target.checked ? 'none' : 'block';
+        }
 
         // Populate with recommended values when toggling to custom
         if (!e.target.checked && currentDesign && currentDesign.manufacturing) {

@@ -130,10 +130,10 @@ function updateAntiRotationForPart(partName, calculatedBore) {
 
     // Auto-select sensible default
     if (antiRotSelect.value === 'DIN6885' && effectiveBore < 6.0) {
-        antiRotSelect.value = 'ddcut'; // Switch to DD-cut for small bores
+        antiRotSelect.value = 'DD-cut'; // Switch to DD-cut for small bores
     } else if (antiRotSelect.value === '' || antiRotSelect.value === 'none') {
         // Set initial default based on bore size
-        antiRotSelect.value = effectiveBore < 6.0 ? 'ddcut' : 'DIN6885';
+        antiRotSelect.value = effectiveBore < 6.0 ? 'DD-cut' : 'DIN6885';
     }
 }
 
