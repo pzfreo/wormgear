@@ -175,7 +175,13 @@ def validate_manufacturing_settings(settings: Optional[Dict[str, Any]]) -> Dict[
     hobbing_steps_value = sanitize_numeric(sanitized.get('hobbing_steps'), allow_none=True)
     hobbing_steps = int(hobbing_steps_value) if hobbing_steps_value else 72
 
+    # Get worm_type with validation
+    worm_type = sanitized.get('worm_type', 'cylindrical')
+    if worm_type not in ('cylindrical', 'globoid'):
+        worm_type = 'cylindrical'  # Fallback to safe default
+
     return {
+        'worm_type': worm_type,
         'virtual_hobbing': sanitize_boolean(sanitized.get('virtual_hobbing'), default=False),
         'hobbing_steps': hobbing_steps,
         'use_recommended_dims': sanitize_boolean(sanitized.get('use_recommended_dims'), default=True),

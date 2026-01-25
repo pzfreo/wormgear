@@ -105,6 +105,7 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
     # Build manufacturing section (wormgear schema v1.0 format)
     manufacturing_dict = {
         "profile": design.profile.value,  # "ZA", "ZK", or "ZI"
+        "worm_type": "cylindrical",  # Default, will be updated below
         "virtual_hobbing": False,  # Default, will be updated below
         "hobbing_steps": 18,  # Default value
         "throated_wheel": False,  # Default to helical
@@ -115,6 +116,7 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
     if design.manufacturing is not None:
         manufacturing_dict["throated_wheel"] = design.manufacturing.wheel_throated
         manufacturing_dict["profile"] = design.manufacturing.profile.value
+        manufacturing_dict["worm_type"] = design.manufacturing.worm_type.value  # Add worm type
         # Add recommended dimensions (always present, needed for UI defaults)
         manufacturing_dict["worm_length"] = design.manufacturing.worm_length
         manufacturing_dict["wheel_width"] = design.manufacturing.wheel_width
@@ -126,6 +128,8 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
 
     # Override with UI manufacturing settings if provided (takes precedence)
     if validated_mfg:
+        if 'worm_type' in validated_mfg and validated_mfg['worm_type'] is not None:
+            manufacturing_dict["worm_type"] = validated_mfg['worm_type']
         if 'virtual_hobbing' in validated_mfg and validated_mfg['virtual_hobbing'] is not None:
             manufacturing_dict["virtual_hobbing"] = validated_mfg['virtual_hobbing']
         if 'hobbing_steps' in validated_mfg and validated_mfg['hobbing_steps'] is not None:
