@@ -316,11 +316,11 @@ def to_markdown(
     if design.worm.throat_curvature_radius_mm is not None:
         lines.append(f"| Throat Pitch Radius | {design.worm.throat_curvature_radius_mm:.3f} mm |")
 
-    if design.worm.throat_tip_radius_mm is not None:
-        lines.append(f"| Throat Tip Radius | {design.worm.throat_tip_radius_mm:.3f} mm |")
+    # if design.worm.throat_tip_radius_mm is not None:
+    # lines.append(f"| Throat Tip Radius | {design.worm.throat_tip_radius_mm:.3f} mm |")
 
-    if design.worm.throat_root_radius_mm is not None:
-        lines.append(f"| Throat Root Radius | {design.worm.throat_root_radius_mm:.3f} mm |")
+    # if design.worm.throat_root_radius_mm is not None:
+    # lines.append(f"| Throat Root Radius | {design.worm.throat_root_radius_mm:.3f} mm |")
 
     lines.extend([
         "",
