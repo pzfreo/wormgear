@@ -11,7 +11,9 @@ Reference standards:
 """
 
 from math import pi, tan, atan, degrees, radians, cos, sin, sqrt
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
+
+from .enums import Hand, WormProfile, WormType
 
 # ISO 54 / DIN 780 standard modules (mm)
 STANDARD_MODULES = [
@@ -298,13 +300,18 @@ def design_from_module(
     backlash: float = 0.0,
     num_starts: int = 1,
     clearance_factor: float = 0.25,
-    hand: str = "right",
+    hand: Union[Hand, str] = "right",
     profile_shift: float = 0.0,
-    profile: str = "ZA",
+    profile: Union[WormProfile, str] = "ZA",
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
 ) -> dict:
+    # Convert string to enum if needed (for backward compatibility)
+    if isinstance(hand, str):
+        hand = Hand(hand.lower())
+    if isinstance(profile, str):
+        profile = WormProfile(profile.upper())
     """
     Design worm gear pair from module specification.
 
@@ -351,7 +358,7 @@ def design_from_module(
         pressure_angle_deg=pressure_angle,
         clearance_factor=clearance_factor,
         backlash_mm=backlash,
-        hand=hand,
+        hand=hand.value,  # Pass enum value (string) to helper function
         profile_shift=0.0  # Worm doesn't use profile shift
     )
 
@@ -393,13 +400,13 @@ def design_from_module(
             "centre_distance_mm": centre_distance,
             "pressure_angle_deg": pressure_angle,
             "backlash_mm": backlash,
-            "hand": hand,
+            "hand": hand.value,  # Serialize enum to string
             "ratio": ratio,
             "efficiency_percent": efficiency_percent,
             "self_locking": self_locking
         },
         "manufacturing": {
-            "profile": profile,
+            "profile": profile.value,  # Serialize enum to string
             "virtual_hobbing": False,
             "hobbing_steps": 18,
             "throated_wheel": wheel_throated,
@@ -416,13 +423,18 @@ def design_from_centre_distance(
     backlash: float = 0.0,
     num_starts: int = 1,
     clearance_factor: float = 0.25,
-    hand: str = "right",
+    hand: Union[Hand, str] = "right",
     profile_shift: float = 0.0,
-    profile: str = "ZA",
+    profile: Union[WormProfile, str] = "ZA",
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
 ) -> dict:
+    # Convert string to enum if needed (for backward compatibility)
+    if isinstance(hand, str):
+        hand = Hand(hand.lower())
+    if isinstance(profile, str):
+        profile = WormProfile(profile.upper())
     """
     Design worm gear pair from centre distance constraint.
 
@@ -493,13 +505,18 @@ def design_from_wheel(
     backlash: float = 0.0,
     num_starts: int = 1,
     clearance_factor: float = 0.25,
-    hand: str = "right",
+    hand: Union[Hand, str] = "right",
     profile_shift: float = 0.0,
-    profile: str = "ZA",
+    profile: Union[WormProfile, str] = "ZA",
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
 ) -> dict:
+    # Convert string to enum if needed (for backward compatibility)
+    if isinstance(hand, str):
+        hand = Hand(hand.lower())
+    if isinstance(profile, str):
+        profile = WormProfile(profile.upper())
     """
     Design worm gear pair from wheel OD constraint.
     Worm sized to achieve target lead angle.

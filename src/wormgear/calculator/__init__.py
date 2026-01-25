@@ -49,16 +49,44 @@ from .validation import (
     ValidationResult,
 )
 
+from .enums import (
+    # Type-safe enums
+    Hand,
+    WormProfile,
+    WormType,
+)
+
 # Convenience imports
 from ..io import WormParams, WheelParams, AssemblyParams, WormGearDesign, ManufacturingParams
 
 
 def _dict_to_worm_gear_design(design_dict: dict) -> WormGearDesign:
-    """Convert dict from calculator to WormGearDesign dataclass."""
-    worm = WormParams(**design_dict["worm"])
+    """Convert dict from calculator to WormGearDesign dataclass.
+
+    Handles conversion of string values to enums where needed.
+    """
+    # Convert worm params (hand is string in dict, needs to be Hand enum)
+    worm_data = design_dict["worm"].copy()
+    if "hand" in worm_data and isinstance(worm_data["hand"], str):
+        worm_data["hand"] = Hand(worm_data["hand"].lower())
+    if "type" in worm_data and isinstance(worm_data["type"], str):
+        worm_data["type"] = WormType(worm_data["type"].lower())
+    worm = WormParams(**worm_data)
+
+    # Wheel params don't have enum fields currently
     wheel = WheelParams(**design_dict["wheel"])
-    assembly = AssemblyParams(**design_dict["assembly"])
-    manufacturing = ManufacturingParams(**design_dict.get("manufacturing", {}))
+
+    # Convert assembly params (hand is string in dict, needs to be Hand enum)
+    asm_data = design_dict["assembly"].copy()
+    if "hand" in asm_data and isinstance(asm_data["hand"], str):
+        asm_data["hand"] = Hand(asm_data["hand"].lower())
+    assembly = AssemblyParams(**asm_data)
+
+    # Convert manufacturing params (profile is string in dict, might need to be WormProfile enum)
+    manuf_data = design_dict.get("manufacturing", {}).copy()
+    if "profile" in manuf_data and isinstance(manuf_data["profile"], str):
+        manuf_data["profile"] = WormProfile(manuf_data["profile"].upper())
+    manufacturing = ManufacturingParams(**manuf_data)
 
     return WormGearDesign(
         worm=worm,
@@ -191,6 +219,11 @@ def calculate_design_from_wheel(
 __all__ = [
     # Constants
     "STANDARD_MODULES",
+
+    # Enums (type-safe)
+    "Hand",
+    "WormProfile",
+    "WormType",
 
     # Utility functions
     "nearest_standard_module",
