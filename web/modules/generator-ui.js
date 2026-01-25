@@ -10,8 +10,10 @@ import { getCalculatorPyodide } from './pyodide-init.js';
 let hobbingStartTime = null;
 let hobbingTimeEstimate = null;
 let hobbingRateHistory = [];  // Track rate observations for EMA
-const RATE_HISTORY_SIZE = 10;  // Keep last 10 observations
-const EMA_ALPHA = 0.4;  // Smoothing factor for EMA (0.4 = weight recent heavily)
+let lastHobbingPercent = 0;  // Track last percent for incremental calculation
+let lastHobbingTime = null;  // Track last update time
+const RATE_HISTORY_SIZE = 5;  // Keep last 5 observations (recent only)
+const EMA_ALPHA = 0.3;  // Smoothing factor for EMA
 
 /**
  * Append message to console output
@@ -107,61 +109,70 @@ function updateSubProgress(percent, message = null) {
         // Track start time when actual work begins (percent > 0, not at 0%)
         if (hobbingStartTime === null && percent > 0) {
             hobbingStartTime = Date.now();
+            lastHobbingTime = Date.now();
+            lastHobbingPercent = percent;
             hobbingRateHistory = [];  // Reset history
             console.log('[Time Tracking] Started at', new Date(hobbingStartTime).toISOString(), 'percent=', percent);
         }
 
-        // Calculate time estimate using EMA with trend detection (after 5% completion)
-        if (percent >= 5 && hobbingStartTime !== null) {
+        // Calculate time estimate using INCREMENTAL rates (after 5% completion)
+        if (percent >= 5 && hobbingStartTime !== null && lastHobbingTime !== null) {
             const now = Date.now();
-            const totalElapsed = (now - hobbingStartTime) / 1000;  // seconds since start
+            const incrementalElapsed = (now - lastHobbingTime) / 1000;  // seconds since LAST update
+            const percentDelta = percent - lastHobbingPercent;  // percent progress since LAST update
 
-            // Calculate current rate (time per percent point)
-            const currentRate = totalElapsed / percent;
+            if (percentDelta > 0 && incrementalElapsed > 0) {
+                // Calculate INCREMENTAL rate (recent steps only, not average from start)
+                const incrementalRate = incrementalElapsed / percentDelta;
 
-            // Add to history
-            hobbingRateHistory.push({ percent, rate: currentRate });
-            if (hobbingRateHistory.length > RATE_HISTORY_SIZE) {
-                hobbingRateHistory.shift();
-            }
-
-            // Calculate EMA of rates
-            let emaRate = currentRate;
-            if (hobbingRateHistory.length >= 3) {
-                let numerator = 0;
-                let denominator = 0;
-                for (let i = 0; i < hobbingRateHistory.length; i++) {
-                    const weight = Math.pow(EMA_ALPHA, hobbingRateHistory.length - 1 - i);
-                    numerator += hobbingRateHistory[i].rate * weight;
-                    denominator += weight;
+                // Add to history
+                hobbingRateHistory.push({ percent, rate: incrementalRate });
+                if (hobbingRateHistory.length > RATE_HISTORY_SIZE) {
+                    hobbingRateHistory.shift();
                 }
-                emaRate = numerator / denominator;
-            }
 
-            // Detect trend (is work slowing down?)
-            let trendMultiplier = 1.0;
-            if (hobbingRateHistory.length >= 5) {
-                const midpoint = Math.floor(hobbingRateHistory.length / 2);
-                const firstHalf = hobbingRateHistory.slice(0, midpoint);
-                const secondHalf = hobbingRateHistory.slice(midpoint);
-
-                const avgFirst = firstHalf.reduce((sum, obs) => sum + obs.rate, 0) / firstHalf.length;
-                const avgSecond = secondHalf.reduce((sum, obs) => sum + obs.rate, 0) / secondHalf.length;
-
-                if (avgSecond > avgFirst) {
-                    const acceleration = avgSecond / avgFirst;
-                    // Conservative multiplier: half the detected acceleration, capped at 1.5x
-                    trendMultiplier = Math.min(1.5, 1.0 + (acceleration - 1.0) * 0.5);
+                // Calculate EMA of RECENT rates
+                let emaRate = incrementalRate;
+                if (hobbingRateHistory.length >= 2) {
+                    let numerator = 0;
+                    let denominator = 0;
+                    for (let i = 0; i < hobbingRateHistory.length; i++) {
+                        const weight = Math.pow(EMA_ALPHA, hobbingRateHistory.length - 1 - i);
+                        numerator += hobbingRateHistory[i].rate * weight;
+                        denominator += weight;
+                    }
+                    emaRate = numerator / denominator;
                 }
+
+                // Detect trend (is work slowing down?)
+                let trendMultiplier = 1.0;
+                if (hobbingRateHistory.length >= 4) {
+                    const midpoint = Math.floor(hobbingRateHistory.length / 2);
+                    const firstHalf = hobbingRateHistory.slice(0, midpoint);
+                    const secondHalf = hobbingRateHistory.slice(midpoint);
+
+                    const avgFirst = firstHalf.reduce((sum, obs) => sum + obs.rate, 0) / firstHalf.length;
+                    const avgSecond = secondHalf.reduce((sum, obs) => sum + obs.rate, 0) / secondHalf.length;
+
+                    if (avgSecond > avgFirst) {
+                        const acceleration = avgSecond / avgFirst;
+                        // More aggressive multiplier for detected acceleration, capped at 2.5x
+                        trendMultiplier = Math.min(2.5, 1.0 + (acceleration - 1.0) * 0.8);
+                    }
+                }
+
+                // Estimate remaining time
+                const percentRemaining = 100 - percent;
+                const baseEstimate = percentRemaining * emaRate;
+                const adjustedEstimate = baseEstimate * trendMultiplier;
+                hobbingTimeEstimate = Math.max(1, adjustedEstimate);
+
+                console.log(`[Time Estimate] ${percent.toFixed(1)}% | Incr: ${incrementalRate.toFixed(1)}s/% | EMA: ${emaRate.toFixed(1)}s/% | Trend: ${trendMultiplier.toFixed(2)}x | Est: ${hobbingTimeEstimate.toFixed(1)}s remaining`);
+
+                // Update last tracking values
+                lastHobbingTime = now;
+                lastHobbingPercent = percent;
             }
-
-            // Estimate remaining time
-            const percentRemaining = 100 - percent;
-            const baseEstimate = percentRemaining * emaRate;
-            const adjustedEstimate = baseEstimate * trendMultiplier;
-            hobbingTimeEstimate = Math.max(1, adjustedEstimate);
-
-            console.log(`[Time Estimate] ${percent.toFixed(1)}% | Rate: ${currentRate.toFixed(1)}s/% | EMA: ${emaRate.toFixed(1)}s/% | Trend: ${trendMultiplier.toFixed(2)}x | Est: ${hobbingTimeEstimate.toFixed(1)}s remaining`);
         }
 
         if (progressBar) {
@@ -196,6 +207,8 @@ export function resetHobbingTimer() {
     hobbingStartTime = null;
     hobbingTimeEstimate = null;
     hobbingRateHistory = [];  // Clear history
+    lastHobbingPercent = 0;
+    lastHobbingTime = null;
     console.log('[Time Tracking] Timer reset');
 }
 
