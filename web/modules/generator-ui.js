@@ -85,12 +85,11 @@ export function handleGenerateComplete(data) {
     console.log('[DEBUG] handleGenerateComplete received:', {
         hasWorm: !!data.worm,
         hasWheel: !!data.wheel,
-        success: data.success,
-        wormLength: data.worm ? data.worm.length : 0,
-        wheelLength: data.wheel ? data.wheel.length : 0
+        hasMarkdown: !!data.markdown,
+        success: data.success
     });
 
-    const { worm, wheel, success } = data;
+    const { worm, wheel, markdown, success } = data;
 
     appendToConsole('✓ Generation complete');
     hideProgressIndicator();
@@ -100,85 +99,117 @@ export function handleGenerateComplete(data) {
         return;
     }
 
-    // Convert base64 STEP data to blob URLs
-    let wormUrl = null;
-    let wheelUrl = null;
+    // Store data for ZIP creation
+    window.generatedSTEP = {
+        worm: worm,
+        wheel: wheel,
+        markdown: markdown
+    };
 
+    // Enable download button
+    const downloadBtn = document.getElementById('download-zip');
+    if (downloadBtn) {
+        downloadBtn.disabled = false;
+        downloadBtn.onclick = createAndDownloadZip;
+    }
+
+    appendToConsole('Complete package ready for download');
+}
+
+/**
+ * Create descriptive filename from design parameters
+ * @param {object} design - Design data
+ * @returns {string} Descriptive filename
+ */
+function createFilename(design) {
     try {
-        if (worm) {
-            console.log('[DEBUG] Decoding worm base64...');
-            const wormBinary = atob(worm);
+        const module = design.worm.module_mm || 1;
+        const ratio = design.assembly.ratio || 30;
+        const starts = design.worm.num_starts || 1;
+        const teeth = design.wheel.num_teeth || 30;
+        const wormType = design.manufacturing?.worm_type || 'cylindrical';
+
+        // Format: wormgear_m2.0_30-1_cylindrical
+        const moduleStr = module.toFixed(1).replace('.', '_');
+        const typeStr = wormType === 'cylindrical' ? 'cyl' : 'glob';
+
+        return `wormgear_m${moduleStr}_${teeth}-${starts}_${typeStr}`;
+    } catch (error) {
+        console.error('Error creating filename:', error);
+        return 'wormgear_design';
+    }
+}
+
+/**
+ * Create and download ZIP file with all outputs
+ */
+async function createAndDownloadZip() {
+    try {
+        appendToConsole('Creating ZIP package...');
+
+        if (!window.JSZip) {
+            throw new Error('JSZip library not loaded');
+        }
+
+        const design = window.currentGeneratedDesign;
+        const stepData = window.generatedSTEP;
+
+        if (!design || !stepData) {
+            throw new Error('No generated data available');
+        }
+
+        // Create ZIP
+        const zip = new JSZip();
+
+        // Add JSON file
+        zip.file('design.json', JSON.stringify(design, null, 2));
+
+        // Add markdown file
+        if (stepData.markdown) {
+            zip.file('design.md', stepData.markdown);
+        }
+
+        // Add STEP files (decode from base64)
+        if (stepData.worm) {
+            const wormBinary = atob(stepData.worm);
             const wormBytes = new Uint8Array(wormBinary.length);
             for (let i = 0; i < wormBinary.length; i++) {
                 wormBytes[i] = wormBinary.charCodeAt(i);
             }
-            const wormBlob = new Blob([wormBytes], { type: 'application/octet-stream' });
-            wormUrl = URL.createObjectURL(wormBlob);
-            console.log('[DEBUG] Worm blob URL created:', wormUrl);
+            zip.file('worm.step', wormBytes);
         }
 
-        if (wheel) {
-            console.log('[DEBUG] Decoding wheel base64...');
-            const wheelBinary = atob(wheel);
+        if (stepData.wheel) {
+            const wheelBinary = atob(stepData.wheel);
             const wheelBytes = new Uint8Array(wheelBinary.length);
             for (let i = 0; i < wheelBinary.length; i++) {
                 wheelBytes[i] = wheelBinary.charCodeAt(i);
             }
-            const wheelBlob = new Blob([wheelBytes], { type: 'application/octet-stream' });
-            wheelUrl = URL.createObjectURL(wheelBlob);
-            console.log('[DEBUG] Wheel blob URL created:', wheelUrl);
+            zip.file('wheel.step', wheelBytes);
         }
+
+        // Generate ZIP blob
+        appendToConsole('Compressing files...');
+        const blob = await zip.generateAsync({ type: 'blob' });
+
+        // Create descriptive filename
+        const filename = createFilename(design);
+
+        // Trigger download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename}.zip`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        appendToConsole(`✓ Downloaded ${filename}.zip`);
+
     } catch (error) {
-        console.error('[DEBUG] Error creating blob URLs:', error);
-        appendToConsole(`Error preparing downloads: ${error.message}`);
-        return;
+        console.error('Error creating ZIP:', error);
+        appendToConsole(`✗ Error creating ZIP: ${error.message}`);
     }
-
-    // Enable download buttons
-    const wormBtn = document.getElementById('download-worm');
-    const wheelBtn = document.getElementById('download-wheel');
-
-    console.log('[DEBUG] Download buttons:', {
-        wormBtn: !!wormBtn,
-        wheelBtn: !!wheelBtn,
-        wormUrl: !!wormUrl,
-        wheelUrl: !!wheelUrl
-    });
-
-    if (wormBtn && wormUrl) {
-        wormBtn.disabled = false;
-        wormBtn.onclick = () => {
-            console.log('[DEBUG] Worm download clicked');
-            downloadFile(wormUrl, 'worm.step');
-        };
-        console.log('[DEBUG] Worm button enabled');
-    }
-
-    if (wheelBtn && wheelUrl) {
-        wheelBtn.disabled = false;
-        wheelBtn.onclick = () => {
-            console.log('[DEBUG] Wheel download clicked');
-            downloadFile(wheelUrl, 'wheel.step');
-        };
-        console.log('[DEBUG] Wheel button enabled');
-    }
-
-    appendToConsole('STEP files ready for download');
-}
-
-/**
- * Download file from blob URL
- * @param {string} url - Blob URL
- * @param {string} filename - Filename for download
- */
-function downloadFile(url, filename) {
-    console.log('[DEBUG] downloadFile called:', { url, filename });
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    console.log('[DEBUG] Download triggered');
 }

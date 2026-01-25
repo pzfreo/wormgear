@@ -352,6 +352,9 @@ async function generateGeometry(type) {
         appendToConsole('Starting geometry generation...');
         appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
 
+        // Store design data globally for download
+        window.currentGeneratedDesign = designData;
+
         // Send generation request to worker
         generatorWorker.postMessage({
             type: 'GENERATE',

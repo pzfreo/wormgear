@@ -381,11 +381,11 @@
                             </section>
 
                             <section class="generator-section compact">
-                                <h2>Download STEP Files</h2>
-                                <div class="button-group">
-                                    <button id="download-worm" disabled>Download Worm</button>
-                                    <button id="download-wheel" disabled>Download Wheel</button>
-                                </div>
+                                <h2>Download</h2>
+                                <button id="download-zip" disabled style="width: 100%;">Download Complete Package (ZIP)</button>
+                                <p style="font-size: 0.85em; color: #666; margin-top: 0.5rem; margin-bottom: 0;">
+                                    Includes: worm.step, wheel.step, design.json, design.md
+                                </p>
                             </section>
 
                             <details class="generator-section compact">
@@ -438,6 +438,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script type="module" src="app-lazy.js"></script>
 </body>
 </html>
