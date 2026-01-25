@@ -6,6 +6,10 @@
 
 import { getCalculatorPyodide } from './pyodide-init.js';
 
+// Track hobbing progress for time estimation
+let hobbingStartTime = null;
+let hobbingTimeEstimate = null;
+
 /**
  * Append message to console output
  * @param {string} message - Message to append
@@ -91,17 +95,48 @@ function updateSubProgress(percent, message = null) {
     if (!subProgress) return;
 
     if (percent === null || percent < 0) {
-        // Hide sub-progress
+        // Hide sub-progress and reset timing
         subProgress.style.display = 'none';
+        hobbingStartTime = null;
+        hobbingTimeEstimate = null;
     } else {
         // Show and update sub-progress
         subProgress.style.display = 'block';
+
+        // Track start time on first progress update
+        if (hobbingStartTime === null && percent > 0) {
+            hobbingStartTime = Date.now();
+        }
+
+        // Calculate time estimate after 5% completion
+        if (percent >= 5 && hobbingStartTime !== null) {
+            const elapsed = (Date.now() - hobbingStartTime) / 1000; // seconds
+            const estimatedTotal = (elapsed / percent) * 100;
+            const remaining = estimatedTotal - elapsed;
+            hobbingTimeEstimate = remaining;
+        }
+
         if (progressBar) {
             progressBar.style.width = `${percent}%`;
             progressBar.textContent = `${Math.round(percent)}%`;
         }
-        if (progressText && message) {
-            progressText.textContent = message;
+
+        if (progressText) {
+            let displayMessage = message || 'Virtual hobbing in progress...';
+
+            // Add time estimate if available
+            if (hobbingTimeEstimate !== null && percent < 100) {
+                const minutes = Math.floor(hobbingTimeEstimate / 60);
+                const seconds = Math.round(hobbingTimeEstimate % 60);
+
+                if (minutes > 0) {
+                    displayMessage += ` - Estimated: ${minutes}m ${seconds}s remaining`;
+                } else {
+                    displayMessage += ` - Estimated: ${seconds}s remaining`;
+                }
+            }
+
+            progressText.textContent = displayMessage;
         }
     }
 }
