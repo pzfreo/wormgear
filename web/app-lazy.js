@@ -352,6 +352,17 @@ async function generateGeometry(type) {
         appendToConsole('Starting geometry generation...');
         appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
 
+        // Show and reset progress indicator
+        const progressContainer = document.getElementById('generation-progress');
+        if (progressContainer) {
+            progressContainer.style.display = 'block';
+        }
+
+        // Reset step indicators
+        document.querySelectorAll('.step-indicator').forEach(indicator => {
+            indicator.classList.remove('active', 'complete');
+        });
+
         // Store design data globally for download
         window.currentGeneratedDesign = designData;
 

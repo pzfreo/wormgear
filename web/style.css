@@ -727,3 +727,42 @@ footer a:hover {
         order: -1; /* Show console first on narrow screens */
     }
 }
+
+/* Progress step indicators */
+.step-indicator {
+    padding: 0.375rem 0.75rem;
+    background: #f0f0f0;
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: #666;
+    font-weight: 500;
+    transition: all 0.3s;
+    white-space: nowrap;
+}
+
+.step-indicator.active {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    color: white;
+    font-weight: 600;
+}
+
+.step-indicator.complete {
+    background: #22c55e;
+    color: white;
+}
+
+.step-arrow {
+    color: #cbd5e1;
+    font-weight: bold;
+}
+
+@media (max-width: 640px) {
+    .step-indicator {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75em;
+    }
+
+    .step-arrow {
+        font-size: 0.85em;
+    }
+}

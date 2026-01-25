@@ -375,10 +375,31 @@
 
                                 <!-- Progress indicator -->
                                 <div id="generation-progress" style="display: none; margin-top: 0.75rem;">
-                                    <div style="background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 24px;">
-                                        <div id="progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85em; font-weight: bold;"></div>
+                                    <!-- Main progress steps -->
+                                    <div id="main-progress" style="margin-bottom: 0.75rem;">
+                                        <div style="font-weight: 600; font-size: 0.95em; margin-bottom: 0.5rem; color: #667eea;" id="main-step-text">
+                                            Starting generation...
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <div class="step-indicator" data-step="parse">Parse</div>
+                                            <div class="step-arrow">→</div>
+                                            <div class="step-indicator" data-step="worm">Worm</div>
+                                            <div class="step-arrow">→</div>
+                                            <div class="step-indicator" data-step="wheel">Wheel</div>
+                                            <div class="step-arrow">→</div>
+                                            <div class="step-indicator" data-step="export">Export</div>
+                                        </div>
                                     </div>
-                                    <div id="progress-text" style="margin-top: 0.5rem; font-size: 0.9em; color: #666;"></div>
+
+                                    <!-- Sub-progress (hobbing) -->
+                                    <div id="sub-progress" style="display: none;">
+                                        <div style="font-size: 0.85em; color: #666; margin-bottom: 0.25rem;" id="sub-progress-text">
+                                            Virtual hobbing in progress...
+                                        </div>
+                                        <div style="background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 20px;">
+                                            <div id="progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75em; font-weight: bold;"></div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <button id="download-zip" disabled style="width: 100%; margin-top: 0.75rem;">

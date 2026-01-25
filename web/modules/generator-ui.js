@@ -46,24 +46,97 @@ export function updateDesignSummary(design) {
 }
 
 /**
+ * Set main progress step
+ * @param {string} step - Step name: 'parse', 'worm', 'wheel', 'export', 'complete'
+ * @param {string} message - Step description
+ */
+function setMainStep(step, message) {
+    // Update main step text
+    const mainStepText = document.getElementById('main-step-text');
+    if (mainStepText) {
+        mainStepText.textContent = message;
+    }
+
+    // Update step indicators
+    const steps = ['parse', 'worm', 'wheel', 'export'];
+    steps.forEach(s => {
+        const indicator = document.querySelector(`.step-indicator[data-step="${s}"]`);
+        if (!indicator) return;
+
+        if (s === step) {
+            // Current step
+            indicator.classList.remove('complete');
+            indicator.classList.add('active');
+        } else if (steps.indexOf(s) < steps.indexOf(step)) {
+            // Completed step
+            indicator.classList.remove('active');
+            indicator.classList.add('complete');
+        } else {
+            // Future step
+            indicator.classList.remove('active', 'complete');
+        }
+    });
+}
+
+/**
+ * Show/hide and update sub-progress (hobbing)
+ * @param {number} percent - Progress percentage (0-100)
+ * @param {string} message - Optional message
+ */
+function updateSubProgress(percent, message = null) {
+    const subProgress = document.getElementById('sub-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('sub-progress-text');
+
+    if (!subProgress) return;
+
+    if (percent === null || percent < 0) {
+        // Hide sub-progress
+        subProgress.style.display = 'none';
+    } else {
+        // Show and update sub-progress
+        subProgress.style.display = 'block';
+        if (progressBar) {
+            progressBar.style.width = `${percent}%`;
+            progressBar.textContent = `${Math.round(percent)}%`;
+        }
+        if (progressText && message) {
+            progressText.textContent = message;
+        }
+    }
+}
+
+/**
  * Handle progress updates from worker
  * @param {string} message - Progress message
  * @param {number} percent - Progress percentage
  */
 export function handleProgress(message, percent) {
     const progressContainer = document.getElementById('generation-progress');
-    const progressText = document.getElementById('progress-text');
-    const progressBar = document.getElementById('progress-bar');
-
     if (progressContainer) {
         progressContainer.style.display = 'block';
-        if (progressBar) {
-            progressBar.style.width = `${percent}%`;
-            progressBar.textContent = `${Math.round(percent)}%`;
+    }
+
+    // Detect which step we're on based on message content
+    const msgLower = message.toLowerCase();
+
+    if (msgLower.includes('parsing') || msgLower.includes('parameters')) {
+        setMainStep('parse', 'Parsing parameters...');
+        updateSubProgress(null);
+    } else if (msgLower.includes('worm') && !msgLower.includes('wheel')) {
+        setMainStep('worm', 'Generating worm gear...');
+        updateSubProgress(null);
+    } else if (msgLower.includes('wheel') || msgLower.includes('hobbing')) {
+        setMainStep('wheel', 'Generating wheel gear...');
+        // Show sub-progress for hobbing
+        if (msgLower.includes('hobbing') || msgLower.includes('step')) {
+            updateSubProgress(percent, message);
+        } else {
+            updateSubProgress(null);
         }
-        if (progressText) {
-            progressText.textContent = message;
-        }
+    } else if (msgLower.includes('export') || msgLower.includes('step format')) {
+        setMainStep('export', 'Exporting STEP files...');
+        updateSubProgress(null);
     }
 
     appendToConsole(message);
@@ -73,10 +146,18 @@ export function handleProgress(message, percent) {
  * Hide progress indicator
  */
 export function hideProgressIndicator() {
-    const progressBar = document.getElementById('generation-progress');
-    if (progressBar) {
-        progressBar.style.display = 'none';
+    const progressContainer = document.getElementById('generation-progress');
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
     }
+
+    // Reset step indicators
+    document.querySelectorAll('.step-indicator').forEach(indicator => {
+        indicator.classList.remove('active', 'complete');
+    });
+
+    // Hide sub-progress
+    updateSubProgress(null);
 }
 
 /**
@@ -92,13 +173,23 @@ export async function handleGenerateComplete(data) {
 
     const { worm, wheel, success } = data;
 
-    appendToConsole('✓ Generation complete');
-    hideProgressIndicator();
-
     if (!success) {
         appendToConsole('⚠️ Generation completed with errors');
+        hideProgressIndicator();
         return;
     }
+
+    // Set final step
+    setMainStep('export', 'Generation complete');
+    updateSubProgress(null);
+
+    // Mark all steps as complete
+    document.querySelectorAll('.step-indicator').forEach(indicator => {
+        indicator.classList.remove('active');
+        indicator.classList.add('complete');
+    });
+
+    appendToConsole('✓ Generation complete');
 
     // Generate markdown using calculator Pyodide (which has wormcalc module loaded)
     appendToConsole('Generating documentation...');
