@@ -245,7 +245,8 @@ function setupWorkerMessageHandler(worker) {
 
         switch (type) {
             case 'LOG':
-                appendToConsole(message);
+                // Process LOG messages through progress indicator too
+                handleProgress(message, null);
                 break;
             case 'PROGRESS':
                 handleProgress(message, percent);

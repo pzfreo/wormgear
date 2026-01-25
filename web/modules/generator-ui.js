@@ -156,21 +156,32 @@ export function handleProgress(message, percent) {
     const msgLower = message.toLowerCase();
     console.log('[Progress]', message, 'percent:', percent);
 
-    if (msgLower.includes('parsing') || msgLower.includes('parameters') || msgLower.includes('📋')) {
+    // Parsing/setup step
+    if (msgLower.includes('parsing') || msgLower.includes('parameters') || msgLower.includes('📋') || msgLower.includes('starting geometry')) {
         setMainStep('parse', 'Parsing parameters...');
         updateSubProgress(null);
-    } else if (msgLower.includes('🔩') || (msgLower.includes('worm') && !msgLower.includes('wheel'))) {
+    }
+    // Worm generation step (🔩 emoji or "generating worm" but NOT "generating wheel")
+    else if (msgLower.includes('🔩') || (msgLower.includes('generating worm') && !msgLower.includes('wheel'))) {
         setMainStep('worm', 'Generating worm gear...');
         updateSubProgress(null);
-    } else if (msgLower.includes('⚙️') || msgLower.includes('wheel') || msgLower.includes('hobbing')) {
+    }
+    // Wheel generation step (⚙️ emoji or "generating wheel")
+    else if (msgLower.includes('⚙️') || msgLower.includes('generating wheel')) {
         setMainStep('wheel', 'Generating wheel gear...');
-        // Show sub-progress for hobbing
-        if (msgLower.includes('hobbing') || msgLower.includes('step')) {
-            updateSubProgress(percent, message);
-        } else {
-            updateSubProgress(null);
+        updateSubProgress(null);
+    }
+    // Hobbing progress (only during wheel generation)
+    else if (msgLower.includes('hobbing') || (msgLower.includes('step') && percent !== null && percent !== undefined)) {
+        // Make sure we're in wheel step first
+        const wheelIndicator = document.querySelector('.step-indicator[data-step="wheel"]');
+        if (!wheelIndicator || !wheelIndicator.classList.contains('active')) {
+            setMainStep('wheel', 'Generating wheel gear...');
         }
-    } else if (msgLower.includes('export') || msgLower.includes('step format') || msgLower.includes('stl format')) {
+        updateSubProgress(percent, message);
+    }
+    // Export step (STEP or STL format)
+    else if (msgLower.includes('exporting to step') || msgLower.includes('exporting to stl')) {
         setMainStep('export', 'Exporting files...');
         updateSubProgress(null);
     }
@@ -245,15 +256,35 @@ export async function handleGenerateComplete(data) {
             const result = calculatorPyodide.runPython(`
 import json
 from wormcalc import to_markdown, validate_design
-from wormcalc.core import WormGearDesign, WormParameters, WheelParameters, AssemblyParameters, ManufacturingParameters
+from wormcalc.core import WormGearDesign, WormParameters, WheelParameters, ManufacturingParams, Hand, WormProfile, WormType
 
 # Parse design
 design_data = json.loads(design_json_str)
+
+# Extract assembly parameters from JSON
+assembly = design_data['assembly']
+
+# Create WormGearDesign with individual parameters
 design = WormGearDesign(
     worm=WormParameters(**design_data['worm']),
     wheel=WheelParameters(**design_data['wheel']),
-    assembly=AssemblyParameters(**design_data['assembly']),
-    manufacturing=ManufacturingParameters(**design_data['manufacturing']) if 'manufacturing' in design_data else None
+    centre_distance=assembly['centre_distance_mm'],
+    ratio=assembly['ratio'],
+    pressure_angle=assembly['pressure_angle_deg'],
+    backlash=assembly['backlash_mm'],
+    hand=Hand.RIGHT if assembly['hand'].lower() == 'right' else Hand.LEFT,
+    efficiency_estimate=assembly.get('efficiency_percent', 0) / 100.0,
+    self_locking=assembly.get('self_locking', False),
+    profile=WormProfile[design_data.get('manufacturing', {}).get('profile', 'ZA')],
+    manufacturing=ManufacturingParams(
+        worm_type=WormType[design_data['manufacturing']['worm_type'].upper()] if 'worm_type' in design_data.get('manufacturing', {}) else WormType.CYLINDRICAL,
+        worm_length=design_data['manufacturing'].get('worm_length', 40.0),
+        wheel_width=design_data['manufacturing'].get('wheel_width', 10.0),
+        wheel_throated=design_data['manufacturing'].get('throated_wheel', False),
+        profile=WormProfile[design_data['manufacturing'].get('profile', 'ZA')],
+        virtual_hobbing=design_data['manufacturing'].get('virtual_hobbing', False),
+        hobbing_steps=design_data['manufacturing'].get('hobbing_steps', 18)
+    ) if 'manufacturing' in design_data else None
 )
 
 # Validate and generate markdown (return the result)
