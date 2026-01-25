@@ -420,8 +420,9 @@ async function generateGeometry(type) {
             indicator.classList.remove('active', 'complete');
         });
 
-        // Show cancel button, hide generate button
-        const { showCancelButton } = await import('./modules/generator-ui.js');
+        // Reset timing and show cancel button
+        const { showCancelButton, resetHobbingTimer } = await import('./modules/generator-ui.js');
+        resetHobbingTimer();
         showCancelButton();
 
         // Store design data globally for download

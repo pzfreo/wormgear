@@ -95,10 +95,8 @@ function updateSubProgress(percent, message = null) {
     if (!subProgress) return;
 
     if (percent === null || percent < 0) {
-        // Hide sub-progress and reset timing
+        // Hide sub-progress (but don't reset timing - let hideProgressIndicator do that)
         subProgress.style.display = 'none';
-        hobbingStartTime = null;
-        hobbingTimeEstimate = null;
     } else {
         // Show and update sub-progress
         subProgress.style.display = 'block';
@@ -142,6 +140,15 @@ function updateSubProgress(percent, message = null) {
             progressText.textContent = displayMessage;
         }
     }
+}
+
+/**
+ * Reset hobbing time tracking
+ */
+export function resetHobbingTimer() {
+    hobbingStartTime = null;
+    hobbingTimeEstimate = null;
+    console.log('[Time Tracking] Timer reset');
 }
 
 /**
@@ -227,8 +234,9 @@ export function hideProgressIndicator() {
         indicator.classList.remove('active', 'complete');
     });
 
-    // Hide sub-progress
+    // Hide sub-progress and reset timing
     updateSubProgress(null);
+    resetHobbingTimer();
 
     // Hide cancel button, show generate button
     hideCancelButton();
