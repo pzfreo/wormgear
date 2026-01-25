@@ -223,12 +223,30 @@ except ImportError as e:
         console.error('Failed to initialize generator:', error);
         appendToConsole(`✗ Installation failed: ${error.message}`);
 
-        // Show traceback
-        try {
-            const tb = await generatorPyodide.runPythonAsync('import traceback; traceback.format_exc()');
-            appendToConsole('Python traceback:');
-            tb.split('\n').forEach(line => line && appendToConsole(line));
-        } catch (e) {}
+        // Check for common WASM errors
+        if (error.message.includes('WebAssembly') || error.message.includes('sentinel')) {
+            appendToConsole('');
+            appendToConsole('❌ WebAssembly instantiation failed');
+            appendToConsole('This usually means:');
+            appendToConsole('1. Browser lacks SharedArrayBuffer support (try Chrome/Firefox)');
+            appendToConsole('2. CORS headers not configured (Cross-Origin-Embedder-Policy missing)');
+            appendToConsole('3. HTTP (not HTTPS) - some features require secure context');
+            appendToConsole('');
+            appendToConsole('💡 Workaround: Use the Python CLI for geometry generation:');
+            appendToConsole('   pip install build123d');
+            appendToConsole('   pip install -e .');
+            appendToConsole('   wormgear-geometry design.json');
+        }
+
+        // Show traceback if available
+        if (generatorPyodide) {
+            try {
+                const tb = await generatorPyodide.runPythonAsync('import traceback; traceback.format_exc()');
+                appendToConsole('');
+                appendToConsole('Python traceback:');
+                tb.split('\n').forEach(line => line && appendToConsole(line));
+            } catch (e) {}
+        }
 
         document.querySelector('#loading-generator .loading-detail').textContent =
             `Error loading generator: ${error.message}`;
@@ -259,14 +277,24 @@ function getDesignFunction(mode) {
 }
 
 function getInputs(mode) {
-    const pressureAngle = parseFloat(document.getElementById('pressure-angle').value);
-    const backlash = parseFloat(document.getElementById('backlash').value);
-    const numStarts = parseInt(document.getElementById('num-starts').value);
+    // Helper to safely parse numbers, returning null if invalid
+    const safeParseFloat = (value) => {
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? null : parsed;
+    };
+    const safeParseInt = (value) => {
+        const parsed = parseInt(value);
+        return isNaN(parsed) ? null : parsed;
+    };
+
+    const pressureAngle = safeParseFloat(document.getElementById('pressure-angle').value);
+    const backlash = safeParseFloat(document.getElementById('backlash').value);
+    const numStarts = safeParseInt(document.getElementById('num-starts').value);
     const hand = document.getElementById('hand').value;
-    const profileShift = parseFloat(document.getElementById('profile-shift').value);
+    const profileShift = safeParseFloat(document.getElementById('profile-shift').value);
     const profile = document.getElementById('profile').value;
     const wormType = document.getElementById('worm-type').value;
-    const throatReduction = parseFloat(document.getElementById('throat-reduction').value) || 0.0;
+    const throatReduction = safeParseFloat(document.getElementById('throat-reduction').value) || 0.0;
     const wheelThroated = document.getElementById('wheel-throated').checked;
 
     const baseInputs = {
@@ -285,28 +313,28 @@ function getInputs(mode) {
         case 'envelope':
             return {
                 ...baseInputs,
-                worm_od: parseFloat(document.getElementById('worm-od').value),
-                wheel_od: parseFloat(document.getElementById('wheel-od').value),
-                ratio: parseInt(document.getElementById('ratio').value)
+                worm_od: safeParseFloat(document.getElementById('worm-od').value),
+                wheel_od: safeParseFloat(document.getElementById('wheel-od').value),
+                ratio: safeParseInt(document.getElementById('ratio').value)
             };
         case 'from-wheel':
             return {
                 ...baseInputs,
-                wheel_od: parseFloat(document.getElementById('wheel-od-fw').value),
-                ratio: parseInt(document.getElementById('ratio-fw').value),
-                target_lead_angle: parseFloat(document.getElementById('target-lead-angle').value)
+                wheel_od: safeParseFloat(document.getElementById('wheel-od-fw').value),
+                ratio: safeParseInt(document.getElementById('ratio-fw').value),
+                target_lead_angle: safeParseFloat(document.getElementById('target-lead-angle').value)
             };
         case 'from-module':
             return {
                 ...baseInputs,
-                module: parseFloat(document.getElementById('module').value),
-                ratio: parseInt(document.getElementById('ratio-fm').value)
+                module: safeParseFloat(document.getElementById('module').value),
+                ratio: safeParseInt(document.getElementById('ratio-fm').value)
             };
         case 'from-centre-distance':
             return {
                 ...baseInputs,
-                centre_distance: parseFloat(document.getElementById('centre-distance').value),
-                ratio: parseInt(document.getElementById('ratio-fcd').value)
+                centre_distance: safeParseFloat(document.getElementById('centre-distance').value),
+                ratio: safeParseInt(document.getElementById('ratio-fcd').value)
             };
         default:
             return baseInputs;
@@ -315,6 +343,7 @@ function getInputs(mode) {
 
 function formatArgs(inputs) {
     return Object.entries(inputs)
+        .filter(([key, value]) => value !== null && value !== undefined)  // Skip null/undefined values
         .map(([key, value]) => {
             if (key === 'hand') return `hand=Hand.${value}`;
             if (key === 'profile') return `profile=WormProfile.${value}`;
