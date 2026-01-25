@@ -335,6 +335,8 @@ print("")
 
 worm_b64 = None
 wheel_b64 = None
+worm_stl_b64 = None
+wheel_stl_b64 = None
 
 # Generate worm if requested
 if generate_type in ['worm', 'both']:
@@ -368,9 +370,28 @@ if generate_type in ['worm', 'both']:
 
         worm_b64 = base64.b64encode(worm_step).decode('utf-8')
 
+        # Export STL for 3D printing
+        print("  Exporting to STL format...")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
+            temp_stl_path = tmp.name
+
+        # Use build123d export_stl
+        from build123d import export_stl
+        export_stl(worm, temp_stl_path)
+
+        # Read back as bytes
+        with open(temp_stl_path, 'rb') as f:
+            worm_stl = f.read()
+
+        # Clean up temp file
+        os.unlink(temp_stl_path)
+
+        worm_stl_b64 = base64.b64encode(worm_stl).decode('utf-8')
+
         size_kb = len(worm_step) / 1024
+        stl_size_kb = len(worm_stl) / 1024
         print(f"✓ Worm generated successfully!")
-        print(f"  File size: {size_kb:.1f} KB ({len(worm_step)} bytes)")
+        print(f"  STEP size: {size_kb:.1f} KB, STL size: {stl_size_kb:.1f} KB")
     except Exception as e:
         print(f"✗ Worm generation failed: {e}")
         import traceback
@@ -427,9 +448,28 @@ if generate_type in ['wheel', 'both']:
 
         wheel_b64 = base64.b64encode(wheel_step).decode('utf-8')
 
+        # Export STL for 3D printing
+        print("  Exporting to STL format...")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
+            temp_stl_path = tmp.name
+
+        # Use build123d export_stl
+        from build123d import export_stl
+        export_stl(wheel, temp_stl_path)
+
+        # Read back as bytes
+        with open(temp_stl_path, 'rb') as f:
+            wheel_stl = f.read()
+
+        # Clean up temp file
+        os.unlink(temp_stl_path)
+
+        wheel_stl_b64 = base64.b64encode(wheel_stl).decode('utf-8')
+
         size_kb = len(wheel_step) / 1024
+        stl_size_kb = len(wheel_stl) / 1024
         print(f"✓ Wheel generated successfully!")
-        print(f"  File size: {size_kb:.1f} KB ({len(wheel_step)} bytes)")
+        print(f"  STEP size: {size_kb:.1f} KB, STL size: {stl_size_kb:.1f} KB")
     except Exception as e:
         print(f"✗ Wheel generation failed: {e}")
         import traceback
@@ -456,6 +496,8 @@ elif generate_type == 'both':
 {
     'worm': worm_b64,
     'wheel': wheel_b64,
+    'worm_stl': worm_stl_b64,
+    'wheel_stl': wheel_stl_b64,
     'success': (generate_type == 'worm' and worm_b64 is not None) or
                (generate_type == 'wheel' and wheel_b64 is not None) or
                (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)
@@ -466,12 +508,16 @@ elif generate_type == 'both':
         const success = result.get('success');
         const wormB64 = result.get('worm');
         const wheelB64 = result.get('wheel');
+        const wormStlB64 = result.get('worm_stl');
+        const wheelStlB64 = result.get('wheel_stl');
 
         self.postMessage({
             type: 'GENERATE_COMPLETE',
             success: success,
             worm: wormB64,
-            wheel: wheelB64
+            wheel: wheelB64,
+            worm_stl: wormStlB64,
+            wheel_stl: wheelStlB64
         });
 
     } catch (error) {

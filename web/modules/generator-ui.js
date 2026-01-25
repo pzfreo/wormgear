@@ -170,8 +170,8 @@ export function handleProgress(message, percent) {
         } else {
             updateSubProgress(null);
         }
-    } else if (msgLower.includes('export') || msgLower.includes('step format')) {
-        setMainStep('export', 'Exporting STEP files...');
+    } else if (msgLower.includes('export') || msgLower.includes('step format') || msgLower.includes('stl format')) {
+        setMainStep('export', 'Exporting files...');
         updateSubProgress(null);
     }
 
@@ -204,10 +204,12 @@ export async function handleGenerateComplete(data) {
     console.log('[DEBUG] handleGenerateComplete received:', {
         hasWorm: !!data.worm,
         hasWheel: !!data.wheel,
+        hasWormStl: !!data.worm_stl,
+        hasWheelStl: !!data.wheel_stl,
         success: data.success
     });
 
-    const { worm, wheel, success } = data;
+    const { worm, wheel, worm_stl, wheel_stl, success } = data;
 
     if (!success) {
         appendToConsole('⚠️ Generation completed with errors');
@@ -275,6 +277,8 @@ to_markdown(design, validation)
     window.generatedSTEP = {
         worm: worm,
         wheel: wheel,
+        worm_stl: worm_stl,
+        wheel_stl: wheel_stl,
         markdown: markdown
     };
 
@@ -334,6 +338,8 @@ async function createAndDownloadZip() {
             hasDesign: !!design,
             hasWorm: !!stepData.worm,
             hasWheel: !!stepData.wheel,
+            hasWormStl: !!stepData.worm_stl,
+            hasWheelStl: !!stepData.wheel_stl,
             hasMarkdown: !!stepData.markdown,
             markdownLength: stepData.markdown ? stepData.markdown.length : 0
         });
@@ -371,6 +377,27 @@ async function createAndDownloadZip() {
             }
             zip.file('wheel.step', wheelBytes);
             appendToConsole(`  ✓ Added wheel.step (${(wheelBytes.length / 1024).toFixed(1)} KB)`);
+        }
+
+        // Add STL files (decode from base64)
+        if (stepData.worm_stl) {
+            const wormStlBinary = atob(stepData.worm_stl);
+            const wormStlBytes = new Uint8Array(wormStlBinary.length);
+            for (let i = 0; i < wormStlBinary.length; i++) {
+                wormStlBytes[i] = wormStlBinary.charCodeAt(i);
+            }
+            zip.file('worm.stl', wormStlBytes);
+            appendToConsole(`  ✓ Added worm.stl (${(wormStlBytes.length / 1024).toFixed(1)} KB)`);
+        }
+
+        if (stepData.wheel_stl) {
+            const wheelStlBinary = atob(stepData.wheel_stl);
+            const wheelStlBytes = new Uint8Array(wheelStlBinary.length);
+            for (let i = 0; i < wheelStlBinary.length; i++) {
+                wheelStlBytes[i] = wheelStlBinary.charCodeAt(i);
+            }
+            zip.file('wheel.stl', wheelStlBytes);
+            appendToConsole(`  ✓ Added wheel.stl (${(wheelStlBytes.length / 1024).toFixed(1)} KB)`);
         }
 
         // Generate ZIP blob
