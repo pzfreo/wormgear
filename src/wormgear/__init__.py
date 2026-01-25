@@ -41,7 +41,15 @@ from .core import (
 )
 
 # Calculator (Layer 2a)
-# Will be populated as we port from wormgearcalc
+from .calculator import (
+    STANDARD_MODULES,
+    calculate_design_from_module,
+    calculate_design_from_centre_distance,
+    calculate_design_from_wheel,
+    nearest_standard_module,
+    is_standard_module,
+    estimate_efficiency,
+)
 
 # IO (Layer 2b)
 from .io import (
@@ -81,6 +89,15 @@ __all__ = [
     "calculate_default_bore",
     "calculate_default_ddcut",
     "get_din_6885_keyway",
+
+    # Calculator
+    "STANDARD_MODULES",
+    "calculate_design_from_module",
+    "calculate_design_from_centre_distance",
+    "calculate_design_from_wheel",
+    "nearest_standard_module",
+    "is_standard_module",
+    "estimate_efficiency",
 
     # IO
     "load_design_json",
