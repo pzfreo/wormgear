@@ -59,14 +59,13 @@ def test_build_script_runs_successfully():
 
 
 def test_all_required_files_copied():
-    """All required Python files should be copied to web/src/wormgear/."""
+    """All required Python files should be copied to web/wormgear/ (new unified architecture)."""
     # Run build first
     subprocess.run([str(BUILD_SCRIPT)], cwd=WEB_DIR, check=True, capture_output=True)
 
-    web_src_dir = WEB_DIR / "src" / "wormgear"
-
     for required_file in REQUIRED_WASM_FILES:
-        file_path = WEB_DIR / "src" / required_file
+        # Files now copied to web/wormgear/ directly (not web/src/wormgear/)
+        file_path = WEB_DIR / required_file
         assert file_path.exists(), f"Required file missing after build: {required_file}"
         assert file_path.stat().st_size > 0, f"File is empty: {required_file}"
 
@@ -94,8 +93,8 @@ def test_no_pycache_in_output():
     # Run build first
     subprocess.run([str(BUILD_SCRIPT)], cwd=WEB_DIR, check=True, capture_output=True)
 
-    web_src_dir = WEB_DIR / "src" / "wormgear"
-    pycache_dirs = list(web_src_dir.rglob("__pycache__"))
+    web_wormgear_dir = WEB_DIR / "wormgear"
+    pycache_dirs = list(web_wormgear_dir.rglob("__pycache__"))
 
     assert len(pycache_dirs) == 0, f"Found {len(pycache_dirs)} __pycache__ directories in output"
 
@@ -105,8 +104,8 @@ def test_no_pyc_files_in_output():
     # Run build first
     subprocess.run([str(BUILD_SCRIPT)], cwd=WEB_DIR, check=True, capture_output=True)
 
-    web_src_dir = WEB_DIR / "src" / "wormgear"
-    pyc_files = list(web_src_dir.rglob("*.pyc"))
+    web_wormgear_dir = WEB_DIR / "wormgear"
+    pyc_files = list(web_wormgear_dir.rglob("*.pyc"))
 
     assert len(pyc_files) == 0, f"Found {len(pyc_files)} .pyc files in output"
 
@@ -119,18 +118,27 @@ def test_source_files_exist():
 
 
 def test_build_script_validation_list_matches():
-    """Build script REQUIRED_FILES should match our test requirements."""
+    """Build script REQUIRED_FILES should include critical calculator files."""
     build_script_content = BUILD_SCRIPT.read_text()
 
     # Extract REQUIRED_FILES array from bash script
     assert "REQUIRED_FILES=(" in build_script_content, "REQUIRED_FILES not found in build.sh"
 
-    # Check each file is in the validation list
-    for required_file in REQUIRED_WASM_FILES:
-        # Build script checks for src/wormgear/... format
-        build_script_path = f"src/{required_file}"
-        assert build_script_path in build_script_content, (
-            f"File '{build_script_path}' not in build.sh REQUIRED_FILES validation list"
+    # Build script now only validates critical calculator files (not all wormgear files)
+    # It checks for "wormgear/__init__.py" format (in build artifact location)
+    critical_files = [
+        "wormgear/__init__.py",
+        "wormgear/calculator/__init__.py",
+        "wormgear/calculator/core.py",
+        "wormgear/calculator/validation.py",
+        "wormgear/calculator/output.py",
+        "wormgear/calculator/js_bridge.py",
+        "wormgear/calculator/json_schema.py",
+    ]
+
+    for required_file in critical_files:
+        assert f'"{required_file}"' in build_script_content, (
+            f"File '{required_file}' not in build.sh REQUIRED_FILES validation list"
         )
 
 
@@ -154,13 +162,18 @@ def test_vercel_json_has_output_directory():
 
 
 def test_gitignore_excludes_generated_files():
-    """Generated web/src/wormgear/ should be in .gitignore."""
+    """Generated web/wormgear/ and web/src/ should be in .gitignore."""
     gitignore = REPO_ROOT / ".gitignore"
     assert gitignore.exists(), ".gitignore not found"
 
     content = gitignore.read_text()
-    assert "web/src/wormgear/" in content, (
-        "Generated files not in .gitignore - they should not be committed"
+    # New unified architecture: build artifact goes to web/wormgear/
+    assert "web/wormgear/" in content, (
+        "web/wormgear/ not in .gitignore - build artifacts should not be committed"
+    )
+    # Also ensure web/src/ is gitignored (entire directory, legacy pattern)
+    assert "web/src/" in content, (
+        "web/src/ not in .gitignore - should be ignored to prevent old pattern"
     )
 
 
