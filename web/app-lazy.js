@@ -479,68 +479,77 @@ function copyLink() {
 
 async function loadWormGearPackage() {
     try {
-        appendToConsole('Loading wormgear_geometry package...');
+        appendToConsole('Loading wormgear package...');
 
-        // Create package directory and load source files
+        // Create package directory structure
         await generatorPyodide.runPythonAsync(`
 import os
 import sys
-os.makedirs('/home/pyodide/wormgear_geometry', exist_ok=True)
+
+# Create directory structure
+os.makedirs('/home/pyodide/wormgear/core', exist_ok=True)
+os.makedirs('/home/pyodide/wormgear/io', exist_ok=True)
+os.makedirs('/home/pyodide/wormgear/calculator', exist_ok=True)
+
+# Add to Python path
 if '/home/pyodide' not in sys.path:
     sys.path.insert(0, '/home/pyodide')
         `);
 
-        // Fetch and load package files
-        const packageFiles = ['__init__.py', 'io.py', 'worm.py', 'wheel.py', 'features.py'];
+        // Define files to load with their directory structure
+        const packageFiles = [
+            { path: 'wormgear/__init__.py', pyPath: '/home/pyodide/wormgear/__init__.py' },
+            { path: 'wormgear/core/__init__.py', pyPath: '/home/pyodide/wormgear/core/__init__.py' },
+            { path: 'wormgear/core/worm.py', pyPath: '/home/pyodide/wormgear/core/worm.py' },
+            { path: 'wormgear/core/wheel.py', pyPath: '/home/pyodide/wormgear/core/wheel.py' },
+            { path: 'wormgear/core/features.py', pyPath: '/home/pyodide/wormgear/core/features.py' },
+            { path: 'wormgear/core/globoid_worm.py', pyPath: '/home/pyodide/wormgear/core/globoid_worm.py' },
+            { path: 'wormgear/core/virtual_hobbing.py', pyPath: '/home/pyodide/wormgear/core/virtual_hobbing.py' },
+            { path: 'wormgear/io/__init__.py', pyPath: '/home/pyodide/wormgear/io/__init__.py' },
+        ];
+
         let loadedCount = 0;
 
-        for (const filename of packageFiles) {
+        for (const file of packageFiles) {
             let content = null;
-            let loadedFrom = null;
 
-            // Try deployed path first (src/ relative to index.html)
+            // Try to fetch from src/ (relative to web/index.html)
             try {
-                const response = await fetch(`src/wormgear_geometry/${filename}`);
+                const response = await fetch(`src/${file.path}`);
                 if (response.ok) {
                     content = await response.text();
-                    loadedFrom = 'src/';
                 }
             } catch (e) {
-                // Try local dev path (../src/ when serving from project root)
-                try {
-                    const response = await fetch(`../src/wormgear_geometry/${filename}`);
-                    if (response.ok) {
-                        content = await response.text();
-                        loadedFrom = '../src/';
-                    }
-                } catch (e2) {
-                    console.error(`Failed to fetch ${filename}:`, e, e2);
-                }
+                console.error(`Failed to fetch ${file.path}:`, e);
             }
 
             if (content) {
-                generatorPyodide.FS.writeFile(`/home/pyodide/wormgear_geometry/${filename}`, content);
-                appendToConsole(`  ✓ Loaded ${filename} (from ${loadedFrom})`);
+                generatorPyodide.FS.writeFile(file.pyPath, content);
+                appendToConsole(`  ✓ Loaded ${file.path}`);
                 loadedCount++;
             } else {
-                appendToConsole(`  ✗ Failed to load ${filename} from both paths`);
+                appendToConsole(`  ✗ Failed to load ${file.path}`);
             }
         }
 
-        if (loadedCount < packageFiles.length) {
-            appendToConsole(`Warning: Only loaded ${loadedCount}/${packageFiles.length} files`);
+        appendToConsole(`Loaded ${loadedCount}/${packageFiles.length} files`);
+
+        if (loadedCount === 0) {
+            throw new Error('No package files loaded. Run build script: cd web && ./build.sh');
         }
 
         // Test import
         await generatorPyodide.runPythonAsync(`
-import wormgear_geometry
-print(f"wormgear_geometry loaded (version {wormgear_geometry.__version__})")
+import wormgear
+from wormgear.core import WormGeometry, WheelGeometry
+from wormgear.io import WormParams, WheelParams, AssemblyParams
+print(f"✓ wormgear package loaded (version {wormgear.__version__})")
         `);
 
-        appendToConsole('✓ wormgear_geometry package ready');
+        appendToConsole('✓ wormgear package ready');
         return true;
     } catch (error) {
-        appendToConsole(`✗ Failed to load wormgear_geometry: ${error.message}`);
+        appendToConsole(`✗ Failed to load wormgear: ${error.message}`);
         console.error('Package loading error:', error);
         return false;
     }
@@ -664,8 +673,8 @@ import json
 import base64
 import tempfile
 import os
-from wormgear_geometry import WormGeometry, WheelGeometry
-from wormgear_geometry import WormParams, WheelParams, AssemblyParams
+from wormgear.core import WormGeometry, WheelGeometry
+from wormgear.io import WormParams, WheelParams, AssemblyParams
 
 print("📋 Parsing parameters...")
 # Parse design JSON
