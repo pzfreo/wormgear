@@ -351,12 +351,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('copy-link').addEventListener('click', copyLink);
 
     // Setup event listeners for generator
-    document.getElementById('load-from-calc').addEventListener('click', loadFromCalculator);
+    document.getElementById('load-generator-btn').addEventListener('click', () => initGeneratorTab(true));
+    document.getElementById('load-from-calculator').addEventListener('click', loadFromCalculator);
     document.getElementById('load-json-file').addEventListener('click', loadJSONFile);
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
-    document.getElementById('gen-worm').addEventListener('click', () => generateGeometry('worm'));
-    document.getElementById('gen-wheel').addEventListener('click', () => generateGeometry('wheel'));
-    document.getElementById('gen-both').addEventListener('click', () => generateGeometry('both'));
+    document.getElementById('generate-worm-btn').addEventListener('click', () => generateGeometry('worm'));
+    document.getElementById('generate-wheel-btn').addEventListener('click', () => generateGeometry('wheel'));
+    document.getElementById('generate-both-btn').addEventListener('click', () => generateGeometry('both'));
 
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {
@@ -376,6 +377,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('wheel-width').value = currentDesign.manufacturing.wheel_width || 10;
         }
     });
+
+    // Auto-recalculate on input changes
+    const inputs = document.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        input.addEventListener('change', () => {
+            if (getCalculatorPyodide()) calculate();
+        });
+    });
+
+    // Trigger initial UI state updates for bore controls
+    const wormBoreType = document.getElementById('worm-bore-type');
+    const wheelBoreType = document.getElementById('wheel-bore-type');
+    if (wormBoreType) wormBoreType.dispatchEvent(new Event('change'));
+    if (wheelBoreType) wheelBoreType.dispatchEvent(new Event('change'));
 
     // Start loading generator in background (non-blocking)
     initGeneratorTab(false).catch(err => {

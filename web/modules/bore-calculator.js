@@ -167,6 +167,6 @@ export function setupBoreEventListeners() {
     });
 
     // Custom bore diameter changes
-    document.getElementById('worm-bore-diameter').addEventListener('input', updateAntiRotationOptions);
-    document.getElementById('wheel-bore-diameter').addEventListener('input', updateAntiRotationOptions);
+    document.getElementById('worm-bore-diameter').addEventListener('change', updateAntiRotationOptions);
+    document.getElementById('wheel-bore-diameter').addEventListener('change', updateAntiRotationOptions);
 }
