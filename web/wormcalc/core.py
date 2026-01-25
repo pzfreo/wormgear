@@ -35,6 +35,7 @@ class WormProfile(Enum):
     """Worm tooth profile type per DIN 3975"""
     ZA = "ZA"  # Straight trapezoidal flanks - best for CNC machining
     ZK = "ZK"  # Slightly convex flanks - better for 3D printing (FDM layer adhesion)
+    ZI = "ZI"  # Involute profile - high precision applications
 
 
 class WormType(Enum):
@@ -111,6 +112,8 @@ class ManufacturingParams:
     wheel_width: float = 10.0                   # Recommended wheel face width (mm)
     wheel_throated: bool = False                # True for hobbed/throated teeth, False for helical
     profile: WormProfile = WormProfile.ZA       # Tooth profile type per DIN 3975
+    virtual_hobbing: bool = False               # True to use virtual hobbing for wheel generation
+    hobbing_steps: int = 18                     # Number of steps for virtual hobbing (6=fast, 18=balanced, 36=precise)
 
 
 @dataclass

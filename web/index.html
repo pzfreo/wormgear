@@ -70,6 +70,43 @@
             background: #ffc107;
             color: #000;
         }
+
+        /* Calculator two-column layout */
+        .calculator-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .calculator-layout #inputs-section {
+            grid-column: 1;
+            grid-row: 1 / 4;
+        }
+
+        .calculator-layout #validation-section {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .calculator-layout #results-section {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        .calculator-layout #export-section {
+            grid-column: 2;
+            grid-row: 3;
+        }
+
+        @media (max-width: 768px) {
+            .calculator-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .calculator-layout #inputs-section {
+                grid-row: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -88,6 +125,7 @@
         <main>
             <!-- Calculator Tab -->
             <div id="calculator-tab" class="tab-content active">
+                <div class="calculator-layout">
                 <section id="inputs-section">
                     <h2>Inputs</h2>
 
@@ -183,6 +221,7 @@
                             <select id="profile">
                                 <option value="ZA" selected>ZA - Straight (CNC machining)</option>
                                 <option value="ZK">ZK - Convex (3D printing)</option>
+                                <option value="ZI">ZI - Involute (high precision)</option>
                             </select>
 
                             <label for="worm-type">Worm Type:</label>
@@ -197,9 +236,44 @@
                                 <small class="hint">Typical: 0.05-0.1mm for small gears, 0.1-0.2mm for medium, 0.2-0.5mm for large</small>
                             </div>
 
+                            <label for="wheel-generation">Wheel Tooth Generation:</label>
+                            <select id="wheel-generation">
+                                <option value="helical" selected>Helical (simple, fast)</option>
+                                <option value="virtual-hobbing">Virtual Hobbing (accurate throating)</option>
+                            </select>
+
+                            <div id="hobbing-precision-group" style="display: none;">
+                                <label for="hobbing-precision">Virtual Hobbing Precision:</label>
+                                <select id="hobbing-precision">
+                                    <option value="fast">Fast (6 steps, ~10s)</option>
+                                    <option value="balanced" selected>Balanced (18 steps, ~20s)</option>
+                                    <option value="precise">Precise (36 steps, ~60s)</option>
+                                </select>
+                            </div>
+
+                            <div id="throat-option-group">
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="wheel-throated">
+                                    <label for="wheel-throated">Throated wheel teeth (better contact)</label>
+                                    <small class="hint" style="display: block; margin-left: 1.5rem;">Note: Virtual hobbing automatically creates throated teeth</small>
+                                </div>
+                            </div>
+
+                            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Dimensions</h3>
+
                             <div class="checkbox-option">
-                                <input type="checkbox" id="wheel-throated">
-                                <label for="wheel-throated">Throated wheel teeth (hobbed, better contact)</label>
+                                <input type="checkbox" id="use-recommended-dims" checked>
+                                <label for="use-recommended-dims">Use recommended dimensions</label>
+                            </div>
+
+                            <div id="custom-dims-group" style="display: none;">
+                                <label for="worm-length">Worm Length (mm):</label>
+                                <input type="number" id="worm-length" value="40" step="1" min="5">
+                                <small class="hint">Recommended value will be shown after calculation</small>
+
+                                <label for="wheel-width">Wheel Width (mm):</label>
+                                <input type="number" id="wheel-width" value="" placeholder="Auto" step="1" min="5">
+                                <small class="hint">Recommended value will be shown after calculation</small>
                             </div>
                         </div>
                     </details>
@@ -224,6 +298,7 @@
                     <button id="download-md" disabled>Download Markdown</button>
                     <button id="copy-link" disabled>Copy Share Link</button>
                 </section>
+                </div><!-- end calculator-layout -->
             </div>
 
             <!-- Generator Tab -->

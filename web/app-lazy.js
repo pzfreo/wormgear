@@ -295,7 +295,12 @@ function getInputs(mode) {
     const profile = document.getElementById('profile').value;
     const wormType = document.getElementById('worm-type').value;
     const throatReduction = safeParseFloat(document.getElementById('throat-reduction').value) || 0.0;
+    const wheelGeneration = document.getElementById('wheel-generation').value;
+    const hobbingPrecision = document.getElementById('hobbing-precision').value;
     const wheelThroated = document.getElementById('wheel-throated').checked;
+    const useRecommendedDims = document.getElementById('use-recommended-dims').checked;
+    const wormLength = safeParseFloat(document.getElementById('worm-length').value);
+    const wheelWidth = safeParseFloat(document.getElementById('wheel-width').value);
 
     const baseInputs = {
         pressure_angle: pressureAngle,
@@ -306,7 +311,12 @@ function getInputs(mode) {
         profile: profile,
         worm_type: wormType,
         throat_reduction: throatReduction,
-        wheel_throated: wheelThroated
+        wheel_generation: wheelGeneration,
+        hobbing_precision: hobbingPrecision,
+        wheel_throated: wheelThroated,
+        use_recommended_dims: useRecommendedDims,
+        worm_length: wormLength,
+        wheel_width: wheelWidth
     };
 
     switch (mode) {
@@ -1003,6 +1013,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('worm-type').addEventListener('change', (e) => {
         const throatGroup = document.getElementById('throat-reduction-group');
         throatGroup.style.display = e.target.value === 'globoid' ? 'block' : 'none';
+    });
+
+    // Wheel generation switching
+    document.getElementById('wheel-generation').addEventListener('change', (e) => {
+        const isVirtualHobbing = e.target.value === 'virtual-hobbing';
+        const precisionGroup = document.getElementById('hobbing-precision-group');
+        const throatOptionGroup = document.getElementById('throat-option-group');
+
+        precisionGroup.style.display = isVirtualHobbing ? 'block' : 'none';
+
+        // Hide throat option when virtual hobbing (it's automatic)
+        if (isVirtualHobbing) {
+            throatOptionGroup.style.display = 'none';
+            document.getElementById('wheel-throated').checked = false; // Virtual hobbing handles this
+        } else {
+            throatOptionGroup.style.display = 'block';
+        }
+    });
+
+    // Use recommended dimensions switching
+    document.getElementById('use-recommended-dims').addEventListener('change', (e) => {
+        const customDimsGroup = document.getElementById('custom-dims-group');
+        customDimsGroup.style.display = e.target.checked ? 'none' : 'block';
     });
 
     // Input changes trigger recalculation

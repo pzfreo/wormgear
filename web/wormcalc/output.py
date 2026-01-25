@@ -83,8 +83,8 @@ def design_to_dict(design: WormGearDesign) -> dict:
 
     # Build manufacturing section (wormgear schema v1.0 format)
     manufacturing_dict = {
-        "profile": design.profile.value,  # "ZA" or "ZK"
-        "virtual_hobbing": False,  # Not used in calculator
+        "profile": design.profile.value,  # "ZA", "ZK", or "ZI"
+        "virtual_hobbing": False,  # Default, will be updated below
         "hobbing_steps": 18,  # Default value
         "throated_wheel": False,  # Default to helical
         "sections_per_turn": 36,  # Default smoothness
@@ -94,6 +94,11 @@ def design_to_dict(design: WormGearDesign) -> dict:
     if design.manufacturing is not None:
         manufacturing_dict["throated_wheel"] = design.manufacturing.wheel_throated
         manufacturing_dict["profile"] = design.manufacturing.profile.value
+        # Add virtual hobbing settings if available
+        if hasattr(design.manufacturing, 'virtual_hobbing'):
+            manufacturing_dict["virtual_hobbing"] = design.manufacturing.virtual_hobbing
+        if hasattr(design.manufacturing, 'hobbing_steps'):
+            manufacturing_dict["hobbing_steps"] = design.manufacturing.hobbing_steps
 
     # Build result with schema version
     result = {
@@ -359,6 +364,16 @@ def to_summary(design: WormGearDesign) -> str:
         f"Efficiency (est): {design.efficiency_estimate*100:.0f}%",
         f"Self-locking: {'Yes' if design.self_locking else 'No'}",
     ])
+
+    # Add manufacturing recommendations if present
+    if design.manufacturing:
+        lines.extend([
+            "",
+            "Recommended Dimensions:",
+            f"  Worm length:  {design.manufacturing.worm_length:.2f} mm",
+            f"  Wheel width:  {design.manufacturing.wheel_width:.2f} mm",
+        ])
+
     return "\n".join(lines)
 
 
