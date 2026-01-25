@@ -1,0 +1,34 @@
+# Python source (not needed for web deployment)
+src/
+tests/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Development files
+.git/
+.github/
+.vscode/
+*.md
+!web/README.md
+
+# Documentation (except web README)
+docs/
+CLAUDE.md
+ARCHITECTURE.md
+
+# Examples and test data
+examples/
+*.step
+*.json
+!web/**/*.json
+
+# Build artifacts
+dist/
+build/
+*.so
+
+# Local development
+.env
+.DS_Store

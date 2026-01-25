@@ -17,7 +17,17 @@ Wormgear is a unified Python package combining:
 
 ## Quick Start
 
-### Installation
+### Web Interface (No Installation Required)
+
+**🌐 Live at:** https://wormgear.studio
+
+Design your worm gear pair in the browser:
+- Calculate parameters from engineering constraints
+- Real-time validation with DIN 3975/DIN 3996
+- Export JSON for geometry generation
+- No installation required!
+
+### Installation (For Geometry Generation)
 
 ```bash
 pip install build123d
@@ -27,7 +37,7 @@ pip install -e .
 pip install ocp-vscode
 ```
 
-### Web Calculator (Recommended for Design)
+### Local Web Calculator (Optional)
 
 ```bash
 cd web
@@ -35,7 +45,7 @@ python3 -m http.server 8000
 # Open http://localhost:8000
 ```
 
-Design your worm gear pair in the browser, get validated JSON parameters, then generate STEP files.
+Or use the live version at https://wormgear.studio
 
 ### Command Line Geometry Generation
 

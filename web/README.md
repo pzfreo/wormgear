@@ -158,7 +158,27 @@ Requires modern browser with WebAssembly support:
 
 ## Deployment
 
-### GitHub Pages
+### Vercel (Production - wormgear.studio)
+
+**Live Site:** https://wormgear.studio
+
+**Setup:**
+1. Connect repository to Vercel
+2. Set **Root Directory** to `web`
+3. Configure domain: `wormgear.studio`
+4. Deploy automatically on push to main
+
+**Required Headers:** See `vercel.json` in repository root for CORS headers needed by Pyodide/WASM.
+
+**Deploy:**
+```bash
+git push origin main
+# Vercel auto-deploys
+```
+
+See [DEPLOYMENT.md](../DEPLOYMENT.md) for complete Vercel setup guide.
+
+### GitHub Pages (Alternative)
 
 ```bash
 # From repository root
@@ -170,9 +190,13 @@ git push origin main
 # Access at https://yourusername.github.io/worm-gear-3d/
 ```
 
-### Static Hosting (Netlify, Vercel, etc.)
+### Other Static Hosts (Netlify, Cloudflare Pages, etc.)
 
 Point to `web/` directory as root. No build step required - pure static files.
+
+**Important:** Ensure CORS headers are configured for Pyodide/WASM support:
+- `Cross-Origin-Embedder-Policy: require-corp`
+- `Cross-Origin-Opener-Policy: same-origin`
 
 ## Technical Notes
 
