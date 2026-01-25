@@ -392,9 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('load-from-calculator').addEventListener('click', loadFromCalculator);
     document.getElementById('load-json-file').addEventListener('click', loadJSONFile);
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
-    document.getElementById('generate-worm-btn').addEventListener('click', () => generateGeometry('worm'));
-    document.getElementById('generate-wheel-btn').addEventListener('click', () => generateGeometry('wheel'));
-    document.getElementById('generate-both-btn').addEventListener('click', () => generateGeometry('both'));
+    document.getElementById('generate-btn').addEventListener('click', () => generateGeometry('both'));
 
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {

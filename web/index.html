@@ -361,28 +361,30 @@
                         <!-- Left column: Controls -->
                         <div class="generator-controls">
                             <section class="generator-section compact">
-                                <h2>Generate</h2>
                                 <div id="generator-loading-status" style="color: #666; font-size: 0.9em; margin-bottom: 0.75rem;">
                                     Loading generator...
                                 </div>
-                                <div class="button-group">
-                                    <button id="generate-worm-btn" disabled>Generate Worm</button>
-                                    <button id="generate-wheel-btn" disabled>Generate Wheel</button>
-                                    <button id="generate-both-btn" disabled>Generate Both</button>
-                                </div>
+
+                                <button id="generate-btn" disabled style="width: 100%; padding: 0.75rem; font-size: 1rem; font-weight: 600;">
+                                    Generate 3D Models
+                                </button>
+
+                                <p style="font-size: 0.85em; color: #666; margin-top: 0.5rem; margin-bottom: 0.75rem;">
+                                    Generates worm and wheel STEP files
+                                </p>
 
                                 <!-- Progress indicator -->
-                                <div id="generation-progress" style="display: none; margin-top: 1rem;">
+                                <div id="generation-progress" style="display: none; margin-top: 0.75rem;">
                                     <div style="background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 24px;">
                                         <div id="progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85em; font-weight: bold;"></div>
                                     </div>
                                     <div id="progress-text" style="margin-top: 0.5rem; font-size: 0.9em; color: #666;"></div>
                                 </div>
-                            </section>
 
-                            <section class="generator-section compact">
-                                <h2>Download</h2>
-                                <button id="download-zip" disabled style="width: 100%;">Download Complete Package (ZIP)</button>
+                                <button id="download-zip" disabled style="width: 100%; margin-top: 0.75rem;">
+                                    Download Complete Package (ZIP)
+                                </button>
+
                                 <p style="font-size: 0.85em; color: #666; margin-top: 0.5rem; margin-bottom: 0;">
                                     Includes: worm.step, wheel.step, design.json, design.md
                                 </p>

@@ -24,18 +24,11 @@ export function getGeneratorWorker() {
 }
 
 /**
- * Enable generate buttons when generator is ready
+ * Enable generate button when generator is ready
  */
 function enableGenerateButtons() {
-    const buttons = [
-        document.getElementById('generate-worm-btn'),
-        document.getElementById('generate-wheel-btn'),
-        document.getElementById('generate-both-btn')
-    ];
-
-    buttons.forEach(btn => {
-        if (btn) btn.disabled = false;
-    });
+    const btn = document.getElementById('generate-btn');
+    if (btn) btn.disabled = false;
 }
 
 /**
