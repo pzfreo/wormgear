@@ -276,10 +276,10 @@ def to_markdown(
         f"| Parameter | Value |",
         f"|-----------|-------|",
         f"| Ratio | {design.assembly.ratio}:1 |",
-        f"| Module | {design.worm.module:.3f} mm |",
+        f"| Module | {design.worm.module_mm:.3f} mm |",
         f"| Centre Distance | {design.assembly.centre_distance_mm:.2f} mm |",
         f"| Pressure Angle | {design.assembly.pressure_angle_deg}° |",
-        f"| Hand | {design.hand.value.title()} |",
+        f"| Hand | {design.assembly.hand.title()} |",
         f"| Profile | {design.manufacturing.profile if design.manufacturing else "ZA"} (DIN 3975) |",
         f"| Worm Type | {worm_type_str} |",
         f"| Wheel Type | {wheel_type_str} |",
@@ -301,26 +301,26 @@ def to_markdown(
         f"| Parameter | Value |",
         f"|-----------|-------|",
         f"| Number of Starts | {design.worm.num_starts} |",
-        f"| Pitch Diameter | {design.worm.pitch_diameter:.2f} mm |",
-        f"| Tip Diameter (OD) | {design.worm.tip_diameter:.2f} mm |",
-        f"| Root Diameter | {design.worm.root_diameter:.2f} mm |",
-        f"| Lead | {design.worm.lead:.3f} mm |",
-        f"| Axial Pitch | {design.worm.axial_pitch:.3f} mm |",
-        f"| Lead Angle | {design.worm.lead_angle:.2f}° |",
-        f"| Addendum | {design.worm.addendum:.3f} mm |",
-        f"| Dedendum | {design.worm.dedendum:.3f} mm |",
-        f"| Thread Thickness | {design.worm.thread_thickness:.3f} mm |",
+        f"| Pitch Diameter | {design.worm.pitch_diameter_mm:.2f} mm |",
+        f"| Tip Diameter (OD) | {design.worm.tip_diameter_mm:.2f} mm |",
+        f"| Root Diameter | {design.worm.root_diameter_mm:.2f} mm |",
+        f"| Lead | {design.worm.lead_mm:.3f} mm |",
+        f"| Axial Pitch | {design.worm.lead_mm / design.worm.num_starts:.3f} mm |",
+        f"| Lead Angle | {design.worm.lead_angle_deg:.2f}° |",
+        f"| Addendum | {design.worm.addendum_mm:.3f} mm |",
+        f"| Dedendum | {design.worm.dedendum_mm:.3f} mm |",
+        f"| Thread Thickness | {design.worm.thread_thickness_mm:.3f} mm |",
     ])
 
     # Add globoid throat radii if present
-    if design.worm.throat_pitch_radius is not None:
-        lines.append(f"| Throat Pitch Radius | {design.worm.throat_pitch_radius:.3f} mm |")
+    if design.worm.throat_curvature_radius_mm is not None:
+        lines.append(f"| Throat Pitch Radius | {design.worm.throat_curvature_radius_mm:.3f} mm |")
 
-    if design.worm.throat_tip_radius is not None:
-        lines.append(f"| Throat Tip Radius | {design.worm.throat_tip_radius:.3f} mm |")
+    if design.worm.throat_tip_radius_mm is not None:
+        lines.append(f"| Throat Tip Radius | {design.worm.throat_tip_radius_mm:.3f} mm |")
 
-    if design.worm.throat_root_radius is not None:
-        lines.append(f"| Throat Root Radius | {design.worm.throat_root_radius:.3f} mm |")
+    if design.worm.throat_root_radius_mm is not None:
+        lines.append(f"| Throat Root Radius | {design.worm.throat_root_radius_mm:.3f} mm |")
 
     lines.extend([
         "",
@@ -329,13 +329,13 @@ def to_markdown(
         f"| Parameter | Value |",
         f"|-----------|-------|",
         f"| Number of Teeth | {design.wheel.num_teeth} |",
-        f"| Pitch Diameter | {design.wheel.pitch_diameter:.2f} mm |",
-        f"| Tip Diameter (OD) | {design.wheel.tip_diameter:.2f} mm |",
-        f"| Root Diameter | {design.wheel.root_diameter:.2f} mm |",
-        f"| Throat Diameter | {design.wheel.throat_diameter:.2f} mm |",
-        f"| Helix Angle | {design.wheel.helix_angle:.2f}° |",
-        f"| Addendum | {design.wheel.addendum:.3f} mm |",
-        f"| Dedendum | {design.wheel.dedendum:.3f} mm |",
+        f"| Pitch Diameter | {design.wheel.pitch_diameter_mm:.2f} mm |",
+        f"| Tip Diameter (OD) | {design.wheel.tip_diameter_mm:.2f} mm |",
+        f"| Root Diameter | {design.wheel.root_diameter_mm:.2f} mm |",
+        f"| Throat Diameter | {design.wheel.throat_diameter_mm:.2f} mm |",
+        f"| Helix Angle | {design.wheel.helix_angle_deg:.2f}° |",
+        f"| Addendum | {design.wheel.addendum_mm:.3f} mm |",
+        f"| Dedendum | {design.wheel.dedendum_mm:.3f} mm |",
         f"| Profile Shift | {design.wheel.profile_shift:.3f} |",
         "",
     ])
@@ -429,31 +429,31 @@ def to_summary(design: WormGearDesign) -> str:
     lines = [
         "═══ Worm Gear Design ═══",
         f"Ratio: {design.assembly.ratio}:1",
-        f"Module: {design.worm.module:.3f} mm",
+        f"Module: {design.worm.module_mm:.3f} mm",
         f"Profile: {design.manufacturing.profile if design.manufacturing else "ZA"} | Worm: {worm_type_str}",
         "",
         "Worm:",
-        f"  Tip diameter (OD): {design.worm.tip_diameter:.2f} mm",
-        f"  Pitch diameter:    {design.worm.pitch_diameter:.2f} mm",
-        f"  Root diameter:     {design.worm.root_diameter:.2f} mm",
-        f"  Lead angle:        {design.worm.lead_angle:.1f}°",
+        f"  Tip diameter (OD): {design.worm.tip_diameter_mm:.2f} mm",
+        f"  Pitch diameter:    {design.worm.pitch_diameter_mm:.2f} mm",
+        f"  Root diameter:     {design.worm.root_diameter_mm:.2f} mm",
+        f"  Lead angle:        {design.worm.lead_angle_deg:.1f}°",
         f"  Starts:            {design.worm.num_starts}",
     ]
 
     # Add globoid throat info if present
-    if design.worm.throat_pitch_radius is not None:
+    if design.worm.throat_curvature_radius_mm is not None:
         lines.extend([
-            f"  Throat pitch rad:  {design.worm.throat_pitch_radius:.2f} mm",
+            f"  Throat pitch rad:  {design.worm.throat_curvature_radius_mm:.2f} mm",
         ])
 
     lines.extend([
         "",
         "Wheel:",
-        f"  Tip diameter (OD): {design.wheel.tip_diameter:.2f} mm",
-        f"  Pitch diameter:    {design.wheel.pitch_diameter:.2f} mm",
-        f"  Root diameter:     {design.wheel.root_diameter:.2f} mm",
+        f"  Tip diameter (OD): {design.wheel.tip_diameter_mm:.2f} mm",
+        f"  Pitch diameter:    {design.wheel.pitch_diameter_mm:.2f} mm",
+        f"  Root diameter:     {design.wheel.root_diameter_mm:.2f} mm",
         f"  Teeth:             {design.wheel.num_teeth}",
-        f"  Helix angle:       {design.wheel.helix_angle:.1f}°",
+        f"  Helix angle:       {design.wheel.helix_angle_deg:.1f}°",
         "",
         f"Centre distance: {design.assembly.centre_distance_mm:.2f} mm",
         f"Efficiency (est): {design.assembly.efficiency_percent / 100*100:.0f}%",
