@@ -16,7 +16,7 @@ from .core import (
 from .validation import ValidationResult, ValidationMessage, Severity
 
 
-def design_to_dict(design: WormGearDesign, bore_settings: dict = None) -> dict:
+def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufacturing_settings: dict = None) -> dict:
     """
     Convert design to a plain dictionary suitable for JSON serialization.
 
@@ -25,6 +25,7 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None) -> dict:
     Args:
         design: The worm gear design
         bore_settings: Optional dict with bore configuration from UI
+        manufacturing_settings: Optional dict with manufacturing/dimension settings from UI
     """
     # Build worm section
     worm_dict = {
@@ -60,6 +61,12 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None) -> dict:
         worm_dict["throat_curvature_radius_mm"] = round(design.worm.throat_pitch_radius, 3)
         # Note: throat_tip_radius and throat_root_radius are not in WormParams schema v1.0
 
+    # Add custom worm length if specified
+    if manufacturing_settings:
+        worm_length = manufacturing_settings.get('worm_length')
+        if worm_length is not None:
+            worm_dict["length_mm"] = float(worm_length)
+
     # Build wheel section
     wheel_dict = {
         "module_mm": round(design.wheel.module, 4),
@@ -73,6 +80,12 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None) -> dict:
         "dedendum_mm": round(design.wheel.dedendum, 3),
         "profile_shift": round(design.wheel.profile_shift, 4),
     }
+
+    # Add custom wheel width if specified
+    if manufacturing_settings:
+        wheel_width = manufacturing_settings.get('wheel_width')
+        if wheel_width is not None:
+            wheel_dict["width_mm"] = float(wheel_width)
 
     # Build assembly section (includes efficiency and self-locking)
     assembly_dict = {
@@ -185,7 +198,8 @@ def to_json(
     design: WormGearDesign,
     validation: Optional[ValidationResult] = None,
     indent: int = 2,
-    bore_settings: Optional[dict] = None
+    bore_settings: Optional[dict] = None,
+    manufacturing_settings: Optional[dict] = None
 ) -> str:
     """
     Export design to JSON string (wormgear schema v1.0).
@@ -195,11 +209,12 @@ def to_json(
         validation: Optional validation result to include
         indent: JSON indentation (default 2)
         bore_settings: Optional bore configuration from UI
+        manufacturing_settings: Optional manufacturing/dimension settings from UI
 
     Returns:
         JSON string compatible with wormgear package
     """
-    data = design_to_dict(design, bore_settings=bore_settings)
+    data = design_to_dict(design, bore_settings=bore_settings, manufacturing_settings=manufacturing_settings)
 
     if validation:
         data["validation"] = validation_to_dict(validation)

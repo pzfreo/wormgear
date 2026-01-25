@@ -270,11 +270,9 @@
                             <div id="custom-dims-group" style="display: none;">
                                 <label for="worm-length">Worm Length (mm):</label>
                                 <input type="number" id="worm-length" value="40" step="1" min="5">
-                                <small class="hint">Recommended value will be shown after calculation</small>
 
                                 <label for="wheel-width">Wheel Width (mm):</label>
-                                <input type="number" id="wheel-width" value="" placeholder="Auto" step="1" min="5">
-                                <small class="hint">Recommended value will be shown after calculation</small>
+                                <input type="number" id="wheel-width" value="10" step="1" min="5">
                             </div>
 
                             <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Bores & Keyways</h3>
@@ -371,21 +369,6 @@
                                 <button id="load-from-calculator">Load from Calculator</button>
                                 <input type="file" id="json-file-input" accept=".json" style="display: none;">
                                 <button id="load-json-file">Upload JSON File</button>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="generator-section">
-                        <h2>Generation Options</h2>
-                        <p class="hint">Profile, worm type, and wheel type are defined in the design JSON above.</p>
-                        <div class="controls">
-                            <div class="control-group">
-                                <label for="gen-worm-length">Worm Length (mm):</label>
-                                <input type="number" id="gen-worm-length" value="40" step="1" min="10">
-                            </div>
-                            <div class="control-group">
-                                <label for="gen-wheel-width">Wheel Width (mm):</label>
-                                <input type="number" id="gen-wheel-width" placeholder="Auto" step="1" min="5">
                             </div>
                         </div>
                     </section>

@@ -431,9 +431,9 @@ function calculate() {
         const manufacturingSettings = {
             virtual_hobbing: inputs.virtual_hobbing || false,
             hobbing_steps: inputs.hobbing_steps || 72,
-            worm_length: inputs.worm_length || null,
-            wheel_width: inputs.wheel_width || null,
-            use_recommended_dims: inputs.use_recommended_dims !== false  // Default true
+            use_recommended_dims: inputs.use_recommended_dims !== false,  // Default true
+            worm_length: inputs.use_recommended_dims ? null : inputs.worm_length,
+            wheel_width: inputs.use_recommended_dims ? null : inputs.wheel_width
         };
 
         // Set as globals so Python can access them
@@ -461,7 +461,7 @@ if mfg_settings and design.manufacturing:
 
 json.dumps({
     'summary': to_summary(design),
-    'json_output': to_json(design, validation, bore_settings=bore_settings),
+    'json_output': to_json(design, validation, bore_settings=bore_settings, manufacturing_settings=mfg_settings),
     'markdown': to_markdown(design, validation),
     'valid': validation.valid,
     'messages': [
@@ -722,17 +722,29 @@ async function generateGeometry(type) {
             return;
         }
 
-        // Get options from UI
-        const wormLength = parseFloat(document.getElementById('gen-worm-length').value) || 40;
-        const wheelWidthInput = document.getElementById('gen-wheel-width').value;
-        const wheelWidth = wheelWidthInput ? parseFloat(wheelWidthInput) : null;
-
         // Get settings from design JSON
         const manufacturing = designData.manufacturing || {};
         const isGloboid = designData.worm.throat_curvature_radius_mm !== undefined;
         const virtualHobbing = manufacturing.virtual_hobbing || false;
         const hobbingSteps = manufacturing.hobbing_steps || 72;
         const profile = manufacturing.profile || 'ZA';
+
+        // Get dimensions from calculator settings (or use defaults)
+        // If design has worm.length_mm from calculator, use it; otherwise use recommended
+        let wormLength = designData.worm.length_mm;
+        if (!wormLength && manufacturing.worm_length) {
+            wormLength = manufacturing.worm_length;
+        }
+        if (!wormLength) {
+            wormLength = 40; // Fallback default
+        }
+
+        // Wheel width - prefer design value, then manufacturing recommendation, then null (auto)
+        let wheelWidth = designData.wheel.width_mm;
+        if (!wheelWidth && manufacturing.wheel_width) {
+            wheelWidth = manufacturing.wheel_width;
+        }
+        // wheelWidth can be null/undefined for auto-calculation
 
         appendToConsole('Starting geometry generation...');
         appendToConsole(`Parameters:`);
