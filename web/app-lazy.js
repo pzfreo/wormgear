@@ -54,7 +54,7 @@ async function initCalculator() {
         });
 
         // Load local Python files
-        const files = ['__init__.py', 'core.py', 'validation.py', 'output.py'];
+        const files = ['__init__.py', 'core.py', 'validation.py', 'output.py', 'js_bridge.py', 'json_schema.py'];
         calculatorPyodide.FS.mkdir('/home/pyodide/wormcalc');
 
         for (const file of files) {
