@@ -144,8 +144,25 @@ function updateSubProgress(percent, message = null) {
                     emaRate = numerator / denominator;
                 }
 
-                // Detect trend (is work slowing down?)
-                let trendMultiplier = 1.0;
+                // Apply slowdown prediction based on known O(n²) complexity
+                // Virtual hobbing gets progressively slower as geometry complexity increases
+                let complexityMultiplier = 1.0;
+                if (percent < 30) {
+                    // Early phase: assume rate will triple by completion
+                    complexityMultiplier = 3.0;
+                } else if (percent < 60) {
+                    // Middle phase: assume rate will double by completion
+                    complexityMultiplier = 2.0;
+                } else if (percent < 85) {
+                    // Late phase: assume rate will increase 50% more
+                    complexityMultiplier = 1.5;
+                } else {
+                    // Final phase: rate is mostly stable
+                    complexityMultiplier = 1.2;
+                }
+
+                // Also detect empirical trend from recent observations
+                let empiricalMultiplier = 1.0;
                 if (hobbingRateHistory.length >= 4) {
                     const midpoint = Math.floor(hobbingRateHistory.length / 2);
                     const firstHalf = hobbingRateHistory.slice(0, midpoint);
@@ -156,10 +173,12 @@ function updateSubProgress(percent, message = null) {
 
                     if (avgSecond > avgFirst) {
                         const acceleration = avgSecond / avgFirst;
-                        // More aggressive multiplier for detected acceleration, capped at 2.5x
-                        trendMultiplier = Math.min(2.5, 1.0 + (acceleration - 1.0) * 0.8);
+                        empiricalMultiplier = Math.min(2.0, acceleration);
                     }
                 }
+
+                // Use the higher of the two predictions (more conservative)
+                const trendMultiplier = Math.max(complexityMultiplier, empiricalMultiplier);
 
                 // Estimate remaining time
                 const percentRemaining = 100 - percent;
