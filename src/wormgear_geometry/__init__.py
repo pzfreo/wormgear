@@ -28,8 +28,12 @@ from .io import (
     AssemblyParams,
     WormGearDesign,
     ManufacturingParams,
-    ManufacturingFeatures,
-    create_manufacturing_features_from_parts
+    ManufacturingFeatures,  # Legacy
+    Features,
+    WormFeatures,
+    WheelFeatures,
+    SetScrewSpec,
+    HubSpec
 )
 from .features import (
     BoreFeature,
@@ -55,8 +59,12 @@ __all__ = [
     "AssemblyParams",
     "WormGearDesign",
     "ManufacturingParams",
-    "ManufacturingFeatures",
-    "create_manufacturing_features_from_parts",
+    "ManufacturingFeatures",  # Legacy
+    "Features",
+    "WormFeatures",
+    "WheelFeatures",
+    "SetScrewSpec",
+    "HubSpec",
     "BoreFeature",
     "KeywayFeature",
     "SetScrewFeature",

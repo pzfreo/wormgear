@@ -3,6 +3,9 @@ JSON schema definition and validation for worm gear parameters.
 
 This defines the contract between wormgearcalc (calculator) and
 wormgear-geometry (3D generation).
+
+Schema v1.0 uses Option B: Separate features section for clean separation
+between dimensional data and manufacturing features.
 """
 
 from typing import Dict, List, Optional, Any
@@ -13,18 +16,21 @@ SCHEMA_VERSION = "1.0"
 
 def get_schema_v1() -> Dict:
     """
-    Get JSON schema version 1.0.
+    Get JSON schema version 1.0 (Option B: Separate features section).
 
     This is the standard format for exchanging worm gear parameters
     between the calculator and geometry generator.
     """
     return {
         "schema_version": "1.0",
-        "required_fields": [
-            "schema_version",
+        "required_sections": [
             "worm",
             "wheel",
             "assembly"
+        ],
+        "optional_sections": [
+            "features",
+            "manufacturing"
         ],
         "worm_fields": {
             "required": [
@@ -41,19 +47,11 @@ def get_schema_v1() -> Dict:
                 "hand"
             ],
             "optional": [
+                "profile_shift",  # Profile shift coefficient
                 "type",  # "cylindrical" or "globoid"
-                "profile_shift",
                 "throat_reduction_mm",  # Globoid only
                 "throat_curvature_radius_mm",  # Globoid only
-                "recommended_length_mm",  # Calculator suggestion
-                "min_length_mm",  # Calculator constraint
-                "length_mm",  # Actual length to generate
-                "bore_diameter_mm",  # Bore diameter (None for solid)
-                "bore_auto",  # True to auto-calculate bore
-                "keyway_standard",  # "DIN6885" or "none"
-                "keyway_auto",  # True to auto-size keyway to bore
-                "set_screw_diameter_mm",  # Set screw size
-                "set_screw_count"  # Number of set screws
+                "length_mm"  # Actual length to generate (if not specified, CLI provides default)
             ]
         },
         "wheel_fields": {
@@ -63,49 +61,63 @@ def get_schema_v1() -> Dict:
                 "pitch_diameter_mm",
                 "tip_diameter_mm",
                 "root_diameter_mm",
+                "throat_diameter_mm",
+                "helix_angle_deg",
                 "addendum_mm",
                 "dedendum_mm"
             ],
             "optional": [
-                "throat_diameter_mm",
-                "helix_angle_deg",
-                "profile_shift",
-                "recommended_width_mm",  # Calculator suggestion
-                "max_width_mm",  # Calculator constraint
-                "min_width_mm",  # Calculator constraint
-                "width_mm",  # Actual width to generate
-                "bore_diameter_mm",  # Bore diameter (None for solid)
-                "bore_auto",  # True to auto-calculate bore
-                "keyway_standard",  # "DIN6885" or "none"
-                "keyway_auto",  # True to auto-size keyway to bore
-                "set_screw_diameter_mm",  # Set screw size
-                "set_screw_count",  # Number of set screws
-                "hub_type",  # "flush", "extended", "flanged", or "none"
-                "hub_length_mm",  # Hub extension length
-                "hub_flange_diameter_mm",  # Flange diameter (flanged only)
-                "hub_bolt_holes"  # Number of bolt holes (flanged only)
+                "profile_shift",  # Profile shift coefficient
+                "width_mm"  # Actual width to generate (if not specified, auto-calculated)
             ]
         },
         "assembly_fields": {
             "required": [
                 "centre_distance_mm",
                 "pressure_angle_deg",
+                "backlash_mm",
                 "hand",
                 "ratio"
             ],
             "optional": [
-                "backlash_mm"
+                "efficiency_percent",
+                "self_locking"
             ]
         },
+        "features_section": {
+            "worm": {
+                "bore_diameter_mm": "float",  # Bore diameter (None for solid)
+                "anti_rotation": "string",  # "none" | "DIN6885" | "ddcut"
+                "ddcut_depth_percent": "float",  # DD-cut depth % (default: 15, only if anti_rotation="ddcut")
+                "set_screw": {
+                    "size": "string",  # e.g., "M2", "M3", "M4"
+                    "count": "int"  # Number of set screws (1-3)
+                }
+            },
+            "wheel": {
+                "bore_diameter_mm": "float",
+                "anti_rotation": "string",  # "none" | "DIN6885" | "ddcut"
+                "ddcut_depth_percent": "float",  # DD-cut depth % (default: 15, only if anti_rotation="ddcut")
+                "set_screw": {
+                    "size": "string",
+                    "count": "int"
+                },
+                "hub": {
+                    "type": "string",  # "flush", "extended", "flanged"
+                    "length_mm": "float",  # For extended/flanged
+                    "flange_diameter_mm": "float",  # For flanged only
+                    "flange_thickness_mm": "float",  # For flanged only
+                    "bolt_holes": "int",  # For flanged only
+                    "bolt_diameter_mm": "float"  # For flanged only
+                }
+            }
+        },
         "manufacturing_fields": {
-            "required": [],
-            "optional": [
-                "profile",  # "ZA", "ZK", or "ZI" per DIN 3975
-                "virtual_hobbing",  # True to use virtual hobbing for wheel
-                "hobbing_steps",  # Number of hobbing steps (default 18)
-                "throated_wheel",  # True for throated/hobbed wheel style
-                "sections_per_turn"  # Smoothness parameter (default 36)
-            ]
+            "profile": "string",  # "ZA", "ZK", or "ZI" per DIN 3975
+            "virtual_hobbing": "bool",  # True to use virtual hobbing for wheel
+            "hobbing_steps": "int",  # Number of hobbing steps (default: 18)
+            "throated_wheel": "bool",  # True for throated/hobbed wheel style
+            "sections_per_turn": "int"  # Smoothness parameter (default: 36)
         }
     }
 
@@ -137,13 +149,34 @@ def validate_json_schema(data: Dict) -> Dict[str, Any]:
     # Check schema version
     schema_version = data.get("schema_version", "unknown")
     if schema_version == "unknown":
-        errors.append("Missing 'schema_version' field")
+        warnings.append("Missing 'schema_version' field (assuming legacy format)")
     elif schema_version != SCHEMA_VERSION:
         warnings.append(f"Schema version {schema_version} != current {SCHEMA_VERSION}")
 
-    # TODO: Validate required fields
-    # TODO: Validate field types
-    # TODO: Validate value ranges
+    # Validate required sections
+    for section in ["worm", "wheel", "assembly"]:
+        if section not in data:
+            errors.append(f"Missing required section: '{section}'")
+
+    # Validate anti_rotation field if features section exists
+    if "features" in data:
+        for part_name in ["worm", "wheel"]:
+            if part_name in data["features"]:
+                part_features = data["features"][part_name]
+                anti_rot = part_features.get("anti_rotation")
+                if anti_rot is not None:
+                    valid_values = ["none", "DIN6885", "ddcut"]
+                    if anti_rot not in valid_values:
+                        errors.append(
+                            f"Invalid anti_rotation value '{anti_rot}' for {part_name}. "
+                            f"Must be one of: {', '.join(valid_values)}"
+                        )
+                    # Check that ddcut_depth_percent is provided if using ddcut
+                    if anti_rot == "ddcut" and "ddcut_depth_percent" not in part_features:
+                        warnings.append(
+                            f"{part_name}.anti_rotation='ddcut' but ddcut_depth_percent not specified "
+                            "(will use default 15%)"
+                        )
 
     return {
         "valid": len(errors) == 0,
@@ -185,7 +218,7 @@ def upgrade_schema(data: Dict, target_version: str = SCHEMA_VERSION) -> Dict:
 
 def create_example_schema_v1() -> Dict:
     """
-    Create an example JSON file with all fields documented.
+    Create an example JSON file with all fields documented (Option B format).
 
     This can be used as a template by the calculator.
     """
@@ -193,94 +226,93 @@ def create_example_schema_v1() -> Dict:
         "schema_version": "1.0",
         "_generator": "wormgearcalc v2.0.0",
         "_created": datetime.now().isoformat(),
-        "_note": "Example globoid worm gear parameters",
+        "_note": "Example globoid worm gear with features - Schema v1.0 Option B",
 
         "worm": {
-            "type": "globoid",  # "cylindrical" or "globoid"
+            # Core dimensions (required)
             "module_mm": 0.4,
             "num_starts": 1,
-            "pitch_diameter_mm": 6.2,
-            "tip_diameter_mm": 7.0,
-            "root_diameter_mm": 5.2,
+            "pitch_diameter_mm": 6.8,
+            "tip_diameter_mm": 7.6,
+            "root_diameter_mm": 5.8,
             "lead_mm": 1.257,
-            "lead_angle_deg": 3.67,
+            "lead_angle_deg": 3.35,
             "addendum_mm": 0.4,
             "dedendum_mm": 0.5,
             "thread_thickness_mm": 0.628,
             "hand": "right",
             "profile_shift": 0.0,
 
+            # Worm type (optional)
+            "type": "globoid",  # "cylindrical" or "globoid"
+
             # Globoid-specific (only if type="globoid")
-            "throat_reduction_mm": 0.0,
+            "throat_reduction_mm": 0.05,
             "throat_curvature_radius_mm": 3.0,
 
-            # Recommendations from calculator
-            "recommended_length_mm": 6.0,
-            "min_length_mm": 5.0,
-
-            # Geometry parameters (optional, can override on CLI)
-            "length_mm": 6.0,  # Actual length to generate
-            "bore_diameter_mm": null,  # null for solid, or diameter
-            "bore_auto": true,  # Auto-calculate bore size
-            "keyway_standard": "DIN6885",  # "DIN6885" or "none"
-            "keyway_auto": true,  # Auto-size keyway to bore
-            "set_screw_diameter_mm": null,  # Set screw size (optional)
-            "set_screw_count": 0  # Number of set screws
+            # Geometry override (optional)
+            "length_mm": 6.0  # If omitted, CLI uses default
         },
 
         "wheel": {
+            # Core dimensions (required)
             "module_mm": 0.4,
             "num_teeth": 15,
             "pitch_diameter_mm": 6.0,
             "tip_diameter_mm": 6.8,
             "root_diameter_mm": 5.1,
             "throat_diameter_mm": 6.4,
-            "helix_angle_deg": 86.33,
+            "helix_angle_deg": 86.65,
             "addendum_mm": 0.4,
             "dedendum_mm": 0.45,
             "profile_shift": 0.0,
 
-            # Recommendations from calculator
-            "recommended_width_mm": 1.5,
-            "max_width_mm": 1.5,
-            "min_width_mm": 0.8,
-
-            # Geometry parameters (optional, can override on CLI)
-            "width_mm": 1.5,  # Actual width to generate
-            "bore_diameter_mm": null,  # null for solid, or diameter
-            "bore_auto": true,  # Auto-calculate bore size
-            "keyway_standard": "DIN6885",  # "DIN6885" or "none"
-            "keyway_auto": true,  # Auto-size keyway to bore
-            "set_screw_diameter_mm": null,  # Set screw size (optional)
-            "set_screw_count": 0,  # Number of set screws
-            "hub_type": "flush",  # "flush", "extended", "flanged", or "none"
-            "hub_length_mm": null,  # Hub extension length (extended/flanged)
-            "hub_flange_diameter_mm": null,  # Flange diameter (flanged only)
-            "hub_bolt_holes": 0  # Number of bolt holes (flanged only)
+            # Geometry override (optional)
+            "width_mm": 1.5  # If omitted, auto-calculated
         },
 
         "assembly": {
-            "centre_distance_mm": 6.1,
+            "centre_distance_mm": 6.35,
             "pressure_angle_deg": 20.0,
             "backlash_mm": 0.02,
             "hand": "right",
-            "ratio": 15
+            "ratio": 15,
+            "efficiency_percent": None,
+            "self_locking": False
         },
 
+        # Optional: Manufacturing features (separate section - Option B)
+        "features": {
+            "worm": {
+                "bore_diameter_mm": 2.0,
+                "anti_rotation": "ddcut",  # "none" | "DIN6885" | "ddcut"
+                "ddcut_depth_percent": 15.0,  # Only if anti_rotation="ddcut"
+                "set_screw": {
+                    "size": "M2",
+                    "count": 1
+                }
+            },
+            "wheel": {
+                "bore_diameter_mm": 2.0,
+                "anti_rotation": "DIN6885",  # Standard keyway
+                "set_screw": None,
+                "hub": {
+                    "type": "flush",  # "flush", "extended", "flanged"
+                    "length_mm": None,
+                    "flange_diameter_mm": None,
+                    "flange_thickness_mm": None,
+                    "bolt_holes": None,
+                    "bolt_diameter_mm": None
+                }
+            }
+        },
+
+        # Optional: Manufacturing parameters
         "manufacturing": {
-            "profile": "ZA",  # Tooth profile: "ZA" (straight), "ZK" (circular arc), "ZI" (involute)
-            "virtual_hobbing": false,  # Use virtual hobbing simulation for wheel
-            "hobbing_steps": 18,  # Number of steps for virtual hobbing (if enabled)
-            "throated_wheel": false,  # True for throated/hobbed wheel style
-            "sections_per_turn": 36  # Loft sections per helix turn (smoothness)
-        },
-
-        "validation": {
-            "valid": true,
-            "warnings": [
-                "Throat reduction 0mm - nearly cylindrical"
-            ],
-            "errors": [],
-            "clearance_mm": 0.05  # centre_distance - worm_tip - wheel_root
+            "profile": "ZA",  # "ZA" (straight), "ZK" (circular arc), "ZI" (involute)
+            "virtual_hobbing": False,  # Use virtual hobbing simulation
+            "hobbing_steps": 18,  # Number of hobbing steps
+            "throated_wheel": False,  # Throated/hobbed wheel style
+            "sections_per_turn": 36  # Smoothness parameter
         }
     }

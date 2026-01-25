@@ -327,6 +327,7 @@ Examples:
         # Determine bore diameter (auto-calculate or override)
         worm_bore = None
         worm_keyway = None
+        worm_ddcut = None
         worm_set_screw = None
         worm_bore_diameter = None
 
@@ -444,6 +445,7 @@ Examples:
         # Determine bore diameter (auto-calculate or override)
         wheel_bore = None
         wheel_keyway = None
+        wheel_ddcut = None
         wheel_set_screw = None
         wheel_bore_diameter = None
 

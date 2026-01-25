@@ -1,0 +1,103 @@
+{
+  "worm": {
+    "module_mm": 0.5,
+    "num_starts": 1,
+    "pitch_diameter_mm": 6.8,
+    "tip_diameter_mm": 7.8,
+    "root_diameter_mm": 5.55,
+    "lead_mm": 1.571,
+    "axial_pitch_mm": 1.571,
+    "lead_angle_deg": 4.21,
+    "addendum_mm": 0.5,
+    "dedendum_mm": 0.625,
+    "thread_thickness_mm": 0.685,
+    "throat_reduction_mm": 0.05,
+    "throat_pitch_radius_mm": 3.35,
+    "throat_tip_radius_mm": 3.85,
+    "throat_root_radius_mm": 2.725
+  },
+  "wheel": {
+    "module_mm": 0.5,
+    "num_teeth": 12,
+    "pitch_diameter_mm": 6.0,
+    "tip_diameter_mm": 7.0,
+    "root_diameter_mm": 4.75,
+    "throat_diameter_mm": 6.5,
+    "helix_angle_deg": 85.79,
+    "addendum_mm": 0.5,
+    "dedendum_mm": 0.625,
+    "profile_shift": 0
+  },
+  "assembly": {
+    "centre_distance_mm": 6.35,
+    "ratio": 12,
+    "pressure_angle_deg": 25,
+    "backlash_mm": 0.1,
+    "hand": "right",
+    "profile": "ZI"
+  },
+  "performance": {
+    "efficiency_estimate": 0.569,
+    "self_locking": true
+  },
+  "manufacturing": {
+    "worm_type": "globoid",
+    "worm_length": 10.14,
+    "wheel_width": 6.0,
+    "wheel_throated": true,
+    "profile": "ZI"
+  },
+  "validation": {
+    "valid": true,
+    "messages": [
+      {
+        "severity": "info",
+        "code": "LEAD_ANGLE_LOW",
+        "message": "Lead angle 4.2\u00b0 gives low efficiency (~57%) but good self-locking",
+        "suggestion": null
+      },
+      {
+        "severity": "info",
+        "code": "TEETH_ACCEPTABLE",
+        "message": "Wheel has 12 teeth - acceptable for 25\u00b0 pressure angle",
+        "suggestion": null
+      },
+      {
+        "severity": "info",
+        "code": "SELF_LOCKING",
+        "message": "Drive should be self-locking (lead angle < 6\u00b0)",
+        "suggestion": "Verify with actual materials and lubrication"
+      },
+      {
+        "severity": "info",
+        "code": "SMALL_CLEARANCE",
+        "message": "Small clearance (0.075mm) - requires careful manufacturing",
+        "suggestion": null
+      },
+      {
+        "severity": "info",
+        "code": "PROFILE_ZK",
+        "message": "ZK profile selected - optimized for 3D printing (FDM)",
+        "suggestion": null
+      },
+      {
+        "severity": "info",
+        "code": "GLOBOID_WORM",
+        "message": "Globoid worm with 0.050mm throat reduction provides better contact with wheel",
+        "suggestion": null
+      },
+      {
+        "severity": "info",
+        "code": "WHEEL_THROATED",
+        "message": "Throated wheel teeth provide better contact area",
+        "suggestion": null
+      },
+      {
+        "severity": "info",
+        "code": "MANUFACTURING_RECOMMENDATIONS",
+        "message": "Recommended: wheel width 6.00mm, worm length 10.14mm",
+        "suggestion": "These are design guidelines based on contact ratio and engagement - adjust as needed"
+      }
+    ]
+  }
+}

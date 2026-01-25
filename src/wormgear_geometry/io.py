@@ -2,7 +2,7 @@
 JSON input/output for worm gear parameters.
 
 Loads design parameters from wormgearcalc (Tool 1) JSON output.
-Supports extended JSON format with manufacturing features (bore, keyway, set screws, hubs).
+Supports schema v1.0 with separate features section (Option B).
 """
 
 import json
@@ -13,7 +13,8 @@ from typing import Optional, Union, Dict, Any
 
 @dataclass
 class WormParams:
-    """Worm parameters from calculator."""
+    """Worm dimensional parameters from calculator."""
+    # Core dimensions (always required)
     module_mm: float
     num_starts: int
     pitch_diameter_mm: float
@@ -26,24 +27,22 @@ class WormParams:
     thread_thickness_mm: float
     hand: str  # "RIGHT" or "LEFT"
     profile_shift: float = 0.0
-    # Optional geometry parameters (from schema v1.0)
+
+    # Worm type (cylindrical or globoid)
     type: Optional[str] = None  # "cylindrical" or "globoid"
-    throat_reduction_mm: Optional[float] = None  # Globoid only
-    throat_curvature_radius_mm: Optional[float] = None  # Globoid only
-    recommended_length_mm: Optional[float] = None
-    min_length_mm: Optional[float] = None
-    length_mm: Optional[float] = None  # Actual length to generate
-    bore_diameter_mm: Optional[float] = None
-    bore_auto: Optional[bool] = None
-    keyway_standard: Optional[str] = None  # "DIN6885" or "none"
-    keyway_auto: Optional[bool] = None
-    set_screw_diameter_mm: Optional[float] = None
-    set_screw_count: Optional[int] = None
+
+    # Globoid-specific parameters (only if type="globoid")
+    throat_reduction_mm: Optional[float] = None
+    throat_curvature_radius_mm: Optional[float] = None
+
+    # Geometry override (if None, CLI provides default)
+    length_mm: Optional[float] = None
 
 
 @dataclass
 class WheelParams:
-    """Wheel parameters from calculator."""
+    """Wheel dimensional parameters from calculator."""
+    # Core dimensions (always required)
     module_mm: float
     num_teeth: int
     pitch_diameter_mm: float
@@ -54,21 +53,9 @@ class WheelParams:
     addendum_mm: float
     dedendum_mm: float
     profile_shift: float = 0.0
-    # Optional geometry parameters (from schema v1.0)
-    recommended_width_mm: Optional[float] = None
-    max_width_mm: Optional[float] = None
-    min_width_mm: Optional[float] = None
-    width_mm: Optional[float] = None  # Actual width to generate
-    bore_diameter_mm: Optional[float] = None
-    bore_auto: Optional[bool] = None
-    keyway_standard: Optional[str] = None  # "DIN6885" or "none"
-    keyway_auto: Optional[bool] = None
-    set_screw_diameter_mm: Optional[float] = None
-    set_screw_count: Optional[int] = None
-    hub_type: Optional[str] = None  # "flush", "extended", "flanged", "none"
-    hub_length_mm: Optional[float] = None
-    hub_flange_diameter_mm: Optional[float] = None
-    hub_bolt_holes: Optional[int] = None
+
+    # Geometry override (if None, CLI auto-calculates)
+    width_mm: Optional[float] = None
 
 
 @dataclass
@@ -84,8 +71,73 @@ class AssemblyParams:
 
 
 @dataclass
+class SetScrewSpec:
+    """Set screw specification."""
+    size: str  # e.g., "M2", "M3", "M4"
+    count: int = 1  # Number of set screws (1-3)
+
+
+@dataclass
+class HubSpec:
+    """Hub specification (wheel only)."""
+    type: str = "flush"  # "flush", "extended", "flanged"
+    length_mm: Optional[float] = None  # For extended/flanged
+    flange_diameter_mm: Optional[float] = None  # For flanged only
+    flange_thickness_mm: Optional[float] = None  # For flanged only
+    bolt_holes: Optional[int] = None  # For flanged only
+    bolt_diameter_mm: Optional[float] = None  # For flanged only
+
+
+@dataclass
+class WormFeatures:
+    """Manufacturing features for worm."""
+    bore_diameter_mm: Optional[float] = None
+    anti_rotation: Optional[str] = None  # "none" | "DIN6885" | "ddcut"
+    ddcut_depth_percent: float = 15.0  # Only used if anti_rotation is "ddcut"
+    set_screw: Optional[SetScrewSpec] = None
+
+
+@dataclass
+class WheelFeatures:
+    """Manufacturing features for wheel."""
+    bore_diameter_mm: Optional[float] = None
+    anti_rotation: Optional[str] = None  # "none" | "DIN6885" | "ddcut"
+    ddcut_depth_percent: float = 15.0  # Only used if anti_rotation is "ddcut"
+    set_screw: Optional[SetScrewSpec] = None
+    hub: Optional[HubSpec] = None
+
+
+@dataclass
+class Features:
+    """Manufacturing features for worm and wheel."""
+    worm: Optional[WormFeatures] = None
+    wheel: Optional[WheelFeatures] = None
+
+
+@dataclass
+class ManufacturingParams:
+    """Manufacturing/generation parameters."""
+    profile: str = "ZA"  # Tooth profile: "ZA" (straight), "ZK" (circular arc), "ZI" (involute)
+    virtual_hobbing: bool = False  # Use virtual hobbing simulation for wheel
+    hobbing_steps: int = 18  # Number of steps for virtual hobbing (if enabled)
+    throated_wheel: bool = False  # True for throated/hobbed wheel style
+    sections_per_turn: int = 36  # Loft sections per helix turn (smoothness)
+
+
+@dataclass
+class WormGearDesign:
+    """Complete worm gear design from calculator."""
+    worm: WormParams
+    wheel: WheelParams
+    assembly: AssemblyParams
+    features: Optional[Features] = None
+    manufacturing: Optional[ManufacturingParams] = None
+
+
+# Legacy dataclasses for backward compatibility with old CLI save-json format
+@dataclass
 class ManufacturingFeatures:
-    """Manufacturing features for a gear part (worm or wheel)."""
+    """Manufacturing features for a gear part (worm or wheel) - LEGACY."""
     bore_diameter: Optional[float] = None
     keyway_width: Optional[float] = None
     keyway_depth: Optional[float] = None
@@ -100,28 +152,13 @@ class ManufacturingFeatures:
     bolt_diameter: Optional[float] = None
 
 
-@dataclass
-class ManufacturingParams:
-    """Manufacturing parameters for geometry generation."""
-    profile: str = "ZA"  # Tooth profile: "ZA" (straight), "ZK" (circular arc), "ZI" (involute)
-    virtual_hobbing: bool = False  # Use virtual hobbing simulation for wheel
-    hobbing_steps: int = 18  # Number of steps for virtual hobbing (if enabled)
-    throated_wheel: bool = False  # True for throated/hobbed wheel style
-    sections_per_turn: int = 36  # Loft sections per helix turn (smoothness)
-
-
-@dataclass
-class WormGearDesign:
-    """Complete worm gear design from calculator."""
-    worm: WormParams
-    wheel: WheelParams
-    assembly: AssemblyParams
-    manufacturing: Optional[ManufacturingParams] = None
-
-
 def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
     """
     Load worm gear design from calculator JSON export.
+
+    Supports both:
+    - Schema v1.0 with separate features section (new)
+    - Legacy format with features in worm/wheel params (old)
 
     Args:
         filepath: Path to JSON file from wormgearcalc
@@ -170,19 +207,11 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
         thread_thickness_mm=worm_data['thread_thickness_mm'],
         hand=worm_hand,
         profile_shift=worm_data.get('profile_shift', 0.0),
-        # Optional schema v1.0 fields
+        # Schema v1.0 fields (simplified)
         type=worm_data.get('type'),
         throat_reduction_mm=worm_data.get('throat_reduction_mm'),
         throat_curvature_radius_mm=worm_data.get('throat_curvature_radius_mm'),
-        recommended_length_mm=worm_data.get('recommended_length_mm'),
-        min_length_mm=worm_data.get('min_length_mm'),
-        length_mm=worm_data.get('length_mm'),
-        bore_diameter_mm=worm_data.get('bore_diameter_mm'),
-        bore_auto=worm_data.get('bore_auto'),
-        keyway_standard=worm_data.get('keyway_standard'),
-        keyway_auto=worm_data.get('keyway_auto'),
-        set_screw_diameter_mm=worm_data.get('set_screw_diameter_mm'),
-        set_screw_count=worm_data.get('set_screw_count')
+        length_mm=worm_data.get('length_mm')
     )
 
     # Parse wheel parameters
@@ -198,24 +227,11 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
         addendum_mm=wheel_data['addendum_mm'],
         dedendum_mm=wheel_data['dedendum_mm'],
         profile_shift=wheel_data.get('profile_shift', 0.0),
-        # Optional schema v1.0 fields
-        recommended_width_mm=wheel_data.get('recommended_width_mm'),
-        max_width_mm=wheel_data.get('max_width_mm'),
-        min_width_mm=wheel_data.get('min_width_mm'),
-        width_mm=wheel_data.get('width_mm'),
-        bore_diameter_mm=wheel_data.get('bore_diameter_mm'),
-        bore_auto=wheel_data.get('bore_auto'),
-        keyway_standard=wheel_data.get('keyway_standard'),
-        keyway_auto=wheel_data.get('keyway_auto'),
-        set_screw_diameter_mm=wheel_data.get('set_screw_diameter_mm'),
-        set_screw_count=wheel_data.get('set_screw_count'),
-        hub_type=wheel_data.get('hub_type'),
-        hub_length_mm=wheel_data.get('hub_length_mm'),
-        hub_flange_diameter_mm=wheel_data.get('hub_flange_diameter_mm'),
-        hub_bolt_holes=wheel_data.get('hub_bolt_holes')
+        # Schema v1.0 field (simplified)
+        width_mm=wheel_data.get('width_mm')
     )
 
-    # Parse assembly parameters (asm_data already extracted above)
+    # Parse assembly parameters
     assembly = AssemblyParams(
         centre_distance_mm=asm_data['centre_distance_mm'],
         pressure_angle_deg=asm_data['pressure_angle_deg'],
@@ -226,7 +242,65 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
         self_locking=asm_data.get('self_locking')
     )
 
-    # Parse optional manufacturing parameters (if present)
+    # Parse features section (schema v1.0 Option B)
+    features = None
+    if 'features' in data:
+        features_data = data['features']
+
+        # Parse worm features
+        worm_features = None
+        if 'worm' in features_data:
+            wf_data = features_data['worm']
+            worm_set_screw = None
+            if 'set_screw' in wf_data and wf_data['set_screw']:
+                ss_data = wf_data['set_screw']
+                worm_set_screw = SetScrewSpec(
+                    size=ss_data['size'],
+                    count=ss_data.get('count', 1)
+                )
+
+            worm_features = WormFeatures(
+                bore_diameter_mm=wf_data.get('bore_diameter_mm'),
+                anti_rotation=wf_data.get('anti_rotation'),
+                ddcut_depth_percent=wf_data.get('ddcut_depth_percent', 15.0),
+                set_screw=worm_set_screw
+            )
+
+        # Parse wheel features
+        wheel_features = None
+        if 'wheel' in features_data:
+            wf_data = features_data['wheel']
+            wheel_set_screw = None
+            if 'set_screw' in wf_data and wf_data['set_screw']:
+                ss_data = wf_data['set_screw']
+                wheel_set_screw = SetScrewSpec(
+                    size=ss_data['size'],
+                    count=ss_data.get('count', 1)
+                )
+
+            wheel_hub = None
+            if 'hub' in wf_data and wf_data['hub']:
+                hub_data = wf_data['hub']
+                wheel_hub = HubSpec(
+                    type=hub_data.get('type', 'flush'),
+                    length_mm=hub_data.get('length_mm'),
+                    flange_diameter_mm=hub_data.get('flange_diameter_mm'),
+                    flange_thickness_mm=hub_data.get('flange_thickness_mm'),
+                    bolt_holes=hub_data.get('bolt_holes'),
+                    bolt_diameter_mm=hub_data.get('bolt_diameter_mm')
+                )
+
+            wheel_features = WheelFeatures(
+                bore_diameter_mm=wf_data.get('bore_diameter_mm'),
+                anti_rotation=wf_data.get('anti_rotation'),
+                ddcut_depth_percent=wf_data.get('ddcut_depth_percent', 15.0),
+                set_screw=wheel_set_screw,
+                hub=wheel_hub
+            )
+
+        features = Features(worm=worm_features, wheel=wheel_features)
+
+    # Parse manufacturing parameters
     manufacturing = None
     if 'manufacturing' in data:
         mfg_data = data['manufacturing']
@@ -238,18 +312,24 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
             sections_per_turn=mfg_data.get('sections_per_turn', 36)
         )
 
-    return WormGearDesign(worm=worm, wheel=wheel, assembly=assembly, manufacturing=manufacturing)
+    return WormGearDesign(
+        worm=worm,
+        wheel=wheel,
+        assembly=assembly,
+        features=features,
+        manufacturing=manufacturing
+    )
 
 
 def save_design_json(design: WormGearDesign, filepath: Union[str, Path]) -> None:
     """
-    Save complete worm gear design to JSON file.
+    Save complete worm gear design to JSON file using schema v1.0 format.
 
     Exports both calculator parameters and manufacturing features to JSON.
     This format can be loaded back to reproduce the exact same part.
 
     Args:
-        design: Complete worm gear design including manufacturing params
+        design: Complete worm gear design including features and manufacturing params
         filepath: Path to save JSON file
 
     Raises:
@@ -257,89 +337,59 @@ def save_design_json(design: WormGearDesign, filepath: Union[str, Path]) -> None
     """
     filepath = Path(filepath)
 
-    # Convert dataclasses to dict
-    # Note: asdict creates nested dicts but includes None values
-    data = {
+    # Convert dataclasses to dict (exclude None values for cleaner JSON)
+    data: Dict[str, Any] = {
+        'schema_version': '1.0',
         'worm': {k: v for k, v in asdict(design.worm).items() if v is not None},
         'wheel': {k: v for k, v in asdict(design.wheel).items() if v is not None},
         'assembly': {k: v for k, v in asdict(design.assembly).items() if v is not None}
     }
 
+    # Add features section if present
+    if design.features is not None:
+        features_dict: Dict[str, Any] = {}
+
+        if design.features.worm is not None:
+            worm_feat = design.features.worm
+            worm_dict: Dict[str, Any] = {}
+            if worm_feat.bore_diameter_mm is not None:
+                worm_dict['bore_diameter_mm'] = worm_feat.bore_diameter_mm
+            if worm_feat.anti_rotation is not None:
+                worm_dict['anti_rotation'] = worm_feat.anti_rotation
+            if worm_feat.anti_rotation == 'ddcut':
+                worm_dict['ddcut_depth_percent'] = worm_feat.ddcut_depth_percent
+            if worm_feat.set_screw is not None:
+                worm_dict['set_screw'] = asdict(worm_feat.set_screw)
+            if worm_dict:
+                features_dict['worm'] = worm_dict
+
+        if design.features.wheel is not None:
+            wheel_feat = design.features.wheel
+            wheel_dict: Dict[str, Any] = {}
+            if wheel_feat.bore_diameter_mm is not None:
+                wheel_dict['bore_diameter_mm'] = wheel_feat.bore_diameter_mm
+            if wheel_feat.anti_rotation is not None:
+                wheel_dict['anti_rotation'] = wheel_feat.anti_rotation
+            if wheel_feat.anti_rotation == 'ddcut':
+                wheel_dict['ddcut_depth_percent'] = wheel_feat.ddcut_depth_percent
+            if wheel_feat.set_screw is not None:
+                wheel_dict['set_screw'] = asdict(wheel_feat.set_screw)
+            if wheel_feat.hub is not None:
+                hub_dict = {k: v for k, v in asdict(wheel_feat.hub).items() if v is not None}
+                if hub_dict:
+                    wheel_dict['hub'] = hub_dict
+            if wheel_dict:
+                features_dict['wheel'] = wheel_dict
+
+        if features_dict:
+            data['features'] = features_dict
+
     # Add manufacturing section if present
     if design.manufacturing is not None:
-        mfg_dict: Dict[str, Any] = {
-            'worm_type': design.manufacturing.worm_type,
-            'worm_length': design.manufacturing.worm_length,
-            'wheel_throated': design.manufacturing.wheel_throated,
-            'profile': design.manufacturing.profile
-        }
-
-        if design.manufacturing.wheel_width is not None:
-            mfg_dict['wheel_width'] = design.manufacturing.wheel_width
-
-        # Add worm features if present
-        if design.manufacturing.worm_features is not None:
-            wf = design.manufacturing.worm_features
-            wf_dict = {k: v for k, v in asdict(wf).items() if v is not None and not k.startswith('hub')}
-            if wf_dict:
-                mfg_dict['worm_features'] = wf_dict
-
-        # Add wheel features if present
-        if design.manufacturing.wheel_features is not None:
-            wf = design.manufacturing.wheel_features
-            wf_dict = {k: v for k, v in asdict(wf).items() if v is not None}
-            if wf_dict:
-                mfg_dict['wheel_features'] = wf_dict
-
-        data['manufacturing'] = mfg_dict
+        mfg_dict = {k: v for k, v in asdict(design.manufacturing).items() if v is not None}
+        if mfg_dict:
+            data['manufacturing'] = mfg_dict
 
     # Write JSON with nice formatting
     with open(filepath, 'w') as f:
         json.dump(data, f, indent=2)
-
-
-def create_manufacturing_features_from_parts(
-    bore_diameter: Optional[float] = None,
-    keyway_width: Optional[float] = None,
-    keyway_depth: Optional[float] = None,
-    set_screw_size: Optional[str] = None,
-    set_screw_count: Optional[int] = None,
-    hub_type: Optional[str] = None,
-    hub_length: Optional[float] = None,
-    flange_diameter: Optional[float] = None,
-    flange_thickness: Optional[float] = None,
-    flange_bolts: Optional[int] = None,
-    bolt_diameter: Optional[float] = None
-) -> ManufacturingFeatures:
-    """
-    Helper to create ManufacturingFeatures from individual parameters.
-
-    Args:
-        bore_diameter: Bore diameter in mm
-        keyway_width: Keyway width in mm
-        keyway_depth: Keyway depth in mm
-        set_screw_size: Set screw size (e.g., "M4")
-        set_screw_count: Number of set screws (1-3)
-        hub_type: Hub type ("flush", "extended", "flanged")
-        hub_length: Hub extension length in mm
-        flange_diameter: Flange diameter in mm
-        flange_thickness: Flange thickness in mm
-        flange_bolts: Number of bolt holes
-        bolt_diameter: Bolt hole diameter in mm
-
-    Returns:
-        ManufacturingFeatures object
-    """
-    return ManufacturingFeatures(
-        bore_diameter=bore_diameter,
-        keyway_width=keyway_width,
-        keyway_depth=keyway_depth,
-        set_screw_size=set_screw_size,
-        set_screw_count=set_screw_count,
-        hub_type=hub_type,
-        hub_length=hub_length,
-        flange_diameter=flange_diameter,
-        flange_thickness=flange_thickness,
-        flange_bolts=flange_bolts,
-        bolt_diameter=bolt_diameter
-    )
