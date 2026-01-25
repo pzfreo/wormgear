@@ -37,11 +37,20 @@ function initTabs() {
                 initCalculatorTab();
             }
 
-            // Auto-load from calculator on first visit to generator tab
-            if (targetTab === 'generator' && !generatorTabVisited) {
-                generatorTabVisited = true;
-                if (currentDesign) {
-                    loadFromCalculator();
+            // Generator tab actions
+            if (targetTab === 'generator') {
+                // Hide progress indicator on tab switch (will be shown again when generation starts)
+                const progressContainer = document.getElementById('generation-progress');
+                if (progressContainer) {
+                    progressContainer.style.display = 'none';
+                }
+
+                // Auto-load from calculator on first visit
+                if (!generatorTabVisited) {
+                    generatorTabVisited = true;
+                    if (currentDesign) {
+                        loadFromCalculator();
+                    }
                 }
             }
         });
