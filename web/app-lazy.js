@@ -832,6 +832,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('use-recommended-dims').addEventListener('change', (e) => {
         const customDimsGroup = document.getElementById('custom-dims-group');
         customDimsGroup.style.display = e.target.checked ? 'none' : 'block';
+
+        // When unchecking, populate inputs with current recommended values from design
+        if (!e.target.checked && currentDesign) {
+            // Extract recommended values from design
+            const wormLength = currentDesign.worm.length_mm;
+            const wheelWidth = currentDesign.wheel.width_mm;
+
+            if (wormLength) {
+                document.getElementById('worm-length').value = wormLength.toFixed(2);
+            }
+            if (wheelWidth) {
+                document.getElementById('wheel-width').value = wheelWidth.toFixed(2);
+            }
+        }
     });
 
     // Worm bore type switching
