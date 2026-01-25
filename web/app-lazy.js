@@ -732,6 +732,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize tabs
     initTabs();
 
+    // Start loading generator in background (don't await - let it load asynchronously)
+    // This means the generator will be ready faster when user switches to generator tab
+    initGenerator().catch(err => {
+        console.log('Generator background loading failed (non-fatal):', err);
+    });
+
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {
         document.querySelectorAll('.input-group').forEach(group => {
