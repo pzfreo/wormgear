@@ -9,7 +9,7 @@ import json
 from dataclasses import asdict
 from typing import Optional
 
-from .core import Hand, WormProfile, WormType
+# Note: Unified package uses strings for hand/profile/type (not enums)
 from ..io import WormGearDesign, WormParams, WheelParams, ManufacturingParams
 from .js_bridge import validate_manufacturing_settings, validate_bore_settings
 from .json_schema import validate_design_json
@@ -43,14 +43,14 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
         "addendum_mm": round(design.worm.addendum, 3),
         "dedendum_mm": round(design.worm.dedendum, 3),
         "thread_thickness_mm": round(design.worm.thread_thickness, 3),
-        "hand": design.hand.value.lower(),  # "right" or "left"
+        "hand": design.assembly.hand.lower() if design.assembly.hand else "right",  # "right" or "left"
         "profile_shift": 0.0,  # Worm doesn't use profile shift
     }
 
     # Determine worm type from manufacturing params if available
     is_globoid = False
     if design.manufacturing and hasattr(design.manufacturing, 'worm_type'):
-        is_globoid = design.manufacturing.worm_type.value == "globoid"
+        is_globoid = design.manufacturing.worm_type == "globoid"
     elif design.worm.throat_reduction is not None:
         is_globoid = True
 
@@ -91,18 +91,18 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
 
     # Build assembly section (includes efficiency and self-locking)
     assembly_dict = {
-        "centre_distance_mm": round(design.centre_distance, 3),
-        "pressure_angle_deg": design.pressure_angle,
-        "backlash_mm": round(design.backlash, 3),
-        "hand": design.hand.value.lower(),  # "right" or "left"
-        "ratio": design.ratio,
-        "efficiency_percent": round(design.efficiency_estimate * 100, 2),
-        "self_locking": design.self_locking,
+        "centre_distance_mm": round(design.assembly.centre_distance_mm, 3),
+        "pressure_angle_deg": design.assembly.pressure_angle_deg,
+        "backlash_mm": round(design.assembly.backlash_mm, 3),
+        "hand": design.assembly.hand.lower() if design.assembly.hand else "right",  # "right" or "left"
+        "ratio": design.assembly.ratio,
+        "efficiency_percent": round(design.assembly.efficiency_percent / 100 * 100, 2),
+        "self_locking": design.assembly.self_locking,
     }
 
     # Build manufacturing section (wormgear schema v1.0 format)
     manufacturing_dict = {
-        "profile": design.profile.value,  # "ZA", "ZK", or "ZI"
+        "profile": design.manufacturing.profile if design.manufacturing else "ZA",  # "ZA", "ZK", or "ZI"
         "worm_type": "cylindrical",  # Default, will be updated below
         "virtual_hobbing": False,  # Default, will be updated below
         "hobbing_steps": 18,  # Default value
@@ -113,8 +113,8 @@ def design_to_dict(design: WormGearDesign, bore_settings: dict = None, manufactu
     # Update from design manufacturing params if present
     if design.manufacturing is not None:
         manufacturing_dict["throated_wheel"] = design.manufacturing.wheel_throated
-        manufacturing_dict["profile"] = design.manufacturing.profile.value
-        manufacturing_dict["worm_type"] = design.manufacturing.worm_type.value  # Add worm type
+        manufacturing_dict["profile"] = design.manufacturing.profile
+        manufacturing_dict["worm_type"] = design.manufacturing.worm_type  # Add worm type
         # Add recommended dimensions (always present, needed for UI defaults)
         manufacturing_dict["worm_length"] = design.manufacturing.worm_length
         manufacturing_dict["wheel_width"] = design.manufacturing.wheel_width
@@ -196,7 +196,7 @@ def validation_to_dict(validation: ValidationResult) -> dict:
         "valid": validation.valid,
         "messages": [
             {
-                "severity": msg.severity.value,
+                "severity": msg.severity,
                 "code": msg.code,
                 "message": msg.message,
                 "suggestion": msg.suggestion
@@ -263,7 +263,7 @@ def to_markdown(
     worm_type_str = "Cylindrical"
     wheel_type_str = "Helical"
     if design.manufacturing:
-        worm_type_str = design.manufacturing.worm_type.value.title()
+        worm_type_str = design.manufacturing.worm_type.title()
         wheel_type_str = "Throated (Hobbed)" if design.manufacturing.wheel_throated else "Helical"
 
     lines = [
@@ -273,16 +273,16 @@ def to_markdown(
         "",
         f"| Parameter | Value |",
         f"|-----------|-------|",
-        f"| Ratio | {design.ratio}:1 |",
+        f"| Ratio | {design.assembly.ratio}:1 |",
         f"| Module | {design.worm.module:.3f} mm |",
-        f"| Centre Distance | {design.centre_distance:.2f} mm |",
-        f"| Pressure Angle | {design.pressure_angle}° |",
+        f"| Centre Distance | {design.assembly.centre_distance_mm:.2f} mm |",
+        f"| Pressure Angle | {design.assembly.pressure_angle_deg}° |",
         f"| Hand | {design.hand.value.title()} |",
-        f"| Profile | {design.profile.value} (DIN 3975) |",
+        f"| Profile | {design.manufacturing.profile if design.manufacturing else "ZA"} (DIN 3975) |",
         f"| Worm Type | {worm_type_str} |",
         f"| Wheel Type | {wheel_type_str} |",
-        f"| Efficiency (est.) | {design.efficiency_estimate*100:.0f}% |",
-        f"| Self-Locking | {'Yes' if design.self_locking else 'No'} |",
+        f"| Efficiency (est.) | {design.assembly.efficiency_percent / 100*100:.0f}% |",
+        f"| Self-Locking | {'Yes' if design.assembly.self_locking else 'No'} |",
     ]
 
     # Add manufacturing dimensions to summary if available
@@ -345,8 +345,8 @@ def to_markdown(
             "",
             f"| Parameter | Value |",
             f"|-----------|-------|",
-            f"| Worm Type | {design.manufacturing.worm_type.value.title()} |",
-            f"| Profile | {design.manufacturing.profile.value} |",
+            f"| Worm Type | {design.manufacturing.worm_type.title()} |",
+            f"| Profile | {design.manufacturing.profile} |",
             f"| Recommended Worm Length | {design.manufacturing.worm_length:.2f} mm |",
             f"| Recommended Wheel Width | {design.manufacturing.wheel_width:.2f} mm |",
             f"| Wheel Throated | {'Yes' if design.manufacturing.wheel_throated else 'No'} |",
@@ -422,13 +422,13 @@ def to_summary(design: WormGearDesign) -> str:
     # Get worm type for display
     worm_type_str = "cylindrical"
     if design.manufacturing:
-        worm_type_str = design.manufacturing.worm_type.value
+        worm_type_str = design.manufacturing.worm_type
 
     lines = [
         "═══ Worm Gear Design ═══",
-        f"Ratio: {design.ratio}:1",
+        f"Ratio: {design.assembly.ratio}:1",
         f"Module: {design.worm.module:.3f} mm",
-        f"Profile: {design.profile.value} | Worm: {worm_type_str}",
+        f"Profile: {design.manufacturing.profile if design.manufacturing else "ZA"} | Worm: {worm_type_str}",
         "",
         "Worm:",
         f"  Tip diameter (OD): {design.worm.tip_diameter:.2f} mm",
@@ -453,9 +453,9 @@ def to_summary(design: WormGearDesign) -> str:
         f"  Teeth:             {design.wheel.num_teeth}",
         f"  Helix angle:       {design.wheel.helix_angle:.1f}°",
         "",
-        f"Centre distance: {design.centre_distance:.2f} mm",
-        f"Efficiency (est): {design.efficiency_estimate*100:.0f}%",
-        f"Self-locking: {'Yes' if design.self_locking else 'No'}",
+        f"Centre distance: {design.assembly.centre_distance_mm:.2f} mm",
+        f"Efficiency (est): {design.assembly.efficiency_percent / 100*100:.0f}%",
+        f"Self-locking: {'Yes' if design.assembly.self_locking else 'No'}",
     ])
 
     # Add manufacturing recommendations if present
