@@ -490,6 +490,7 @@ import sys
 os.makedirs('/home/pyodide/wormgear/core', exist_ok=True)
 os.makedirs('/home/pyodide/wormgear/io', exist_ok=True)
 os.makedirs('/home/pyodide/wormgear/calculator', exist_ok=True)
+os.makedirs('/home/pyodide/wormgear/cli', exist_ok=True)
 
 # Add to Python path
 if '/home/pyodide' not in sys.path:
@@ -508,6 +509,9 @@ if '/home/pyodide' not in sys.path:
             { path: 'wormgear/io/__init__.py', pyPath: '/home/pyodide/wormgear/io/__init__.py' },
             { path: 'wormgear/io/loaders.py', pyPath: '/home/pyodide/wormgear/io/loaders.py' },
             { path: 'wormgear/io/schema.py', pyPath: '/home/pyodide/wormgear/io/schema.py' },
+            { path: 'wormgear/calculator/__init__.py', pyPath: '/home/pyodide/wormgear/calculator/__init__.py' },
+            { path: 'wormgear/calculator/core.py', pyPath: '/home/pyodide/wormgear/calculator/core.py' },
+            { path: 'wormgear/calculator/validation.py', pyPath: '/home/pyodide/wormgear/calculator/validation.py' },
         ];
 
         let loadedCount = 0;

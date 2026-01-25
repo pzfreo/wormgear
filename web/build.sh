@@ -44,6 +44,9 @@ REQUIRED_FILES=(
     "src/wormgear/io/__init__.py"
     "src/wormgear/io/loaders.py"
     "src/wormgear/io/schema.py"
+    "src/wormgear/calculator/__init__.py"
+    "src/wormgear/calculator/core.py"
+    "src/wormgear/calculator/validation.py"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
