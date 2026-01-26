@@ -48,10 +48,10 @@ wormgear = "wormgear.cli.main:main"
 wormgear-geometry = "wormgear.cli.generate:main"
 
 [project.urls]
-Homepage = "https://github.com/pzfreo/worm-gear-3d"
-Documentation = "https://github.com/pzfreo/worm-gear-3d/blob/main/README.md"
-Repository = "https://github.com/pzfreo/worm-gear-3d"
-Issues = "https://github.com/pzfreo/worm-gear-3d/issues"
+Homepage = "https://wormgear.studio"
+Documentation = "https://github.com/pzfreo/wormgear/blob/main/README.md"
+Repository = "https://github.com/pzfreo/wormgear"
+Issues = "https://github.com/pzfreo/wormgear/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
