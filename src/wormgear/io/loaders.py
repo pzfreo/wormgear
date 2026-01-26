@@ -325,8 +325,10 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
     manufacturing = None
     if 'manufacturing' in data:
         mfg_data = data['manufacturing']
+        profile_str = mfg_data.get('profile', 'ZA')
+        profile_enum = WormProfile(profile_str.upper()) if isinstance(profile_str, str) else profile_str
         manufacturing = ManufacturingParams(
-            profile=mfg_data.get('profile', 'ZA'),
+            profile=profile_enum,
             virtual_hobbing=mfg_data.get('virtual_hobbing', False),
             hobbing_steps=mfg_data.get('hobbing_steps', 18),
             throated_wheel=mfg_data.get('throated_wheel', False),
