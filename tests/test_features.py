@@ -460,13 +460,15 @@ class TestWormWithBore:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -541,13 +543,15 @@ class TestWheelWithBore:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -633,13 +637,15 @@ class TestWheelWithBore:
             dedendum_mm=design_data["wheel"]["dedendum_mm"],
             profile_shift=design_data["wheel"].get("profile_shift", 0.0)
         )
+        worm_module = design_data["worm"]["module_mm"]
         large_worm = WormParams(
-            module_mm=design_data["worm"]["module_mm"],
+            module_mm=worm_module,
             num_starts=design_data["worm"]["num_starts"],
             pitch_diameter_mm=design_data["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=design_data["worm"]["tip_diameter_mm"],
             root_diameter_mm=design_data["worm"]["root_diameter_mm"],
             lead_mm=design_data["worm"]["lead_mm"],
+            axial_pitch_mm=worm_module * math.pi,
             lead_angle_deg=design_data["worm"]["lead_angle_deg"],
             addendum_mm=design_data["worm"]["addendum_mm"],
             dedendum_mm=design_data["worm"]["dedendum_mm"],
@@ -745,13 +751,15 @@ class TestWormWithDDCut:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -842,13 +850,15 @@ class TestWheelWithDDCut:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],

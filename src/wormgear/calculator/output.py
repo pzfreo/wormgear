@@ -1,12 +1,13 @@
 """Output formatters for worm gear designs.
 
-Simple JSON export for WormGearDesign dataclasses.
+Converts typed WormGearDesign dataclasses to JSON and Markdown output.
+All functions expect WormGearDesign - no dict handling for clean code.
 """
 
 import json
 from dataclasses import asdict
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING, Any
+from typing import Optional, TYPE_CHECKING, Any
 
 from ..io import WormGearDesign
 
@@ -15,14 +16,7 @@ if TYPE_CHECKING:
 
 
 def _serialize_enums(obj: Any) -> Any:
-    """Recursively convert enum values to strings for JSON serialization.
-
-    Args:
-        obj: Object to serialize (dict, list, enum, or primitive)
-
-    Returns:
-        JSON-serializable version of obj
-    """
+    """Recursively convert enum values to strings for JSON serialization."""
     if isinstance(obj, Enum):
         return obj.value
     elif isinstance(obj, dict):
@@ -34,32 +28,26 @@ def _serialize_enums(obj: Any) -> Any:
 
 
 def to_json(
-    design: Union[WormGearDesign, dict],
+    design: WormGearDesign,
     validation: Optional["ValidationResult"] = None,
     indent: int = 2,
     bore_settings: Optional[dict] = None,
     manufacturing_settings: Optional[dict] = None
 ) -> str:
-    """Convert design to JSON string.
+    """Convert WormGearDesign to JSON string.
 
     Args:
-        design: WormGearDesign dataclass or dict from design_from_*() functions
+        design: WormGearDesign dataclass from design_from_*() functions
         validation: Optional validation results to include in output
         indent: JSON indentation level (default: 2)
-        bore_settings: Optional bore configuration (for backward compatibility)
-        manufacturing_settings: Optional manufacturing config (for backward compatibility)
+        bore_settings: Optional bore configuration from UI
+        manufacturing_settings: Optional manufacturing overrides from UI
 
     Returns:
-        JSON string with optional validation, bore, and manufacturing data
+        JSON string with schema version, design parameters, and optional extras
     """
-    # Convert dataclass to dict if needed
-    if isinstance(design, WormGearDesign):
-        design_dict = asdict(design)
-        # Serialize enums to their string values
-        design_dict = _serialize_enums(design_dict)
-    else:
-        # Already a dict (from design_from_module etc)
-        design_dict = design.copy()
+    # Convert dataclass to dict and serialize enums
+    design_dict = _serialize_enums(asdict(design))
 
     # Add schema version for compatibility
     if 'schema_version' not in design_dict:
@@ -137,32 +125,29 @@ def to_json(
 
 
 def to_markdown(
-    design: Union[WormGearDesign, dict],
+    design: WormGearDesign,
     validation: Optional["ValidationResult"] = None,
     bore_settings: Optional[dict] = None,
     manufacturing_settings: Optional[dict] = None
 ) -> str:
-    """Convert design to comprehensive markdown specification.
+    """Convert WormGearDesign to comprehensive markdown specification.
 
     Args:
-        design: WormGearDesign dataclass or dict
+        design: WormGearDesign dataclass from design_from_*() functions
         validation: Optional validation results to include
-        bore_settings: Optional bore configuration
-        manufacturing_settings: Optional manufacturing config
+        bore_settings: Optional bore configuration from UI
+        manufacturing_settings: Optional manufacturing config (unused)
 
     Returns:
         Detailed markdown specification string
     """
-    if isinstance(design, WormGearDesign):
-        design_dict = asdict(design)
-        design_dict = _serialize_enums(design_dict)
-    else:
-        design_dict = design
+    # Convert to dict for easy field access
+    design_dict = _serialize_enums(asdict(design))
 
     worm = design_dict["worm"]
     wheel = design_dict["wheel"]
     asm = design_dict["assembly"]
-    mfg = design_dict.get("manufacturing", {})
+    mfg = design_dict.get("manufacturing") or {}
 
     # Get worm type
     worm_type = worm.get("type", "cylindrical")
@@ -334,32 +319,29 @@ def to_markdown(
 
 
 def to_summary(
-    design: Union[WormGearDesign, dict],
+    design: WormGearDesign,
     validation: Optional["ValidationResult"] = None,
     bore_settings: Optional[dict] = None,
     manufacturing_settings: Optional[dict] = None
 ) -> str:
-    """Convert design to formatted text summary.
+    """Convert WormGearDesign to formatted text summary.
 
     Args:
-        design: WormGearDesign dataclass or dict
-        validation: Optional validation results (unused, for API compatibility)
-        bore_settings: Optional bore configuration (unused, for API compatibility)
-        manufacturing_settings: Optional manufacturing config (unused, for API compatibility)
+        design: WormGearDesign dataclass from design_from_*() functions
+        validation: Optional validation results (unused)
+        bore_settings: Optional bore configuration (unused)
+        manufacturing_settings: Optional manufacturing config (unused)
 
     Returns:
         Multi-line formatted summary string
     """
-    if isinstance(design, WormGearDesign):
-        design_dict = asdict(design)
-        design_dict = _serialize_enums(design_dict)
-    else:
-        design_dict = design
+    # Convert to dict for easy field access
+    design_dict = _serialize_enums(asdict(design))
 
     worm = design_dict["worm"]
     wheel = design_dict["wheel"]
     asm = design_dict["assembly"]
-    mfg = design_dict.get("manufacturing", {})
+    mfg = design_dict.get("manufacturing") or {}
 
     # Get worm type for display
     worm_type_str = "cylindrical"

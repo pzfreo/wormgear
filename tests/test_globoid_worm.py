@@ -18,13 +18,15 @@ class TestGloboidWormGeometry:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -202,6 +204,7 @@ class TestGloboidWormGeometry:
             tip_diameter_mm=24.0,
             root_diameter_mm=15.0,
             lead_mm=12.566,
+            axial_pitch_mm=2.0 * math.pi,
             lead_angle_deg=17.66,
             addendum_mm=2.0,
             dedendum_mm=2.5,
@@ -224,13 +227,15 @@ class TestGloboidWormGeometry:
 
     def test_globoid_left_hand(self, sample_design_left_hand):
         """Test left-hand globoid worm generation."""
+        module_mm = sample_design_left_hand["worm"]["module_mm"]
         worm_params = WormParams(
-            module_mm=sample_design_left_hand["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_left_hand["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_left_hand["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_left_hand["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_left_hand["worm"]["root_diameter_mm"],
             lead_mm=sample_design_left_hand["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_left_hand["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_left_hand["worm"]["addendum_mm"],
             dedendum_mm=sample_design_left_hand["worm"]["dedendum_mm"],
@@ -464,13 +469,15 @@ class TestGloboidWormProfileTypes:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],

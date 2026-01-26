@@ -20,13 +20,15 @@ class TestVirtualHobbingWheelGeometry:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -160,13 +162,15 @@ class TestVirtualHobbingProfileTypes:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -248,13 +252,15 @@ class TestVirtualHobbingVsStandardWheel:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
@@ -355,13 +361,15 @@ class TestVirtualHobbingWithFeatures:
     @pytest.fixture
     def worm_params(self, sample_design_7mm):
         """Create WormParams from sample design."""
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormParams(
-            module_mm=sample_design_7mm["worm"]["module_mm"],
+            module_mm=module_mm,
             num_starts=sample_design_7mm["worm"]["num_starts"],
             pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
             tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
             root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
             lead_mm=sample_design_7mm["worm"]["lead_mm"],
+            axial_pitch_mm=module_mm * math.pi,
             lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
             addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
             dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],

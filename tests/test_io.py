@@ -152,6 +152,7 @@ class TestWormParams:
 
     def test_worm_params_creation(self):
         """Test creating WormParams directly."""
+        import math
         params = WormParams(
             module_mm=1.0,
             num_starts=1,
@@ -159,6 +160,7 @@ class TestWormParams:
             tip_diameter_mm=12.0,
             root_diameter_mm=7.5,
             lead_mm=3.142,
+            axial_pitch_mm=1.0 * math.pi,
             lead_angle_deg=9.04,
             addendum_mm=1.0,
             dedendum_mm=1.25,
@@ -246,14 +248,17 @@ class TestProfileJsonSerialization:
     @pytest.fixture
     def base_design(self, sample_design_7mm):
         """Create a base WormGearDesign from sample data."""
+        import math
+        module_mm = sample_design_7mm["worm"]["module_mm"]
         return WormGearDesign(
             worm=WormParams(
-                module_mm=sample_design_7mm["worm"]["module_mm"],
+                module_mm=module_mm,
                 num_starts=sample_design_7mm["worm"]["num_starts"],
                 pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
                 tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
                 root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
                 lead_mm=sample_design_7mm["worm"]["lead_mm"],
+                axial_pitch_mm=module_mm * math.pi,
                 lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
                 addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
                 dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],

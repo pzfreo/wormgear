@@ -2,7 +2,7 @@
 Worm Gear Calculator - Core Calculations
 
 Pure mathematical functions for worm gear design.
-Ported from wormgearcalc with field naming conventions adapted for wormgear.
+Returns typed WormGearDesign dataclasses for type safety.
 
 Reference standards:
 - DIN 3975 (worm geometry)
@@ -14,6 +14,7 @@ from math import pi, tan, atan, degrees, radians, cos, sin, sqrt
 from typing import Optional, Tuple, Union
 
 from ..enums import Hand, WormProfile, WormType
+from ..io import WormParams, WheelParams, AssemblyParams, ManufacturingParams, WormGearDesign
 
 # ISO 54 / DIN 780 standard modules (mm)
 STANDARD_MODULES = [
@@ -347,6 +348,94 @@ def calculate_manufacturing_params(
     }
 
 
+def _build_design(
+    worm_dict: dict,
+    wheel_dict: dict,
+    centre_distance_mm: float,
+    pressure_angle_deg: float,
+    backlash_mm: float,
+    hand: Hand,
+    ratio: int,
+    efficiency_percent: float,
+    self_locking: bool,
+    profile: WormProfile,
+    wheel_throated: bool,
+    worm_length_mm: float,
+    wheel_width_mm: float,
+    globoid: bool = False,
+    throat_reduction_mm: Optional[float] = None,
+    throat_curvature_radius_mm: Optional[float] = None
+) -> WormGearDesign:
+    """
+    Build a typed WormGearDesign from calculated parameters.
+
+    This is the single point where we convert calculation dicts to typed dataclasses.
+    """
+    # Build WormParams
+    worm_type = WormType.GLOBOID if globoid else WormType.CYLINDRICAL
+    worm_params = WormParams(
+        module_mm=worm_dict["module_mm"],
+        num_starts=worm_dict["num_starts"],
+        pitch_diameter_mm=worm_dict["pitch_diameter_mm"],
+        tip_diameter_mm=worm_dict["tip_diameter_mm"],
+        root_diameter_mm=worm_dict["root_diameter_mm"],
+        lead_mm=worm_dict["lead_mm"],
+        axial_pitch_mm=worm_dict["axial_pitch_mm"],
+        lead_angle_deg=worm_dict["lead_angle_deg"],
+        addendum_mm=worm_dict["addendum_mm"],
+        dedendum_mm=worm_dict["dedendum_mm"],
+        thread_thickness_mm=worm_dict["thread_thickness_mm"],
+        hand=hand,
+        profile_shift=worm_dict.get("profile_shift", 0.0),
+        type=worm_type,
+        throat_reduction_mm=throat_reduction_mm,
+        throat_curvature_radius_mm=throat_curvature_radius_mm
+    )
+
+    # Build WheelParams
+    wheel_params = WheelParams(
+        module_mm=wheel_dict["module_mm"],
+        num_teeth=wheel_dict["num_teeth"],
+        pitch_diameter_mm=wheel_dict["pitch_diameter_mm"],
+        tip_diameter_mm=wheel_dict["tip_diameter_mm"],
+        root_diameter_mm=wheel_dict["root_diameter_mm"],
+        throat_diameter_mm=wheel_dict["throat_diameter_mm"],
+        helix_angle_deg=wheel_dict["helix_angle_deg"],
+        addendum_mm=wheel_dict["addendum_mm"],
+        dedendum_mm=wheel_dict["dedendum_mm"],
+        profile_shift=wheel_dict.get("profile_shift", 0.0)
+    )
+
+    # Build AssemblyParams
+    assembly_params = AssemblyParams(
+        centre_distance_mm=centre_distance_mm,
+        pressure_angle_deg=pressure_angle_deg,
+        backlash_mm=backlash_mm,
+        hand=hand,
+        ratio=ratio,
+        efficiency_percent=efficiency_percent,
+        self_locking=self_locking
+    )
+
+    # Build ManufacturingParams
+    manufacturing_params = ManufacturingParams(
+        profile=profile,
+        virtual_hobbing=False,
+        hobbing_steps=18,
+        throated_wheel=wheel_throated,
+        sections_per_turn=36,
+        worm_length_mm=round(worm_length_mm, 2),
+        wheel_width_mm=round(wheel_width_mm, 2)
+    )
+
+    return WormGearDesign(
+        worm=worm_params,
+        wheel=wheel_params,
+        assembly=assembly_params,
+        manufacturing=manufacturing_params
+    )
+
+
 def design_from_module(
     module: float,
     ratio: int,
@@ -363,7 +452,7 @@ def design_from_module(
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
-) -> dict:
+) -> WormGearDesign:
     """
     Design worm gear pair from module specification.
 
@@ -477,28 +566,28 @@ def design_from_module(
         lead_mm=worm["lead_mm"]
     )
 
-    return {
-        "worm": worm,
-        "wheel": wheel,
-        "assembly": {
-            "centre_distance_mm": centre_distance,
-            "pressure_angle_deg": pressure_angle,
-            "backlash_mm": backlash,
-            "hand": hand.value,  # Serialize enum to string
-            "ratio": ratio,
-            "efficiency_percent": efficiency_percent,
-            "self_locking": self_locking
-        },
-        "manufacturing": {
-            "profile": profile.value,  # Serialize enum to string
-            "virtual_hobbing": False,
-            "hobbing_steps": 18,
-            "throated_wheel": wheel_throated,
-            "sections_per_turn": 36,
-            "worm_length_mm": round(worm_length_mm, 2),
-            "wheel_width_mm": round(wheel_width_mm, 2)
-        }
-    }
+    # Globoid-specific parameters
+    throat_reduction_mm = throat_reduction if globoid else None
+    throat_curvature_radius_mm = (module * ratio * num_starts) / 2 if globoid else None
+
+    return _build_design(
+        worm_dict=worm,
+        wheel_dict=wheel,
+        centre_distance_mm=centre_distance,
+        pressure_angle_deg=pressure_angle,
+        backlash_mm=backlash,
+        hand=hand,
+        ratio=ratio,
+        efficiency_percent=efficiency_percent,
+        self_locking=self_locking,
+        profile=profile,
+        wheel_throated=wheel_throated,
+        worm_length_mm=worm_length_mm,
+        wheel_width_mm=wheel_width_mm,
+        globoid=globoid,
+        throat_reduction_mm=throat_reduction_mm,
+        throat_curvature_radius_mm=throat_curvature_radius_mm
+    )
 
 
 def design_from_centre_distance(
@@ -516,7 +605,7 @@ def design_from_centre_distance(
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
-) -> dict:
+) -> WormGearDesign:
     """
     Design worm gear pair from centre distance constraint.
 
@@ -536,7 +625,7 @@ def design_from_centre_distance(
         wheel_throated: Whether wheel has throated teeth (hobbed)
 
     Returns:
-        Dict with complete design matching WormGearDesign schema
+        WormGearDesign with typed parameters
     """
     # Convert string to enum if needed (for backward compatibility)
     if isinstance(hand, str):
@@ -606,7 +695,7 @@ def design_from_wheel(
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
-) -> dict:
+) -> WormGearDesign:
     """
     Design worm gear pair from wheel OD constraint.
     Worm sized to achieve target lead angle.
@@ -689,7 +778,7 @@ def design_from_envelope(
     worm_type: Union[WormType, str, None] = None,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
-) -> dict:
+) -> WormGearDesign:
     """
     Design worm gear pair from outside diameter constraints (envelope mode).
 
