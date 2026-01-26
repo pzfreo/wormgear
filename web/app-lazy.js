@@ -102,8 +102,74 @@ design = ${func}(${args})
 # Check if we should round to standard module
 use_standard = ${useStandardModule ? 'True' : 'False'}
 mode = "${mode}"
+od_as_maximum = ${inputs.calculator.od_as_maximum ? 'True' : 'False'}
 
-if use_standard and mode != "from-module":
+# Special handling for envelope mode with OD as maximum constraint
+if mode == "envelope" and od_as_maximum and use_standard:
+    from wormgear.calculator import STANDARD_MODULES
+
+    # User's specified maximum ODs
+    user_worm_od = ${inputs.calculator.worm_od || 20}
+    user_wheel_od = ${inputs.calculator.wheel_od || 65}
+
+    # Get original design parameters
+    calculated_module = design.worm.module_mm
+    base_worm_pitch_diameter = design.worm.pitch_diameter_mm
+
+    # Try standard modules in descending order to find largest that fits
+    found_module = None
+    for test_module in sorted(STANDARD_MODULES, reverse=True):
+        try:
+            # Adjust pitch diameter to maintain similar geometry
+            addendum_change = test_module - calculated_module
+            test_worm_pitch_diameter = base_worm_pitch_diameter - 2 * addendum_change
+
+            if test_worm_pitch_diameter <= 0:
+                continue
+
+            test_design = design_from_module(
+                module=test_module,
+                ratio=${inputs.calculator.ratio || 30},
+                worm_pitch_diameter=test_worm_pitch_diameter,
+                pressure_angle=${inputs.calculator.pressure_angle || 20},
+                backlash=${inputs.calculator.backlash || 0},
+                num_starts=${inputs.calculator.num_starts || 1},
+                hand=Hand.${inputs.calculator.hand || 'RIGHT'},
+                profile_shift=${inputs.calculator.profile_shift || 0},
+                profile=WormProfile.${inputs.calculator.profile || 'ZA'},
+                worm_type=WormType.${(inputs.calculator.worm_type || 'cylindrical').toUpperCase()},
+                throat_reduction=${inputs.calculator.throat_reduction || 0.0},
+                wheel_throated=${inputs.calculator.wheel_throated ? 'True' : 'False'}
+            )
+
+            # Check if both ODs fit within maximums
+            if test_design.worm.tip_diameter_mm <= user_worm_od and test_design.wheel.tip_diameter_mm <= user_wheel_od:
+                found_module = test_module
+                design = test_design
+                break
+        except (ZeroDivisionError, ValueError):
+            continue
+
+    # If no module fits, fall back to nearest standard module
+    if not found_module:
+        standard_module = nearest_standard_module(calculated_module)
+        worm_pitch_diameter = base_worm_pitch_diameter - 2 * (standard_module - calculated_module)
+        design = design_from_module(
+            module=standard_module,
+            ratio=${inputs.calculator.ratio || 30},
+            worm_pitch_diameter=worm_pitch_diameter,
+            pressure_angle=${inputs.calculator.pressure_angle || 20},
+            backlash=${inputs.calculator.backlash || 0},
+            num_starts=${inputs.calculator.num_starts || 1},
+            hand=Hand.${inputs.calculator.hand || 'RIGHT'},
+            profile_shift=${inputs.calculator.profile_shift || 0},
+            profile=WormProfile.${inputs.calculator.profile || 'ZA'},
+            worm_type=WormType.${(inputs.calculator.worm_type || 'cylindrical').toUpperCase()},
+            throat_reduction=${inputs.calculator.throat_reduction || 0.0},
+            wheel_throated=${inputs.calculator.wheel_throated ? 'True' : 'False'}
+        )
+
+elif use_standard and mode != "from-module":
     # Get calculated module and find nearest standard
     calculated_module = design.worm.module_mm
     standard_module = nearest_standard_module(calculated_module)

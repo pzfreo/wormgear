@@ -54,6 +54,7 @@ export function getInputs(mode) {
             calculatorParams.worm_od = safeParseFloat(document.getElementById('worm-od').value);
             calculatorParams.wheel_od = safeParseFloat(document.getElementById('wheel-od').value);
             calculatorParams.ratio = safeParseInt(document.getElementById('ratio').value);
+            calculatorParams.od_as_maximum = document.getElementById('od-as-maximum').checked;
             break;
         case 'from-wheel':
             calculatorParams.wheel_od = safeParseFloat(document.getElementById('wheel-od-fw').value);
