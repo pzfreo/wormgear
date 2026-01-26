@@ -237,7 +237,7 @@ adjusted_module = None
 
 if use_standard and mode != "from-module":
     # Get calculated module and find nearest standard
-    calculated_module = design.worm.module
+    calculated_module = design.worm.module_mm
     standard_module = nearest_standard_module(calculated_module)
 
     # Special handling for envelope mode with OD as maximum
@@ -251,7 +251,7 @@ if use_standard and mode != "from-module":
         # Try standard modules in descending order to find largest that fits
         # Start from the original envelope design's worm pitch diameter to maximize size
         found_module = None
-        base_worm_pitch_diameter = design.worm.pitch_diameter
+        base_worm_pitch_diameter = design.worm.pitch_diameter_mm
 
         for test_module in sorted(STANDARD_MODULES, reverse=True):
             try:
@@ -280,7 +280,7 @@ if use_standard and mode != "from-module":
                 )
 
                 # Check if both ODs fit within maximums
-                if test_design.worm.tip_diameter <= user_worm_od and test_design.wheel.tip_diameter <= user_wheel_od:
+                if test_design.worm.tip_diameter_mm <= user_worm_od and test_design.wheel.tip_diameter_mm <= user_wheel_od:
                     found_module = test_module
                     standard_module = test_module
                     design = test_design
@@ -304,7 +304,7 @@ if use_standard and mode != "from-module":
                     'standard': standard_module
                 }
                 # Calculate with nearest module even though it exceeds ODs
-                worm_pitch_diameter = design.worm.pitch_diameter
+                worm_pitch_diameter = design.worm.pitch_diameter_mm
                 addendum_change = standard_module - calculated_module
                 worm_pitch_diameter = worm_pitch_diameter - 2 * addendum_change
 
@@ -332,7 +332,7 @@ if use_standard and mode != "from-module":
         # FIXED: Preserve worm OD constraint when rounding from envelope mode
         if mode == "envelope":
             # Calculate worm_pitch_diameter to preserve approximate OD
-            worm_pitch_diameter = design.worm.pitch_diameter
+            worm_pitch_diameter = design.worm.pitch_diameter_mm
             # Adjust for module change to maintain similar OD
             # OD = pitch + 2*addendum, so adjust pitch to compensate for addendum change
             addendum_change = standard_module - calculated_module
@@ -379,7 +379,7 @@ json.dumps({
     'json_output': to_json(design, validation),
     'markdown': to_markdown(design, validation),
     'valid': validation.valid,
-    'module': design.worm.module,
+    'module': design.worm.module_mm,
     'adjusted_module': adjusted_module,
     'messages': [
         {
@@ -410,7 +410,7 @@ json.dumps({
 // Update UI with calculation results
 function updateUI(data) {
     // Update results
-    document.getElementById('results-text').textContent = data.summary;
+    document.getElementById('results-text').textContent = data.markdown;
 
     // Update validation status
     const statusEl = document.getElementById('validation-status');

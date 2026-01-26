@@ -112,19 +112,22 @@ export async function initCalculator(onComplete) {
 import sys
 sys.path.insert(0, '/home/pyodide')
 
-from wormgear.calculator.core import (
-    design_from_module,
-    design_from_centre_distance,
-    design_from_wheel,
-    nearest_standard_module
+# Import wrapper functions that return WormGearDesign dataclass (needed for attribute access)
+from wormgear.calculator import (
+    calculate_design_from_module as design_from_module,
+    calculate_design_from_centre_distance as design_from_centre_distance,
+    calculate_design_from_wheel as design_from_wheel,
+    calculate_design_from_envelope as design_from_envelope,
+    nearest_standard_module,
+    validate_design,
+    to_json,
+    to_markdown,
+    to_summary
 )
 from wormgear.enums import Hand, WormProfile, WormType
-from wormgear.calculator.validation import validate_design
-from wormgear.calculator.output import to_json, to_markdown, to_summary
 
 # Legacy compatibility - allow old wormcalc imports
 import wormgear.calculator as wormcalc
-design_from_envelope = design_from_module
         `);
 
         // Hide loading screen

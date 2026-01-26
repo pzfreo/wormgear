@@ -5,58 +5,133 @@ Simple JSON export for WormGearDesign dataclasses.
 
 import json
 from dataclasses import asdict
-from typing import Union
+from enum import Enum
+from typing import Union, Optional, TYPE_CHECKING, Any
 
 from ..io import WormGearDesign
 
+if TYPE_CHECKING:
+    from .validation import ValidationResult
 
-def to_json(design: Union[WormGearDesign, dict]) -> str:
+
+def _serialize_enums(obj: Any) -> Any:
+    """Recursively convert enum values to strings for JSON serialization.
+
+    Args:
+        obj: Object to serialize (dict, list, enum, or primitive)
+
+    Returns:
+        JSON-serializable version of obj
+    """
+    if isinstance(obj, Enum):
+        return obj.value
+    elif isinstance(obj, dict):
+        return {key: _serialize_enums(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_serialize_enums(item) for item in obj]
+    else:
+        return obj
+
+
+def to_json(
+    design: Union[WormGearDesign, dict],
+    validation: Optional["ValidationResult"] = None,
+    indent: int = 2,
+    bore_settings: Optional[dict] = None,
+    manufacturing_settings: Optional[dict] = None
+) -> str:
     """Convert design to JSON string.
 
     Args:
         design: WormGearDesign dataclass or dict from design_from_*() functions
+        validation: Optional validation results to include in output
+        indent: JSON indentation level (default: 2)
+        bore_settings: Optional bore configuration (for backward compatibility)
+        manufacturing_settings: Optional manufacturing config (for backward compatibility)
 
     Returns:
-        JSON string
+        JSON string with optional validation, bore, and manufacturing data
     """
-    if isinstance(design, dict):
+    # Convert dataclass to dict if needed
+    if isinstance(design, WormGearDesign):
+        design_dict = asdict(design)
+        # Serialize enums to their string values
+        design_dict = _serialize_enums(design_dict)
+    else:
         # Already a dict (from design_from_module etc)
-        # Enums already serialized to strings (.value)
-        return json.dumps(design, indent=2)
+        design_dict = design.copy()
 
-    # WormGearDesign dataclass - convert to dict and serialize enums
-    design_dict = asdict(design)
+    # Merge in bore settings if provided
+    if bore_settings:
+        design_dict.setdefault('bore', {}).update(bore_settings)
 
-    # Convert enum values to strings
-    if "worm" in design_dict and "hand" in design_dict["worm"]:
-        # Already a string from asdict if enum
-        pass
+    # Merge in manufacturing settings if provided
+    if manufacturing_settings:
+        design_dict.setdefault('manufacturing', {}).update(manufacturing_settings)
 
-    if "assembly" in design_dict and "hand" in design_dict["assembly"]:
-        pass
+    # Add validation results if provided
+    if validation:
+        design_dict['validation'] = {
+            'valid': validation.valid,
+            'errors': [
+                {
+                    'severity': msg.severity.value,
+                    'code': msg.code,
+                    'message': msg.message,
+                    'suggestion': msg.suggestion
+                }
+                for msg in validation.errors
+            ],
+            'warnings': [
+                {
+                    'severity': msg.severity.value,
+                    'code': msg.code,
+                    'message': msg.message,
+                    'suggestion': msg.suggestion
+                }
+                for msg in validation.warnings
+            ],
+            'infos': [
+                {
+                    'severity': msg.severity.value,
+                    'code': msg.code,
+                    'message': msg.message,
+                    'suggestion': msg.suggestion
+                }
+                for msg in validation.infos
+            ]
+        }
 
-    if "manufacturing" in design_dict and "profile" in design_dict["manufacturing"]:
-        pass
-
-    return json.dumps(design_dict, indent=2)
+    return json.dumps(design_dict, indent=indent)
 
 
-def to_markdown(design: Union[WormGearDesign, dict]) -> str:
+def to_markdown(
+    design: Union[WormGearDesign, dict],
+    validation: Optional["ValidationResult"] = None,
+    bore_settings: Optional[dict] = None,
+    manufacturing_settings: Optional[dict] = None
+) -> str:
     """Convert design to markdown summary.
 
     Args:
         design: WormGearDesign dataclass or dict
+        validation: Optional validation results (unused, for API compatibility)
+        bore_settings: Optional bore configuration (unused, for API compatibility)
+        manufacturing_settings: Optional manufacturing config (unused, for API compatibility)
 
     Returns:
         Markdown string
     """
     if isinstance(design, WormGearDesign):
         # Convert dataclass to dict for easier access
-        design = asdict(design)
+        design_dict = asdict(design)
+        design_dict = _serialize_enums(design_dict)
+    else:
+        design_dict = design
 
-    worm = design["worm"]
-    wheel = design["wheel"]
-    asm = design["assembly"]
+    worm = design_dict["worm"]
+    wheel = design_dict["wheel"]
+    asm = design_dict["assembly"]
 
     md = "# Worm Gear Design\n\n"
     md += "## Worm\n"
@@ -79,20 +154,31 @@ def to_markdown(design: Union[WormGearDesign, dict]) -> str:
     return md
 
 
-def to_summary(design: Union[WormGearDesign, dict]) -> str:
+def to_summary(
+    design: Union[WormGearDesign, dict],
+    validation: Optional["ValidationResult"] = None,
+    bore_settings: Optional[dict] = None,
+    manufacturing_settings: Optional[dict] = None
+) -> str:
     """Convert design to single-line summary.
 
     Args:
         design: WormGearDesign dataclass or dict
+        validation: Optional validation results (unused, for API compatibility)
+        bore_settings: Optional bore configuration (unused, for API compatibility)
+        manufacturing_settings: Optional manufacturing config (unused, for API compatibility)
 
     Returns:
         Summary string
     """
     if isinstance(design, WormGearDesign):
-        design = asdict(design)
+        design_dict = asdict(design)
+        design_dict = _serialize_enums(design_dict)
+    else:
+        design_dict = design
 
-    worm = design["worm"]
-    wheel = design["wheel"]
-    asm = design["assembly"]
+    worm = design_dict["worm"]
+    wheel = design_dict["wheel"]
+    asm = design_dict["assembly"]
 
     return f"Module {worm['module_mm']:.1f}mm, Ratio 1:{asm['ratio']}, CD={asm['centre_distance_mm']:.1f}mm"

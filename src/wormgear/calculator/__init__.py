@@ -37,6 +37,7 @@ from .core import (
     design_from_module,
     design_from_centre_distance,
     design_from_wheel,
+    design_from_envelope,
 )
 
 from .validation import (
@@ -116,6 +117,7 @@ def calculate_design_from_module(
     hand: str = "right",
     profile_shift: float = 0.0,
     profile: str = "ZA",
+    worm_type: str = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
@@ -138,6 +140,7 @@ def calculate_design_from_module(
         hand=hand,
         profile_shift=profile_shift,
         profile=profile,
+        worm_type=worm_type,
         globoid=globoid,
         throat_reduction=throat_reduction,
         wheel_throated=wheel_throated
@@ -156,6 +159,7 @@ def calculate_design_from_centre_distance(
     hand: str = "right",
     profile_shift: float = 0.0,
     profile: str = "ZA",
+    worm_type: str = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
@@ -177,6 +181,7 @@ def calculate_design_from_centre_distance(
         hand=hand,
         profile_shift=profile_shift,
         profile=profile,
+        worm_type=worm_type,
         globoid=globoid,
         throat_reduction=throat_reduction,
         wheel_throated=wheel_throated
@@ -195,6 +200,7 @@ def calculate_design_from_wheel(
     hand: str = "right",
     profile_shift: float = 0.0,
     profile: str = "ZA",
+    worm_type: str = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
@@ -216,7 +222,47 @@ def calculate_design_from_wheel(
         hand=hand,
         profile_shift=profile_shift,
         profile=profile,
+        worm_type=worm_type,
         globoid=globoid,
+        throat_reduction=throat_reduction,
+        wheel_throated=wheel_throated
+    )
+    return _dict_to_worm_gear_design(design_dict)
+
+
+def calculate_design_from_envelope(
+    worm_od: float,
+    wheel_od: float,
+    ratio: int,
+    pressure_angle: float = 20.0,
+    backlash: float = 0.0,
+    num_starts: int = 1,
+    clearance_factor: float = 0.25,
+    hand: str = "right",
+    profile_shift: float = 0.0,
+    profile: str = "ZA",
+    worm_type: str = None,
+    throat_reduction: float = 0.0,
+    wheel_throated: bool = False
+) -> WormGearDesign:
+    """
+    Design worm gear pair from envelope (OD) constraints.
+
+    Returns WormGearDesign dataclass ready for geometry generation.
+    See core.design_from_envelope for full documentation.
+    """
+    design_dict = design_from_envelope(
+        worm_od=worm_od,
+        wheel_od=wheel_od,
+        ratio=ratio,
+        pressure_angle=pressure_angle,
+        backlash=backlash,
+        num_starts=num_starts,
+        clearance_factor=clearance_factor,
+        hand=hand,
+        profile_shift=profile_shift,
+        profile=profile,
+        worm_type=worm_type,
         throat_reduction=throat_reduction,
         wheel_throated=wheel_throated
     )
@@ -249,11 +295,13 @@ __all__ = [
     "design_from_module",
     "design_from_centre_distance",
     "design_from_wheel",
+    "design_from_envelope",
 
     # Wrapper functions (return WormGearDesign dataclass)
     "calculate_design_from_module",
     "calculate_design_from_centre_distance",
     "calculate_design_from_wheel",
+    "calculate_design_from_envelope",
 
     # Validation
     "validate_design",

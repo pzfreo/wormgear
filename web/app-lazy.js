@@ -105,14 +105,14 @@ mode = "${mode}"
 
 if use_standard and mode != "from-module":
     # Get calculated module and find nearest standard
-    calculated_module = design.worm.module
+    calculated_module = design.worm.module_mm
     standard_module = nearest_standard_module(calculated_module)
 
     # If different, recalculate using standard module
     if abs(calculated_module - standard_module) > 0.001:
         # For envelope mode, preserve worm pitch diameter (adjusted for addendum change)
         if mode == "envelope":
-            worm_pitch_diameter = design.worm.pitch_diameter
+            worm_pitch_diameter = design.worm.pitch_diameter_mm
             # Adjust for module change to maintain similar OD
             addendum_change = standard_module - calculated_module
             worm_pitch_diameter = worm_pitch_diameter - 2 * addendum_change
@@ -189,7 +189,7 @@ json.dumps({
 
         // Update UI
         updateBoreDisplaysAndDefaults(currentDesign);
-        document.getElementById('results-text').textContent = data.summary;
+        document.getElementById('results-text').textContent = data.markdown;
         updateValidationUI(data.valid, data.messages);
 
     } catch (error) {
