@@ -11,6 +11,72 @@
 - 3D printing of functional gears (FDM, SLA, SLS)
 - Educational and research applications
 
+## ⚠️ CRITICAL: Schema-First Architecture (MANDATORY)
+
+**Rule**: ALL data structures crossing Python↔JavaScript boundaries MUST use the schema-first workflow.
+
+### Schema Workflow (ALWAYS FOLLOW)
+
+1. **Define in Python using Pydantic models** (`src/wormgear/calculator/models.py`)
+   - Single source of truth
+   - Type-safe with enums
+   - Built-in validation with Field() constraints
+
+2. **Generate JSON Schema** (automated in build)
+   ```bash
+   python scripts/generate_schemas.py
+   # Outputs: schemas/calculator-inputs-v2.0.json, schemas/design-output-v2.0.json
+   ```
+
+3. **Generate TypeScript types** (automated in build)
+   ```bash
+   bash scripts/generate_types.sh
+   # Outputs: web/types/*.d.ts
+   ```
+
+4. **Use generated types in web code**
+   ```typescript
+   import { CalculatorInputs, WormGearDesign } from '../types/calculator-inputs';
+   const inputs: CalculatorInputs = { ... };  // Compile-time type checking
+   ```
+
+### When to Update Schemas
+
+**ALWAYS update schemas when you:**
+- Add a new field to any dataclass/model
+- Change a field type
+- Add or modify an enum
+- Change validation constraints (Field min/max/pattern)
+- Add a new API endpoint or data structure
+
+**How to update:**
+```bash
+# 1. Edit Pydantic models in src/wormgear/calculator/models.py
+# 2. Regenerate schemas
+python scripts/generate_schemas.py
+# 3. Regenerate TypeScript types
+bash scripts/generate_types.sh
+# 4. Update web code to use new types (TypeScript will catch errors)
+# 5. Run tests
+pytest tests/
+# 6. Commit all three: models.py + schemas/*.json + web/types/*.d.ts
+```
+
+### Schema Versioning
+
+- **schema_version field**: Every JSON output includes version (e.g., "2.0")
+- **Breaking changes**: Increment major version (2.0 → 3.0)
+- **Non-breaking additions**: Increment minor version (2.0 → 2.1)
+- **Keep old schemas**: Support migration from old versions
+
+### What NOT to Do
+
+❌ **Manual JSON Schema maintenance** - Schemas are GENERATED from Pydantic, never hand-edited
+❌ **Manual TypeScript type definitions** - Types are GENERATED from schemas, never hand-written
+❌ **Duplicate definitions** - Python models are the ONLY source of truth
+❌ **Skip schema regeneration** - ALWAYS regenerate after model changes
+❌ **Commit models without schemas** - Models, schemas, and types must stay in sync
+
 ## ⚠️ CRITICAL: Lessons Learned - What NOT To Do
 
 **Context**: During January 2026 refactor attempt, several critical mistakes were made that wasted significant development time. These lessons MUST be remembered to avoid repeating them.
@@ -100,6 +166,10 @@ Before EVERY push, ALL items must pass:
 
 ```
 [ ] Changes compile/import without errors
+[ ] If Pydantic models changed: Schemas regenerated
+    python scripts/generate_schemas.py
+    bash scripts/generate_types.sh
+    git add schemas/ web/types/
 [ ] CLI tested locally and works:
     python -c "from wormgear.calculator import design_from_module, to_json
     print(to_json(design_from_module(2.0, 30)))"
@@ -108,6 +178,8 @@ Before EVERY push, ALL items must pass:
     - Open index.html in browser
     - Test calculator functionality
     - Check browser console for errors
+[ ] TypeScript compiles (if .ts files changed):
+    cd web && tsc --noEmit
 [ ] pytest passes locally: pytest tests/ -v
 [ ] No type safety regressions (enums still enums, types still typed)
 [ ] Changes are batched (not micro-commits requiring repeated user testing)
@@ -140,6 +212,29 @@ def design_from_module(hand: Union[Hand, str] = "right"):
 ```
 
 This gives best of both worlds: type safety in Python, flexibility for JavaScript.
+
+## Recent History: Calculator Restoration (Jan 2026)
+
+**What happened**: The unified calculator refactor (Jan 2026) introduced multiple regressions:
+- Type safety lost (enums → strings)
+- Validation reduced by 43% (637 lines → 364 lines)
+- Dict-based returns instead of typed dataclasses
+- Manual JSON Schema maintenance caused drift
+- 15+ iterative fixes required due to inadequate testing
+
+**Decision**: Rather than continue piecemeal fixes, we **restored the proven legacy code** (commit 720de75: `web/wormcalc/`, 2,479 lines) and rebuilt it with a **schema-first architecture**:
+
+1. **Pydantic models** as single source of truth (`src/wormgear/calculator/models.py`)
+2. **Generated JSON Schemas** from Pydantic (no manual maintenance)
+3. **Generated TypeScript types** from schemas (compile-time safety in web UI)
+4. **Versioned schemas** for all Python↔JavaScript interactions
+5. **Calculator inputs** are now saveable/loadable (not just outputs)
+
+**Result**: Type safety restored, comprehensive validation preserved, zero schema drift between Python and TypeScript.
+
+**Lesson**: When a refactor introduces multiple regressions, sometimes the best path forward is to restore proven code with better architecture rather than continue fixing a flawed approach.
+
+---
 
 ## Development Best Practices
 

@@ -14,6 +14,8 @@ from wormgear import (
     AssemblyParams,
     WormGearDesign,
     ManufacturingParams,
+    Hand,
+    WormProfile,
 )
 from wormgear.io.loaders import ManufacturingFeatures
 
@@ -67,7 +69,7 @@ class TestLoadDesignJson:
         assert design.assembly.ratio == 12
         assert design.assembly.pressure_angle_deg == 25
         assert design.assembly.backlash_mm == 0.1
-        assert design.assembly.hand == "right"
+        assert design.assembly.hand == Hand.RIGHT
 
     def test_hand_in_assembly_section(self, tmp_path, sample_design_7mm):
         """Test that hand field in assembly section is correctly handled."""
@@ -77,8 +79,8 @@ class TestLoadDesignJson:
             json.dump(sample_design_7mm, f)
 
         design = load_design_json(json_file)
-        assert design.worm.hand == "right"
-        assert design.assembly.hand == "right"
+        assert design.worm.hand == Hand.RIGHT
+        assert design.assembly.hand == Hand.RIGHT
 
     def test_hand_in_worm_section(self, tmp_path, sample_design_7mm):
         """Test that hand field in worm section is correctly handled."""
@@ -91,7 +93,7 @@ class TestLoadDesignJson:
             json.dump(sample_design_7mm, f)
 
         design = load_design_json(json_file)
-        assert design.worm.hand == "left"
+        assert design.worm.hand == Hand.LEFT
 
     def test_load_nonexistent_file(self):
         """Test that loading a nonexistent file raises an error."""
@@ -214,7 +216,7 @@ class TestManufacturingParams:
     def test_manufacturing_params_default_profile(self):
         """Test that default profile is ZA."""
         params = ManufacturingParams()
-        assert params.profile == "ZA"
+        assert params.profile == WormProfile.ZA
 
     def test_manufacturing_params_zk_profile(self):
         """Test setting ZK profile."""
