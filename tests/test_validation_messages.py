@@ -75,7 +75,6 @@ class TestModuleValidationMessages:
 class TestGloboidValidationMessages:
     """Tests for globoid worm validation messages."""
 
-    @pytest.mark.xfail(reason="GLOBOID_NON_THROATED validation not yet implemented in Python library")
     def test_globoid_non_throated_warning_without_virtual_hobbing(self):
         """
         GLOBOID_NON_THROATED should appear as INFO when globoid worm
@@ -101,7 +100,6 @@ class TestGloboidValidationMessages:
         assert globoid_msgs[0].severity.value == 'info'
         assert 'virtual hobbing' in globoid_msgs[0].suggestion.lower()
 
-    @pytest.mark.xfail(reason="GLOBOID_NON_THROATED validation not yet implemented in Python library")
     def test_globoid_non_throated_suppressed_with_virtual_hobbing(self):
         """
         GLOBOID_NON_THROATED should NOT appear when virtual hobbing is enabled,
@@ -127,7 +125,6 @@ class TestGloboidValidationMessages:
         codes = [m.code for m in validation.messages]
         assert 'GLOBOID_NON_THROATED' not in codes
 
-    @pytest.mark.xfail(reason="GLOBOID_NON_THROATED validation not yet implemented in Python library")
     def test_globoid_throated_wheel_no_warning(self):
         """
         GLOBOID_NON_THROATED should NOT appear when wheel is already throated.
@@ -146,7 +143,6 @@ class TestGloboidValidationMessages:
         codes = [m.code for m in validation.messages]
         assert 'GLOBOID_NON_THROATED' not in codes
 
-    @pytest.mark.xfail(reason="GLOBOID_NON_THROATED validation not yet implemented in Python library")
     def test_cylindrical_worm_no_globoid_warning(self):
         """
         GLOBOID_NON_THROATED should NOT appear for cylindrical worms.

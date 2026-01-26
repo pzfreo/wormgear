@@ -426,6 +426,16 @@ def design_from_module(
         profile_shift=0.0  # Worm doesn't use profile shift
     )
 
+    # Add worm type to output
+    worm["type"] = "globoid" if globoid else "cylindrical"
+
+    # Add globoid-specific parameters if applicable
+    if globoid:
+        worm["throat_reduction_mm"] = throat_reduction
+        # Calculate throat curvature radius (related to wheel pitch radius)
+        wheel_pitch_radius = (module * ratio * num_starts) / 2
+        worm["throat_curvature_radius_mm"] = wheel_pitch_radius
+
     # Calculate wheel parameters
     wheel = calculate_wheel(
         module_mm=module,
