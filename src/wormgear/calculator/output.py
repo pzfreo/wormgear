@@ -1,15 +1,23 @@
 """Output formatters for worm gear designs.
 
-Converts typed WormGearDesign dataclasses to JSON and Markdown output.
+Converts typed WormGearDesign models to JSON and Markdown output.
 All functions expect WormGearDesign - no dict handling for clean code.
 """
 
 import json
-from dataclasses import asdict
 from enum import Enum
 from typing import Optional, TYPE_CHECKING, Any
 
 from ..io import WormGearDesign
+from ..io.loaders import PYDANTIC_V2
+
+
+def _model_to_dict(model) -> dict:
+    """Convert Pydantic model to dict."""
+    if PYDANTIC_V2:
+        return model.model_dump()
+    else:
+        return model.dict()
 
 if TYPE_CHECKING:
     from .validation import ValidationResult
@@ -47,7 +55,7 @@ def to_json(
         JSON string with schema version, design parameters, and optional extras
     """
     # Convert dataclass to dict and serialize enums
-    design_dict = _serialize_enums(asdict(design))
+    design_dict = _serialize_enums(_model_to_dict(design))
 
     # Add schema version for compatibility
     if 'schema_version' not in design_dict:
@@ -157,7 +165,7 @@ def to_markdown(
         Detailed markdown specification string
     """
     # Convert to dict for easy field access
-    design_dict = _serialize_enums(asdict(design))
+    design_dict = _serialize_enums(_model_to_dict(design))
 
     worm = design_dict["worm"]
     wheel = design_dict["wheel"]
@@ -351,7 +359,7 @@ def to_summary(
         Multi-line formatted summary string
     """
     # Convert to dict for easy field access
-    design_dict = _serialize_enums(asdict(design))
+    design_dict = _serialize_enums(_model_to_dict(design))
 
     worm = design_dict["worm"]
     wheel = design_dict["wheel"]
