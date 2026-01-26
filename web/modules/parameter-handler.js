@@ -55,6 +55,7 @@ export function getInputs(mode) {
             calculatorParams.wheel_od = safeParseFloat(document.getElementById('wheel-od').value);
             calculatorParams.ratio = safeParseInt(document.getElementById('ratio').value);
             calculatorParams.od_as_maximum = document.getElementById('od-as-maximum').checked;
+            calculatorParams.use_standard_module = document.getElementById('use-standard-module').checked;
             break;
         case 'from-wheel':
             calculatorParams.wheel_od = safeParseFloat(document.getElementById('wheel-od-fw').value);
@@ -112,11 +113,8 @@ export function getInputs(mode) {
  */
 export function formatArgs(calculatorParams) {
     // Convert calculator parameters to Python function call arguments
-    // Receives only calculator params - no filtering needed (clean boundary!)
-    // Note: od_as_maximum is a JS-only flag, not passed to Python
-    const jsOnlyParams = ['od_as_maximum'];
     return Object.entries(calculatorParams)
-        .filter(([key, value]) => value !== null && value !== undefined && !jsOnlyParams.includes(key))
+        .filter(([key, value]) => value !== null && value !== undefined)
         .map(([key, value]) => {
             // Enum conversions
             if (key === 'hand') return `hand=Hand.${value}`;

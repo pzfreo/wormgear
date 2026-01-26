@@ -777,7 +777,9 @@ def design_from_envelope(
     profile: Union[WormProfile, str] = "ZA",
     worm_type: Union[WormType, str, None] = None,
     throat_reduction: float = 0.0,
-    wheel_throated: bool = False
+    wheel_throated: bool = False,
+    od_as_maximum: bool = False,
+    use_standard_module: bool = False
 ) -> WormGearDesign:
     """
     Design worm gear pair from outside diameter constraints (envelope mode).
@@ -799,9 +801,11 @@ def design_from_envelope(
         worm_type: Worm geometry type (WormType enum or "cylindrical"/"globoid" string)
         throat_reduction: Throat reduction for globoid worms (mm, default 0.0)
         wheel_throated: Whether wheel has throated teeth (default False)
+        od_as_maximum: Treat ODs as maximum constraints (find largest standard module that fits)
+        use_standard_module: Round to standard module (ISO 54 / DIN 780)
 
     Returns:
-        Design dict with worm, wheel, assembly, and manufacturing sections
+        WormGearDesign with worm, wheel, assembly, and manufacturing sections
     """
     # Convert string to enum if needed
     if isinstance(hand, str):
@@ -816,10 +820,48 @@ def design_from_envelope(
             worm_type = WormType(worm_type.lower())
         globoid = (worm_type == WormType.GLOBOID)
 
+    num_teeth = ratio * num_starts
+
+    # When od_as_maximum is True, find the largest standard module that fits
+    if od_as_maximum and use_standard_module:
+        # Try standard modules in descending order
+        for test_module in sorted(STANDARD_MODULES, reverse=True):
+            # Calculate what the ODs would be with this module
+            test_wheel_od = test_module * (num_teeth + 2)
+            # For worm, we need to estimate pitch diameter first
+            # Use a reasonable worm pitch diameter that gives good geometry
+            # Typically worm pitch diameter is 5-15× module
+            test_worm_pitch_diameter = test_module * 8  # Middle of typical range
+            test_worm_od = test_worm_pitch_diameter + 2 * test_module
+
+            # Check if both fit within constraints
+            if test_wheel_od <= wheel_od and test_worm_od <= worm_od:
+                # This module fits - use it
+                return design_from_module(
+                    module=test_module,
+                    ratio=ratio,
+                    worm_pitch_diameter=test_worm_pitch_diameter,
+                    pressure_angle=pressure_angle,
+                    backlash=backlash,
+                    num_starts=num_starts,
+                    clearance_factor=clearance_factor,
+                    hand=hand,
+                    profile_shift=profile_shift,
+                    profile=profile,
+                    worm_type=worm_type,
+                    throat_reduction=throat_reduction,
+                    wheel_throated=wheel_throated
+                )
+
+        # No standard module fits - fall through to exact calculation
+
     # Calculate module from wheel OD
     # tip_diameter = module × (num_teeth + 2)
-    num_teeth = ratio * num_starts
     module = wheel_od / (num_teeth + 2)
+
+    # Round to standard module if requested (and not already handled above)
+    if use_standard_module and not od_as_maximum:
+        module = nearest_standard_module(module)
 
     # Worm pitch diameter from worm OD
     # tip_diameter = pitch_diameter + 2 × addendum
