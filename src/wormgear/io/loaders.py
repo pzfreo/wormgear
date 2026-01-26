@@ -124,6 +124,8 @@ class ManufacturingParams:
     hobbing_steps: int = 18  # Number of steps for virtual hobbing (if enabled)
     throated_wheel: bool = False  # True for throated/hobbed wheel style
     sections_per_turn: int = 36  # Loft sections per helix turn (smoothness)
+    worm_length_mm: Optional[float] = None  # Recommended worm length (mm)
+    wheel_width_mm: Optional[float] = None  # Recommended wheel face width (mm)
 
 
 @dataclass

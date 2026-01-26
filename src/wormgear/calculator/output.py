@@ -61,6 +61,10 @@ def to_json(
         # Already a dict (from design_from_module etc)
         design_dict = design.copy()
 
+    # Add schema version for compatibility
+    if 'schema_version' not in design_dict:
+        design_dict['schema_version'] = '1.0'
+
     # Merge in bore settings if provided
     if bore_settings:
         design_dict.setdefault('bore', {}).update(bore_settings)
@@ -160,7 +164,7 @@ def to_summary(
     bore_settings: Optional[dict] = None,
     manufacturing_settings: Optional[dict] = None
 ) -> str:
-    """Convert design to single-line summary.
+    """Convert design to formatted text summary.
 
     Args:
         design: WormGearDesign dataclass or dict
@@ -169,7 +173,7 @@ def to_summary(
         manufacturing_settings: Optional manufacturing config (unused, for API compatibility)
 
     Returns:
-        Summary string
+        Multi-line formatted summary string
     """
     if isinstance(design, WormGearDesign):
         design_dict = asdict(design)
@@ -180,5 +184,54 @@ def to_summary(
     worm = design_dict["worm"]
     wheel = design_dict["wheel"]
     asm = design_dict["assembly"]
+    mfg = design_dict.get("manufacturing", {})
 
-    return f"Module {worm['module_mm']:.1f}mm, Ratio 1:{asm['ratio']}, CD={asm['centre_distance_mm']:.1f}mm"
+    # Get worm type for display
+    worm_type_str = "cylindrical"
+    if worm.get("type"):
+        worm_type_str = worm["type"] if isinstance(worm["type"], str) else worm["type"]
+
+    lines = [
+        "═══ Worm Gear Design ═══",
+        f"Ratio: {asm['ratio']}:1",
+        f"Module: {worm['module_mm']:.3f} mm",
+        f"Profile: {mfg.get('profile', 'ZA')} | Worm: {worm_type_str}",
+        "",
+        "Worm:",
+        f"  Tip diameter (OD): {worm['tip_diameter_mm']:.2f} mm",
+        f"  Pitch diameter:    {worm['pitch_diameter_mm']:.2f} mm",
+        f"  Root diameter:     {worm['root_diameter_mm']:.2f} mm",
+        f"  Lead angle:        {worm['lead_angle_deg']:.1f}°",
+        f"  Starts:            {worm['num_starts']}",
+    ]
+
+    # Add globoid throat info if present
+    if worm.get("throat_pitch_radius_mm"):
+        lines.append(f"  Throat pitch rad:  {worm['throat_pitch_radius_mm']:.2f} mm")
+
+    lines.extend([
+        "",
+        "Wheel:",
+        f"  Tip diameter (OD): {wheel['tip_diameter_mm']:.2f} mm",
+        f"  Pitch diameter:    {wheel['pitch_diameter_mm']:.2f} mm",
+        f"  Root diameter:     {wheel['root_diameter_mm']:.2f} mm",
+        f"  Teeth:             {wheel['num_teeth']}",
+        f"  Helix angle:       {wheel['helix_angle_deg']:.1f}°",
+        "",
+        f"Centre distance: {asm['centre_distance_mm']:.2f} mm",
+        f"Efficiency (est): {asm.get('efficiency_percent', 0):.0f}%",
+        f"Self-locking: {'Yes' if asm.get('self_locking', False) else 'No'}",
+    ])
+
+    # Add manufacturing recommendations if present
+    if mfg and ('worm_length_mm' in mfg or 'wheel_width_mm' in mfg):
+        lines.extend([
+            "",
+            "Recommended Dimensions:",
+        ])
+        if 'worm_length_mm' in mfg:
+            lines.append(f"  Worm length:  {mfg['worm_length_mm']:.2f} mm")
+        if 'wheel_width_mm' in mfg:
+            lines.append(f"  Wheel width:  {mfg['wheel_width_mm']:.2f} mm")
+
+    return "\n".join(lines)

@@ -308,17 +308,6 @@ def design_from_module(
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
 ) -> dict:
-    # Convert string to enum if needed (for backward compatibility)
-    if isinstance(hand, str):
-        hand = Hand(hand.lower())
-    if isinstance(profile, str):
-        profile = WormProfile(profile.upper())
-
-    # Handle worm_type parameter (converts to globoid boolean)
-    if worm_type is not None:
-        if isinstance(worm_type, str):
-            worm_type = WormType(worm_type.lower())
-        globoid = (worm_type == WormType.GLOBOID)
     """
     Design worm gear pair from module specification.
 
@@ -341,6 +330,18 @@ def design_from_module(
     Returns:
         Dict with complete design matching WormGearDesign schema
     """
+    # Convert string to enum if needed (for backward compatibility)
+    if isinstance(hand, str):
+        hand = Hand(hand.lower())
+    if isinstance(profile, str):
+        profile = WormProfile(profile.upper())
+
+    # Handle worm_type parameter (converts to globoid boolean)
+    if worm_type is not None:
+        if isinstance(worm_type, str):
+            worm_type = WormType(worm_type.lower())
+        globoid = (worm_type == WormType.GLOBOID)
+
     # Number of teeth on wheel
     num_teeth = ratio * num_starts
 
@@ -400,6 +401,16 @@ def design_from_module(
     ) * 100.0
     self_locking = worm["lead_angle_deg"] < 6.0
 
+    # Calculate recommended dimensions
+    wheel_width_mm = calculate_recommended_wheel_width(
+        worm_pitch_diameter_mm=worm["pitch_diameter_mm"],
+        module_mm=module
+    )
+    worm_length_mm = calculate_recommended_worm_length(
+        wheel_width_mm=wheel_width_mm,
+        lead_mm=worm["lead_mm"]
+    )
+
     return {
         "worm": worm,
         "wheel": wheel,
@@ -417,7 +428,9 @@ def design_from_module(
             "virtual_hobbing": False,
             "hobbing_steps": 18,
             "throated_wheel": wheel_throated,
-            "sections_per_turn": 36
+            "sections_per_turn": 36,
+            "worm_length_mm": round(worm_length_mm, 2),
+            "wheel_width_mm": round(wheel_width_mm, 2)
         }
     }
 
@@ -438,17 +451,6 @@ def design_from_centre_distance(
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
 ) -> dict:
-    # Convert string to enum if needed (for backward compatibility)
-    if isinstance(hand, str):
-        hand = Hand(hand.lower())
-    if isinstance(profile, str):
-        profile = WormProfile(profile.upper())
-
-    # Handle worm_type parameter (converts to globoid boolean)
-    if worm_type is not None:
-        if isinstance(worm_type, str):
-            worm_type = WormType(worm_type.lower())
-        globoid = (worm_type == WormType.GLOBOID)
     """
     Design worm gear pair from centre distance constraint.
 
@@ -470,6 +472,18 @@ def design_from_centre_distance(
     Returns:
         Dict with complete design matching WormGearDesign schema
     """
+    # Convert string to enum if needed (for backward compatibility)
+    if isinstance(hand, str):
+        hand = Hand(hand.lower())
+    if isinstance(profile, str):
+        profile = WormProfile(profile.upper())
+
+    # Handle worm_type parameter (converts to globoid boolean)
+    if worm_type is not None:
+        if isinstance(worm_type, str):
+            worm_type = WormType(worm_type.lower())
+        globoid = (worm_type == WormType.GLOBOID)
+
     # Number of teeth on wheel
     num_teeth = ratio * num_starts
 
@@ -527,17 +541,6 @@ def design_from_wheel(
     throat_reduction: float = 0.0,
     wheel_throated: bool = False
 ) -> dict:
-    # Convert string to enum if needed (for backward compatibility)
-    if isinstance(hand, str):
-        hand = Hand(hand.lower())
-    if isinstance(profile, str):
-        profile = WormProfile(profile.upper())
-
-    # Handle worm_type parameter (converts to globoid boolean)
-    if worm_type is not None:
-        if isinstance(worm_type, str):
-            worm_type = WormType(worm_type.lower())
-        globoid = (worm_type == WormType.GLOBOID)
     """
     Design worm gear pair from wheel OD constraint.
     Worm sized to achieve target lead angle.
@@ -560,6 +563,18 @@ def design_from_wheel(
     Returns:
         Dict with complete design matching WormGearDesign schema
     """
+    # Convert string to enum if needed (for backward compatibility)
+    if isinstance(hand, str):
+        hand = Hand(hand.lower())
+    if isinstance(profile, str):
+        profile = WormProfile(profile.upper())
+
+    # Handle worm_type parameter (converts to globoid boolean)
+    if worm_type is not None:
+        if isinstance(worm_type, str):
+            worm_type = WormType(worm_type.lower())
+        globoid = (worm_type == WormType.GLOBOID)
+
     # Number of teeth on wheel
     num_teeth = ratio * num_starts
 
