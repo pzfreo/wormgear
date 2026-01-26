@@ -65,9 +65,36 @@ def to_json(
     if 'schema_version' not in design_dict:
         design_dict['schema_version'] = '1.0'
 
-    # Merge in bore settings if provided
+    # Transform bore settings into features section (format expected by generator)
     if bore_settings:
-        design_dict.setdefault('bore', {}).update(bore_settings)
+        features = {}
+
+        # Worm bore/keyway features
+        if bore_settings.get('worm_bore_type') == 'auto':
+            features['worm'] = {'auto_bore': True}
+        elif bore_settings.get('worm_bore_type') == 'custom' and bore_settings.get('worm_bore_diameter'):
+            features['worm'] = {'bore_diameter_mm': bore_settings['worm_bore_diameter']}
+
+        # Add worm anti-rotation if bore exists
+        if 'worm' in features:
+            worm_keyway = bore_settings.get('worm_keyway', 'none')
+            if worm_keyway and worm_keyway != 'none':
+                features['worm']['anti_rotation'] = worm_keyway
+
+        # Wheel bore/keyway features
+        if bore_settings.get('wheel_bore_type') == 'auto':
+            features['wheel'] = {'auto_bore': True}
+        elif bore_settings.get('wheel_bore_type') == 'custom' and bore_settings.get('wheel_bore_diameter'):
+            features['wheel'] = {'bore_diameter_mm': bore_settings['wheel_bore_diameter']}
+
+        # Add wheel anti-rotation if bore exists
+        if 'wheel' in features:
+            wheel_keyway = bore_settings.get('wheel_keyway', 'none')
+            if wheel_keyway and wheel_keyway != 'none':
+                features['wheel']['anti_rotation'] = wheel_keyway
+
+        if features:
+            design_dict['features'] = features
 
     # Merge in manufacturing settings if provided
     if manufacturing_settings:
@@ -115,19 +142,18 @@ def to_markdown(
     bore_settings: Optional[dict] = None,
     manufacturing_settings: Optional[dict] = None
 ) -> str:
-    """Convert design to markdown summary.
+    """Convert design to comprehensive markdown specification.
 
     Args:
         design: WormGearDesign dataclass or dict
-        validation: Optional validation results (unused, for API compatibility)
-        bore_settings: Optional bore configuration (unused, for API compatibility)
-        manufacturing_settings: Optional manufacturing config (unused, for API compatibility)
+        validation: Optional validation results to include
+        bore_settings: Optional bore configuration
+        manufacturing_settings: Optional manufacturing config
 
     Returns:
-        Markdown string
+        Detailed markdown specification string
     """
     if isinstance(design, WormGearDesign):
-        # Convert dataclass to dict for easier access
         design_dict = asdict(design)
         design_dict = _serialize_enums(design_dict)
     else:
@@ -136,24 +162,140 @@ def to_markdown(
     worm = design_dict["worm"]
     wheel = design_dict["wheel"]
     asm = design_dict["assembly"]
+    mfg = design_dict.get("manufacturing", {})
 
-    md = "# Worm Gear Design\n\n"
-    md += "## Worm\n"
-    md += f"- Module: {worm['module_mm']:.3f} mm\n"
-    md += f"- Starts: {worm['num_starts']}\n"
-    md += f"- Pitch Diameter: {worm['pitch_diameter_mm']:.3f} mm\n"
-    md += f"- Lead: {worm['lead_mm']:.3f} mm\n"
-    md += f"- Lead Angle: {worm['lead_angle_deg']:.2f}°\n\n"
+    # Get worm type
+    worm_type = worm.get("type", "cylindrical")
+    if hasattr(worm_type, 'value'):
+        worm_type = worm_type.value
 
-    md += "## Wheel\n"
-    md += f"- Teeth: {wheel['num_teeth']}\n"
-    md += f"- Pitch Diameter: {wheel['pitch_diameter_mm']:.3f} mm\n"
-    md += f"- Tip Diameter: {wheel['tip_diameter_mm']:.3f} mm\n\n"
+    md = "# Worm Gear Design Specification\n\n"
 
-    md += "## Assembly\n"
-    md += f"- Centre Distance: {asm['centre_distance_mm']:.3f} mm\n"
-    md += f"- Ratio: 1:{asm['ratio']}\n"
-    md += f"- Hand: {asm['hand']}\n"
+    # Overview section
+    md += "## Overview\n\n"
+    md += f"| Parameter | Value |\n"
+    md += f"|-----------|-------|\n"
+    md += f"| Gear Ratio | {asm['ratio']}:1 |\n"
+    md += f"| Module | {worm['module_mm']:.3f} mm |\n"
+    md += f"| Centre Distance | {asm['centre_distance_mm']:.3f} mm |\n"
+    md += f"| Hand | {asm.get('hand', 'right')} |\n"
+    md += f"| Profile | {mfg.get('profile', 'ZA')} |\n"
+    md += f"| Worm Type | {worm_type} |\n"
+    md += f"| Pressure Angle | {asm.get('pressure_angle_deg', 20.0):.1f}° |\n\n"
+
+    # Worm section
+    md += "## Worm Gear (Driving)\n\n"
+    md += f"| Dimension | Value |\n"
+    md += f"|-----------|-------|\n"
+    md += f"| Number of Starts | {worm['num_starts']} |\n"
+    md += f"| Tip Diameter (OD) | {worm['tip_diameter_mm']:.3f} mm |\n"
+    md += f"| Pitch Diameter | {worm['pitch_diameter_mm']:.3f} mm |\n"
+    md += f"| Root Diameter | {worm['root_diameter_mm']:.3f} mm |\n"
+    md += f"| Lead | {worm['lead_mm']:.3f} mm |\n"
+    md += f"| Lead Angle | {worm['lead_angle_deg']:.2f}° |\n"
+    md += f"| Addendum | {worm['addendum_mm']:.3f} mm |\n"
+    md += f"| Dedendum | {worm['dedendum_mm']:.3f} mm |\n"
+    md += f"| Thread Thickness | {worm.get('thread_thickness_mm', worm['module_mm'] * 1.571):.3f} mm |\n"
+    if worm.get('profile_shift'):
+        md += f"| Profile Shift | {worm['profile_shift']:.3f} |\n"
+    if worm_type == "globoid" and worm.get('throat_pitch_radius_mm'):
+        md += f"| Throat Pitch Radius | {worm['throat_pitch_radius_mm']:.3f} mm |\n"
+    md += "\n"
+
+    # Recommended worm length
+    if mfg.get('worm_length_mm'):
+        md += f"**Recommended Length:** {mfg['worm_length_mm']:.1f} mm\n\n"
+
+    # Wheel section
+    md += "## Worm Wheel (Driven)\n\n"
+    md += f"| Dimension | Value |\n"
+    md += f"|-----------|-------|\n"
+    md += f"| Number of Teeth | {wheel['num_teeth']} |\n"
+    md += f"| Tip Diameter (OD) | {wheel['tip_diameter_mm']:.3f} mm |\n"
+    md += f"| Pitch Diameter | {wheel['pitch_diameter_mm']:.3f} mm |\n"
+    md += f"| Root Diameter | {wheel['root_diameter_mm']:.3f} mm |\n"
+    if wheel.get('throat_diameter_mm'):
+        md += f"| Throat Diameter | {wheel['throat_diameter_mm']:.3f} mm |\n"
+    md += f"| Helix Angle | {wheel['helix_angle_deg']:.2f}° |\n"
+    md += f"| Addendum | {wheel['addendum_mm']:.3f} mm |\n"
+    md += f"| Dedendum | {wheel['dedendum_mm']:.3f} mm |\n"
+    if wheel.get('profile_shift'):
+        md += f"| Profile Shift | {wheel['profile_shift']:.3f} |\n"
+    md += "\n"
+
+    # Recommended wheel width
+    if mfg.get('wheel_width_mm'):
+        md += f"**Recommended Face Width:** {mfg['wheel_width_mm']:.1f} mm\n\n"
+
+    # Assembly/Performance section
+    md += "## Assembly & Performance\n\n"
+    md += f"| Parameter | Value |\n"
+    md += f"|-----------|-------|\n"
+    md += f"| Centre Distance | {asm['centre_distance_mm']:.3f} mm |\n"
+    md += f"| Backlash | {asm.get('backlash_mm', 0.05):.3f} mm |\n"
+    if asm.get('efficiency_percent'):
+        md += f"| Estimated Efficiency | {asm['efficiency_percent']:.1f}% |\n"
+    md += f"| Self-Locking | {'Yes' if asm.get('self_locking', False) else 'No'} |\n"
+    md += "\n"
+
+    # Bore and features section
+    if bore_settings:
+        md += "## Bore & Anti-Rotation Features\n\n"
+
+        # Worm bore
+        worm_bore_type = bore_settings.get('worm_bore_type', 'none')
+        if worm_bore_type != 'none':
+            md += "### Worm\n\n"
+            if worm_bore_type == 'auto':
+                md += "- Bore: Auto-calculated\n"
+            elif worm_bore_type == 'custom':
+                md += f"- Bore Diameter: {bore_settings.get('worm_bore_diameter', 0):.1f} mm\n"
+            worm_keyway = bore_settings.get('worm_keyway', 'none')
+            if worm_keyway and worm_keyway != 'none':
+                md += f"- Anti-Rotation: {worm_keyway}\n"
+            md += "\n"
+
+        # Wheel bore
+        wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
+        if wheel_bore_type != 'none':
+            md += "### Wheel\n\n"
+            if wheel_bore_type == 'auto':
+                md += "- Bore: Auto-calculated\n"
+            elif wheel_bore_type == 'custom':
+                md += f"- Bore Diameter: {bore_settings.get('wheel_bore_diameter', 0):.1f} mm\n"
+            wheel_keyway = bore_settings.get('wheel_keyway', 'none')
+            if wheel_keyway and wheel_keyway != 'none':
+                md += f"- Anti-Rotation: {wheel_keyway}\n"
+            md += "\n"
+
+    # Manufacturing section
+    md += "## Manufacturing Notes\n\n"
+    md += f"- **Profile Type:** {mfg.get('profile', 'ZA')}"
+    if mfg.get('profile', 'ZA') == 'ZA':
+        md += " (straight flanks - standard for CNC machining)\n"
+    elif mfg.get('profile', 'ZA') == 'ZK':
+        md += " (convex flanks - recommended for 3D printing)\n"
+    else:
+        md += "\n"
+
+    if mfg.get('virtual_hobbing'):
+        md += f"- **Wheel Generation:** Virtual hobbing ({mfg.get('hobbing_steps', 72)} steps)\n"
+    else:
+        md += "- **Wheel Generation:** Helical approximation\n"
+
+    md += f"- **Worm Type:** {worm_type.title()}\n"
+
+    # Validation warnings
+    if validation and (validation.warnings or validation.errors):
+        md += "\n## Validation Notes\n\n"
+        for msg in validation.errors:
+            md += f"- **ERROR:** {msg.message}\n"
+        for msg in validation.warnings:
+            md += f"- **Warning:** {msg.message}\n"
+
+    # Footer
+    md += "\n---\n"
+    md += "*Generated by Wormgear Calculator*\n"
 
     return md
 
