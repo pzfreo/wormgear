@@ -332,7 +332,7 @@ Examples:
     use_globoid = args.globoid or (design.worm.type == WormType.GLOBOID if design.worm.type else False)
     use_profile = args.profile.upper() if args.profile.upper() != 'ZA' else (json_mfg.profile if json_mfg else 'ZA')
     use_virtual_hobbing = args.virtual_hobbing or (json_mfg.virtual_hobbing if json_mfg else False)
-    use_hobbing_steps = use_hobbing_steps if use_hobbing_steps != 72 else (json_mfg.hobbing_steps if json_mfg else 72)
+    use_hobbing_steps = args.hobbing_steps if args.hobbing_steps != 72 else (json_mfg.hobbing_steps if json_mfg else 72)
     use_sections = args.sections if args.sections != 36 else (json_mfg.sections_per_turn if json_mfg else 36)
 
     # Generate worm
