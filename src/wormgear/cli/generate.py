@@ -13,7 +13,7 @@ from ..io.loaders import (
     ManufacturingParams,
     ManufacturingFeatures
 )
-from ..enums import WormType
+from ..enums import WormType, WormProfile
 from ..core.worm import WormGeometry
 from ..core.globoid_worm import GloboidWormGeometry
 from ..core.wheel import WheelGeometry
@@ -440,9 +440,9 @@ Examples:
 
         worm_type_desc = "globoid (hourglass)" if use_globoid else "cylindrical"
         profile_upper = use_profile
-        if profile_upper == "ZK":
+        if profile_upper == WormProfile.ZK or profile_upper == "ZK":
             profile_desc = "ZK/circular arc"
-        elif profile_upper == "ZI":
+        elif profile_upper == WormProfile.ZI or profile_upper == "ZI":
             profile_desc = "ZI/involute"
         else:
             profile_desc = "ZA/straight"
@@ -603,9 +603,9 @@ Examples:
             features_desc += f", {hub_desc}"
 
         profile = use_profile
-        if profile == "ZK":
+        if profile == WormProfile.ZK or profile == "ZK":
             profile_desc = "ZK/circular arc"
-        elif profile == "ZI":
+        elif profile == WormProfile.ZI or profile == "ZI":
             profile_desc = "ZI/involute"
         else:
             profile_desc = "ZA/straight"

@@ -8,7 +8,7 @@ import math
 from typing import Optional, Literal
 from build123d import *
 from ..io.loaders import WormParams, AssemblyParams
-from ..enums import Hand
+from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
 
 # Profile types per DIN 3975
@@ -359,7 +359,7 @@ class WormGeometry:
 
             with BuildSketch(profile_plane) as sk:
                 with BuildLine():
-                    if self.profile == "ZA":
+                    if self.profile == WormProfile.ZA or self.profile == "ZA":
                         # ZA profile: Straight flanks (trapezoidal) per DIN 3975
                         # Best for CNC machining - simple, accurate, standard
                         root_left = (inner_r, -local_thread_half_width_root)
@@ -372,7 +372,7 @@ class WormGeometry:
                         Line(tip_right, root_right)    # Right flank (straight)
                         Line(root_right, root_left)    # Root (closes)
 
-                    elif self.profile == "ZK":
+                    elif self.profile == WormProfile.ZK or self.profile == "ZK":
                         # ZK profile: Circular arc flanks per DIN 3975 Type K
                         # Biconical grinding wheel profile - convex circular arc
                         # Better for 3D printing and reduces stress concentrations
@@ -419,7 +419,7 @@ class WormGeometry:
                         Spline(list(reversed(right_flank)))
                         Line(right_flank[0], left_flank[0])    # Root (closes)
 
-                    elif self.profile == "ZI":
+                    elif self.profile == WormProfile.ZI or self.profile == "ZI":
                         # ZI profile: Involute helicoid per DIN 3975 Type I
                         # In axial section, appears as straight flanks (generatrix of involute helicoid)
                         # The involute shape is in normal section (perpendicular to thread)

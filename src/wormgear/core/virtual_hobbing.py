@@ -28,7 +28,7 @@ from build123d import *
 from OCP.ShapeFix import ShapeFix_Shape
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
-from ..enums import Hand
+from ..enums import Hand, WormProfile
 from .features import (
     BoreFeature,
     KeywayFeature,
@@ -319,7 +319,7 @@ class VirtualHobbingWheelGeometry:
 
             with BuildSketch(profile_plane) as sk:
                 with BuildLine():
-                    if self.profile == "ZA":
+                    if self.profile == WormProfile.ZA or self.profile == "ZA":
                         # ZA profile: Straight flanks (trapezoidal) per DIN 3975
                         root_left = (inner_r, -thread_half_width_root)
                         root_right = (inner_r, thread_half_width_root)
@@ -331,7 +331,7 @@ class VirtualHobbingWheelGeometry:
                         Line(tip_right, root_right)
                         Line(root_right, root_left)
 
-                    elif self.profile == "ZK":
+                    elif self.profile == WormProfile.ZK or self.profile == "ZK":
                         # ZK profile: Circular arc flanks per DIN 3975 Type K
                         # Biconical grinding wheel profile
                         num_points = 9
@@ -367,7 +367,7 @@ class VirtualHobbingWheelGeometry:
                         Spline(list(reversed(right_flank)))
                         Line(right_flank[0], left_flank[0])
 
-                    elif self.profile == "ZI":
+                    elif self.profile == WormProfile.ZI or self.profile == "ZI":
                         # ZI profile: Involute helicoid per DIN 3975 Type I
                         # In axial section, appears as straight flanks (generatrix of involute helicoid)
                         # The involute shape is in normal section (perpendicular to thread)
