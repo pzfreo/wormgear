@@ -5,10 +5,15 @@
 *.pyc
 __pycache__/
 
-# Build artifacts
+# Build artifacts (OLD - these should NOT exist in web/ after restructuring)
+# After restructuring, web/ contains ONLY source files
+# All build output goes to /dist/ directory
 *.wasm
 *.data
 *.js.mem
+wormgear/  # OLD: Was copied here by build.sh - now goes to /dist/
+wormcalc/  # OLD: Legacy duplicate - should be deleted
+src/       # OLD: Stale duplicate - should be deleted
 
 # OS files
 .DS_Store

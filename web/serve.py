@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 """
-Simple HTTP server for local development of the web interface.
+Development server for wormgear web interface.
 
-This server enables CORS headers and serves both the web interface
-and the parent directory (for accessing ../examples/ and ../src/).
-
-Usage:
-    python3 serve.py [port]
-
-Default port: 8000
+Serves the built site from /dist/ directory.
+Run 'bash web/build.sh' before starting the server.
 """
 
 import sys
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 import os
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
 class CORSRequestHandler(SimpleHTTPRequestHandler):
@@ -29,6 +24,11 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
         self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
         self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
 
+        # Disable caching for development
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -40,13 +40,22 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
 def run_server(port=8000):
     """Run the development server."""
 
-    # Change to the project root directory (parent of web/)
-    # This allows serving both web/ files and src/examples/ files
-    web_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(web_dir)
-    os.chdir(project_root)
+    # Change to the dist/ directory (the built site)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    dist_dir = os.path.join(project_root, 'dist')
 
-    print(f"📁 Serving from: {project_root}")
+    if not os.path.exists(dist_dir):
+        print(f"❌ Error: dist/ directory not found at: {dist_dir}")
+        print(f"")
+        print(f"Please run the build script first:")
+        print(f"    cd {project_root}")
+        print(f"    bash web/build.sh")
+        sys.exit(1)
+
+    os.chdir(dist_dir)
+
+    print(f"📁 Serving from: {dist_dir}")
 
     server_address = ('', port)
     httpd = HTTPServer(server_address, CORSRequestHandler)
@@ -58,21 +67,20 @@ def run_server(port=8000):
 
 📍 Server running at:
 
-    http://localhost:{port}/web/
+    http://localhost:{port}/
 
 🌐 Access from network:
 
-    http://<your-ip>:{port}/web/
+    http://<your-ip>:{port}/
 
 💡 Usage:
     - Open the URL above in your browser
-    - Test with sample designs or upload JSON
-    - Check browser console for detailed logs
+    - Modify files in /web/ or /src/
+    - Run 'bash web/build.sh' to rebuild
+    - Refresh browser to see changes
 
-📁 Accessible paths:
-    - /web/         → Web interface
-    - /src/         → Python source files
-    - /examples/    → Sample JSON designs
+📁 Serving:
+    {dist_dir}
 
 ⌨️  Press Ctrl+C to stop the server
 
