@@ -13,6 +13,7 @@ from ..io.loaders import (
     ManufacturingParams,
     ManufacturingFeatures
 )
+from ..enums import WormType
 from ..core.worm import WormGeometry
 from ..core.globoid_worm import GloboidWormGeometry
 from ..core.wheel import WheelGeometry
@@ -322,9 +323,21 @@ Examples:
     worm = None
     wheel = None
 
+    # Get features from JSON if present (source of truth)
+    json_worm_features = design.features.worm if design.features else None
+    json_wheel_features = design.features.wheel if design.features else None
+
+    # Get manufacturing params from JSON (CLI args override)
+    json_mfg = design.manufacturing
+    use_globoid = args.globoid or (design.worm.type == WormType.GLOBOID if design.worm.type else False)
+    use_profile = args.profile.upper() if args.profile.upper() != 'ZA' else (json_mfg.profile if json_mfg else 'ZA')
+    use_virtual_hobbing = args.virtual_hobbing or (json_mfg.virtual_hobbing if json_mfg else False)
+    use_hobbing_steps = use_hobbing_steps if use_hobbing_steps != 72 else (json_mfg.hobbing_steps if json_mfg else 72)
+    use_sections = args.sections if args.sections != 36 else (json_mfg.sections_per_turn if json_mfg else 36)
+
     # Generate worm
     if generate_worm:
-        # Determine bore diameter (auto-calculate or override)
+        # Determine bore diameter: CLI arg > JSON features > auto-calculate
         worm_bore = None
         worm_keyway = None
         worm_ddcut = None
@@ -334,8 +347,13 @@ Examples:
         worm_thin_rim_warning = False
         if not args.no_bore:
             if args.worm_bore is not None:
+                # CLI override
                 worm_bore_diameter = args.worm_bore
-                # Check if user-specified bore has thin rim
+                actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
+                worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+            elif json_worm_features and json_worm_features.bore_diameter_mm is not None:
+                # From JSON features
+                worm_bore_diameter = json_worm_features.bore_diameter_mm
                 actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
                 worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
             else:
@@ -348,22 +366,28 @@ Examples:
             if worm_bore_diameter is not None:
                 worm_bore = BoreFeature(diameter=worm_bore_diameter)
 
-                # Add anti-rotation feature (keyway or DD-cut)
-                if args.dd_cut:
-                    # DD-cut requested (alternative to keyway for small bores)
+                # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
+                json_anti_rotation = json_worm_features.anti_rotation if json_worm_features else None
+
+                if args.dd_cut or json_anti_rotation == 'ddcut':
+                    # DD-cut requested
                     if args.worm_ddcut_depth:
                         worm_ddcut = DDCutFeature(depth=args.worm_ddcut_depth)
                     else:
-                        worm_ddcut = calculate_default_ddcut(worm_bore_diameter, args.ddcut_depth_percent)
-                elif not args.no_keyway and worm_bore_diameter >= 6.0:
-                    # Standard keyway for bores >= 6mm
+                        depth_pct = json_worm_features.ddcut_depth_percent if json_worm_features else args.ddcut_depth_percent
+                        worm_ddcut = calculate_default_ddcut(worm_bore_diameter, depth_pct)
+                elif args.no_keyway or json_anti_rotation == 'none':
+                    # No keyway explicitly requested
+                    pass
+                elif worm_bore_diameter >= 6.0:
+                    # Default: keyway for bores >= 6mm (unless JSON says none)
                     worm_keyway = KeywayFeature()
 
-                # Add set screw if requested
-                if args.set_screw:
-                    # Parse size if specified (e.g., "M4" -> ("M4", 4.0))
+                # Add set screw: CLI arg > JSON features
+                json_set_screw = json_worm_features.set_screw if json_worm_features else None
+                if args.set_screw or json_set_screw:
+                    # Parse size: CLI arg > JSON > auto
                     if args.set_screw_size:
-                        # Extract diameter from size string (e.g., "M4" -> 4.0)
                         try:
                             size_str = args.set_screw_size.upper()
                             if size_str.startswith('M'):
@@ -379,6 +403,18 @@ Examples:
                         except ValueError:
                             print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
                             worm_set_screw = SetScrewFeature(count=args.set_screw_count)
+                    elif json_set_screw:
+                        # Use JSON set screw spec
+                        size_str = json_set_screw.size.upper()
+                        try:
+                            diameter = float(size_str[1:]) if size_str.startswith('M') else None
+                            worm_set_screw = SetScrewFeature(
+                                size=size_str,
+                                diameter=diameter,
+                                count=json_set_screw.count
+                            )
+                        except ValueError:
+                            worm_set_screw = SetScrewFeature(count=json_set_screw.count)
                     else:
                         worm_set_screw = SetScrewFeature(count=args.set_screw_count)
 
@@ -400,8 +436,8 @@ Examples:
                     screw_desc += f" x{worm_set_screw.count}"
                 features_desc += f" + set screw ({screw_desc})"
 
-        worm_type_desc = "globoid (hourglass)" if args.globoid else "cylindrical"
-        profile_upper = args.profile.upper()
+        worm_type_desc = "globoid (hourglass)" if use_globoid else "cylindrical"
+        profile_upper = use_profile
         if profile_upper == "ZK":
             profile_desc = "ZK/circular arc"
         elif profile_upper == "ZI":
@@ -410,14 +446,14 @@ Examples:
             profile_desc = "ZA/straight"
         print(f"\nGenerating worm ({worm_type_desc}, {design.worm.num_starts}-start, module {design.worm.module_mm}mm, {profile_desc}{features_desc})...")
 
-        profile = args.profile.upper()
-        if args.globoid:
+        profile = use_profile
+        if use_globoid:
             worm_geo = GloboidWormGeometry(
                 params=design.worm,
                 assembly_params=design.assembly,
                 wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
                 length=args.worm_length,
-                sections_per_turn=args.sections,
+                sections_per_turn=use_sections,
                 bore=worm_bore,
                 keyway=worm_keyway,
                 ddcut=worm_ddcut,
@@ -429,7 +465,7 @@ Examples:
                 params=design.worm,
                 assembly_params=design.assembly,
                 length=args.worm_length,
-                sections_per_turn=args.sections,
+                sections_per_turn=use_sections,
                 bore=worm_bore,
                 keyway=worm_keyway,
                 ddcut=worm_ddcut,
@@ -442,7 +478,7 @@ Examples:
 
     # Generate wheel
     if generate_wheel:
-        # Determine bore diameter (auto-calculate or override)
+        # Determine bore diameter: CLI arg > JSON features > auto-calculate
         wheel_bore = None
         wheel_keyway = None
         wheel_ddcut = None
@@ -452,8 +488,13 @@ Examples:
         wheel_thin_rim_warning = False
         if not args.no_bore:
             if args.wheel_bore is not None:
+                # CLI override
                 wheel_bore_diameter = args.wheel_bore
-                # Check if user-specified bore has thin rim
+                actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
+                wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+            elif json_wheel_features and json_wheel_features.bore_diameter_mm is not None:
+                # From JSON features
+                wheel_bore_diameter = json_wheel_features.bore_diameter_mm
                 actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
                 wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
             else:
@@ -466,22 +507,27 @@ Examples:
             if wheel_bore_diameter is not None:
                 wheel_bore = BoreFeature(diameter=wheel_bore_diameter)
 
-                # Add anti-rotation feature (keyway or DD-cut)
-                if args.dd_cut:
-                    # DD-cut requested (alternative to keyway for small bores)
+                # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
+                json_anti_rotation = json_wheel_features.anti_rotation if json_wheel_features else None
+
+                if args.dd_cut or json_anti_rotation == 'ddcut':
+                    # DD-cut requested
                     if args.wheel_ddcut_depth:
                         wheel_ddcut = DDCutFeature(depth=args.wheel_ddcut_depth)
                     else:
-                        wheel_ddcut = calculate_default_ddcut(wheel_bore_diameter, args.ddcut_depth_percent)
-                elif not args.no_keyway and wheel_bore_diameter >= 6.0:
-                    # Standard keyway for bores >= 6mm
+                        depth_pct = json_wheel_features.ddcut_depth_percent if json_wheel_features else args.ddcut_depth_percent
+                        wheel_ddcut = calculate_default_ddcut(wheel_bore_diameter, depth_pct)
+                elif args.no_keyway or json_anti_rotation == 'none':
+                    # No keyway explicitly requested
+                    pass
+                elif wheel_bore_diameter >= 6.0:
+                    # Default: keyway for bores >= 6mm
                     wheel_keyway = KeywayFeature()
 
-                # Add set screw if requested
-                if args.set_screw:
-                    # Parse size if specified (e.g., "M4" -> ("M4", 4.0))
+                # Add set screw: CLI arg > JSON features
+                json_set_screw = json_wheel_features.set_screw if json_wheel_features else None
+                if args.set_screw or json_set_screw:
                     if args.set_screw_size:
-                        # Extract diameter from size string (e.g., "M4" -> 4.0)
                         try:
                             size_str = args.set_screw_size.upper()
                             if size_str.startswith('M'):
@@ -497,19 +543,32 @@ Examples:
                         except ValueError:
                             print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
                             wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
+                    elif json_set_screw:
+                        size_str = json_set_screw.size.upper()
+                        try:
+                            diameter = float(size_str[1:]) if size_str.startswith('M') else None
+                            wheel_set_screw = SetScrewFeature(
+                                size=size_str,
+                                diameter=diameter,
+                                count=json_set_screw.count
+                            )
+                        except ValueError:
+                            wheel_set_screw = SetScrewFeature(count=json_set_screw.count)
                     else:
                         wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
 
-        # Create hub feature
+        # Create hub feature: CLI arg > JSON features
         wheel_hub = None
-        if args.hub_type != "flush":
+        json_hub = json_wheel_features.hub if json_wheel_features else None
+        hub_type = args.hub_type if args.hub_type != "flush" else (json_hub.type if json_hub else "flush")
+        if hub_type != "flush":
             wheel_hub = HubFeature(
-                hub_type=args.hub_type,
-                length=args.hub_length,
-                flange_diameter=args.flange_diameter,
-                flange_thickness=args.flange_thickness,
-                bolt_holes=args.flange_bolts,
-                bolt_diameter=args.bolt_diameter
+                hub_type=hub_type,
+                length=args.hub_length or (json_hub.length_mm if json_hub else None),
+                flange_diameter=args.flange_diameter or (json_hub.flange_diameter_mm if json_hub else None),
+                flange_thickness=args.flange_thickness or (json_hub.flange_thickness_mm if json_hub else None),
+                bolt_holes=args.flange_bolts or (json_hub.bolt_holes if json_hub else None),
+                bolt_diameter=args.bolt_diameter or (json_hub.bolt_diameter_mm if json_hub else None)
             )
 
         # Build description
@@ -541,7 +600,7 @@ Examples:
             hub_desc += ")"
             features_desc += f", {hub_desc}"
 
-        profile = args.profile.upper()
+        profile = use_profile
         if profile == "ZK":
             profile_desc = "ZK/circular arc"
         elif profile == "ZI":
@@ -549,20 +608,20 @@ Examples:
         else:
             profile_desc = "ZA/straight"
 
-        if args.virtual_hobbing:
+        if use_virtual_hobbing:
             # EXPERIMENTAL: Virtual hobbing simulation
             # Pass the actual worm geometry as hob ONLY for globoid (important for accuracy)
             # For cylindrical, let VirtualHobbingWheelGeometry create a simpler hob internally
-            hob_geo = worm if (worm is not None and args.globoid) else None
-            hob_type = "globoid" if args.globoid else "cylindrical"
+            hob_geo = worm if (worm is not None and use_globoid) else None
+            hob_type = "globoid" if use_globoid else "cylindrical"
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, VIRTUAL HOBBING [EXPERIMENTAL], {profile_desc}{features_desc})...")
-            print(f"  Using {args.hobbing_steps} hobbing steps, {hob_type} hob")
+            print(f"  Using {use_hobbing_steps} hobbing steps, {hob_type} hob")
             wheel_geo = VirtualHobbingWheelGeometry(
                 params=design.wheel,
                 worm_params=design.worm,
                 assembly_params=design.assembly,
                 face_width=args.wheel_width,
-                hobbing_steps=args.hobbing_steps,
+                hobbing_steps=use_hobbing_steps,
                 bore=wheel_bore,
                 keyway=wheel_keyway,
                 ddcut=wheel_ddcut,
@@ -639,7 +698,7 @@ Examples:
             print("Install with: pip install ocp_vscode", file=sys.stderr)
 
     # Summary
-    profile_upper = args.profile.upper()
+    profile_upper = use_profile
     if profile_upper == "ZK":
         profile_name = "ZK (circular arc, 3D printing)"
     elif profile_upper == "ZI":
@@ -725,11 +784,11 @@ Examples:
 
         # Create manufacturing parameters
         manufacturing = ManufacturingParams(
-            worm_type="globoid" if args.globoid else "cylindrical",
+            worm_type="globoid" if use_globoid else "cylindrical",
             worm_length=args.worm_length,
             wheel_width=args.wheel_width,
             wheel_throated=args.hobbed,
-            profile=args.profile.upper(),
+            profile=use_profile,
             worm_features=worm_features,
             wheel_features=wheel_features
         )

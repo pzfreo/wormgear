@@ -53,33 +53,48 @@ def to_json(
     if 'schema_version' not in design_dict:
         design_dict['schema_version'] = '1.0'
 
-    # Transform bore settings into features section (format expected by generator)
+    # Transform bore settings into features section (format expected by generator CLI)
     if bore_settings:
         features = {}
 
+        # Map anti-rotation values from UI to CLI format
+        def normalize_anti_rotation(value):
+            if not value or value == 'none':
+                return 'none'
+            elif value == 'DIN6885':
+                return 'DIN6885'
+            elif value in ('DD-cut', 'ddcut'):
+                return 'ddcut'
+            return value
+
         # Worm bore/keyway features
-        if bore_settings.get('worm_bore_type') == 'auto':
-            features['worm'] = {'auto_bore': True}
-        elif bore_settings.get('worm_bore_type') == 'custom' and bore_settings.get('worm_bore_diameter'):
+        worm_bore_type = bore_settings.get('worm_bore_type', 'none')
+        if worm_bore_type == 'auto':
+            # Auto bore - CLI will calculate, but we signal it should have a bore
+            features['worm'] = {'bore_diameter_mm': None}  # None = auto-calculate
+        elif worm_bore_type == 'custom' and bore_settings.get('worm_bore_diameter'):
             features['worm'] = {'bore_diameter_mm': bore_settings['worm_bore_diameter']}
 
         # Add worm anti-rotation if bore exists
         if 'worm' in features:
             worm_keyway = bore_settings.get('worm_keyway', 'none')
-            if worm_keyway and worm_keyway != 'none':
-                features['worm']['anti_rotation'] = worm_keyway
+            anti_rot = normalize_anti_rotation(worm_keyway)
+            if anti_rot != 'none':
+                features['worm']['anti_rotation'] = anti_rot
 
         # Wheel bore/keyway features
-        if bore_settings.get('wheel_bore_type') == 'auto':
-            features['wheel'] = {'auto_bore': True}
-        elif bore_settings.get('wheel_bore_type') == 'custom' and bore_settings.get('wheel_bore_diameter'):
+        wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
+        if wheel_bore_type == 'auto':
+            features['wheel'] = {'bore_diameter_mm': None}  # None = auto-calculate
+        elif wheel_bore_type == 'custom' and bore_settings.get('wheel_bore_diameter'):
             features['wheel'] = {'bore_diameter_mm': bore_settings['wheel_bore_diameter']}
 
         # Add wheel anti-rotation if bore exists
         if 'wheel' in features:
             wheel_keyway = bore_settings.get('wheel_keyway', 'none')
-            if wheel_keyway and wheel_keyway != 'none':
-                features['wheel']['anti_rotation'] = wheel_keyway
+            anti_rot = normalize_anti_rotation(wheel_keyway)
+            if anti_rot != 'none':
+                features['wheel']['anti_rotation'] = anti_rot
 
         if features:
             design_dict['features'] = features
