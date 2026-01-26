@@ -9,6 +9,7 @@ import math
 from typing import Optional, Literal, Callable
 from build123d import *
 from ..io.loaders import WormParams, AssemblyParams
+from ..enums import Hand
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
 
 # Profile types per DIN 3975
@@ -438,7 +439,7 @@ class GloboidWormGeometry:
         lead = self.params.lead_mm
         half_width = self.extended_length / 2.0
         num_turns = self.extended_length / lead
-        is_right_hand = self.assembly_params.hand.upper() == "RIGHT"
+        is_right_hand = self.assembly_params.hand == Hand.RIGHT
 
         # Match cylindrical worm's section density
         points_per_turn = self.sections_per_turn

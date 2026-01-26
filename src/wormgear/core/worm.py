@@ -8,6 +8,7 @@ import math
 from typing import Optional, Literal
 from build123d import *
 from ..io.loaders import WormParams, AssemblyParams
+from ..enums import Hand
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
 
 # Profile types per DIN 3975
@@ -248,7 +249,7 @@ class WormGeometry:
         tip_radius = self.params.tip_diameter_mm / 2
         root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
-        is_right_hand = self.params.hand.upper() == "RIGHT"
+        is_right_hand = self.params.hand == Hand.RIGHT
         print(f"      Thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
 
         # Thread profile dimensions

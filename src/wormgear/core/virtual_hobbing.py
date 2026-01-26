@@ -28,6 +28,7 @@ from build123d import *
 from OCP.ShapeFix import ShapeFix_Shape
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
+from ..enums import Hand
 from .features import (
     BoreFeature,
     KeywayFeature,
@@ -272,7 +273,7 @@ class VirtualHobbingWheelGeometry:
         tip_radius = self.worm_params.tip_diameter_mm / 2
         root_radius = self.worm_params.root_diameter_mm / 2
         lead = self.worm_params.lead_mm
-        is_right_hand = self.worm_params.hand.upper() == "RIGHT"
+        is_right_hand = self.worm_params.hand == Hand.RIGHT
 
         # Thread profile dimensions
         pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
