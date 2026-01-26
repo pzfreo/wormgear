@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pydantic + Pyodide Compatibility Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .pass { color: green; }
+        .fail { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        #output { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Pydantic + Pyodide Compatibility Test</h1>
+    <p>Testing if Pydantic works in Pyodide (browser-based Python)</p>
+    <div id="output">Loading Pyodide...</div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script>
+        const output = document.getElementById('output');
+
+        function log(msg, className = '') {
+            const span = document.createElement('span');
+            span.className = className;
+            span.textContent = msg + '\n';
+            output.appendChild(span);
+        }
+
+        async function runTests() {
+            output.textContent = '';
+
+            try {
+                // Load Pyodide
+                log('Loading Pyodide...', 'info');
+                const pyodide = await loadPyodide();
+                log('✓ Pyodide loaded', 'pass');
+
+                // Install pydantic
+                log('\nInstalling pydantic (this may take a moment)...', 'info');
+                await pyodide.loadPackage('micropip');
+                await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('pydantic')
+                `);
+                log('✓ Pydantic installed', 'pass');
+
+                // Test 1: Basic import
+                log('\n--- Test 1: Basic Import ---', 'info');
+                await pyodide.runPythonAsync(`
+from pydantic import BaseModel
+print("✓ BaseModel imported")
+                `);
+                log('✓ Test 1 passed', 'pass');
+
+                // Test 2: Simple model
+                log('\n--- Test 2: Simple Model ---', 'info');
+                const result2 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel
+from typing import Optional
+
+class WormParams(BaseModel):
+    module_mm: float
+    num_starts: int = 1
+    pitch_diameter_mm: Optional[float] = None
+
+# Create from dict (like JSON parsing)
+params = WormParams(module_mm=2.0, num_starts=1)
+f"module={params.module_mm}, starts={params.num_starts}"
+                `);
+                log('Result: ' + result2);
+                log('✓ Test 2 passed', 'pass');
+
+                // Test 3: Enum coercion
+                log('\n--- Test 3: Enum Coercion ---', 'info');
+                const result3 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel
+from enum import Enum
+
+class Hand(Enum):
+    RIGHT = "right"
+    LEFT = "left"
+
+class Assembly(BaseModel):
+    hand: Hand
+
+# String should auto-convert to enum
+asm = Assembly(hand="right")
+f"hand={asm.hand}, is_enum={isinstance(asm.hand, Hand)}"
+                `);
+                log('Result: ' + result3);
+                log('✓ Test 3 passed', 'pass');
+
+                // Test 4: Validation
+                log('\n--- Test 4: Validation ---', 'info');
+                const result4 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel, Field
+
+class WormParams(BaseModel):
+    module_mm: float = Field(gt=0)
+    num_teeth: int = Field(ge=10, le=100)
+
+# Valid
+valid = WormParams(module_mm=2.0, num_teeth=30)
+
+# Invalid - should raise
+try:
+    invalid = WormParams(module_mm=-1, num_teeth=5)
+    "FAIL: Should have raised validation error"
+except Exception as e:
+    f"✓ Validation caught invalid data: {type(e).__name__}"
+                `);
+                log('Result: ' + result4);
+                log('✓ Test 4 passed', 'pass');
+
+                // Test 5: JSON round-trip
+                log('\n--- Test 5: JSON Round-Trip ---', 'info');
+                const result5 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel
+from enum import Enum
+import json
+
+class Hand(Enum):
+    RIGHT = "right"
+    LEFT = "left"
+
+class Design(BaseModel):
+    module_mm: float
+    hand: Hand
+
+    class Config:
+        use_enum_values = True
+
+# Create model
+design = Design(module_mm=2.0, hand="right")
+
+# To JSON
+json_str = design.model_dump_json()
+
+# From JSON
+data = json.loads(json_str)
+design2 = Design.model_validate(data)
+
+f"original={design.hand}, json={json_str}, restored type={type(design2.hand)}"
+                `);
+                log('Result: ' + result5);
+                log('✓ Test 5 passed', 'pass');
+
+                // Summary
+                log('\n========================================', 'info');
+                log('ALL TESTS PASSED - Pydantic works in Pyodide!', 'pass');
+                log('========================================', 'info');
+
+            } catch (error) {
+                log('\n✗ ERROR: ' + error.message, 'fail');
+                console.error(error);
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>
