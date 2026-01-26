@@ -62,6 +62,8 @@ docs/_build/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+# But allow example notebooks
+!examples/*.ipynb
 
 # Temporary files
 *.tmp
