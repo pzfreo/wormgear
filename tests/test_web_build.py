@@ -141,7 +141,7 @@ def test_vercel_json_has_build_command():
 
     config = json.loads(vercel_json.read_text())
     assert "buildCommand" in config, "vercel.json missing buildCommand"
-    assert "./build.sh" in config["buildCommand"], "buildCommand doesn't reference build.sh"
+    assert "build.sh" in config["buildCommand"], "buildCommand doesn't reference build.sh"
 
 
 def test_vercel_json_has_output_directory():

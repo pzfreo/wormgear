@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd web && ./build.sh",
+  "installCommand": "echo 'No install needed'",
+  "buildCommand": "bash web/build.sh",
   "outputDirectory": "dist",
   "headers": [
     {
