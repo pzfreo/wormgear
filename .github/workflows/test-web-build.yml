@@ -39,17 +39,17 @@ jobs:
 
     - name: Verify build output exists
       run: |
-        if [ ! -d "web/src/wormgear" ]; then
-          echo "ERROR: web/src/wormgear directory not created by build"
+        if [ ! -d "dist/wormgear" ]; then
+          echo "ERROR: dist/wormgear directory not created by build"
           exit 1
         fi
 
         echo "✅ Build output verified"
-        ls -la web/src/wormgear/
+        ls -la dist/wormgear/
 
     - name: Check for missing files
       run: |
-        cd web/src
+        cd dist
 
         # List of critical files that MUST exist
         CRITICAL_FILES=(
