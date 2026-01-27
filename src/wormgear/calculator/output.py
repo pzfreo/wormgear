@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Optional, TYPE_CHECKING, Any
 
 from ..io import WormGearDesign
-from ..core.features import calculate_default_bore
+from .bore_calculator import calculate_default_bore
 
 
 def _model_to_dict(model) -> dict:
