@@ -338,7 +338,7 @@ runner.suite('Message Type Handling', ({ test, beforeEach, afterEach }) => {
     test('LOG messages trigger progress updates', async () => {
         const { handleProgress } = await import('../modules/generator-ui.js');
 
-        // Simulate LOG message (which should be processed by handleProgress in app-lazy.js)
+        // Simulate LOG message (which should be processed by handleProgress in generator-ui.js)
         handleProgress('🔩 Generating worm gear...', null);
 
         const wormIndicator = document.querySelector('[data-step="worm"]');

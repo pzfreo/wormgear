@@ -199,17 +199,125 @@ wormgear-geometry design.json --globoid
 ```
 User Input (browser)
    ↓
+JavaScript UI (parameter-handler.js)
+   ↓
+JS Validation (schema-validator.js)
+   ↓
+JSON String
+   ↓
 Pyodide (Python in browser)
    ↓
-wormcalc Python code
+js_bridge.calculate() - Pydantic validation
    ↓
-JSON Schema v1.0
+wormgear.calculator core functions
    ↓
-Download JSON
+JSON Response (design + validation)
+   ↓
+JS Output Validation (schema-validator.js)
+   ↓
+Download JSON / Display Results
    ↓
 wormgear-geometry CLI
    ↓
 STEP files for CNC
+```
+
+## JS<->Python Bridge Architecture
+
+The web calculator uses a clean bridge pattern between JavaScript and Python:
+
+### Bridge Components
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        JavaScript (Browser)                          │
+│  ┌──────────────────┐    ┌──────────────────┐    ┌───────────────┐ │
+│  │ parameter-       │ → │ schema-          │ → │ pyodide-      │ │
+│  │ handler.js       │    │ validator.js     │    │ init.js       │ │
+│  │ Collects UI      │    │ Runtime JS       │    │ Manages       │ │
+│  │ inputs           │    │ validation       │    │ Pyodide       │ │
+│  └──────────────────┘    └──────────────────┘    └───────────────┘ │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │ JSON String
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Python (Pyodide)                              │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    js_bridge.py                               │  │
+│  │  • CalculatorInputs (Pydantic model - validates all inputs)   │  │
+│  │  • calculate(input_json: str) -> str (single entry point)     │  │
+│  │  • CalculatorOutput (Pydantic model - validates output)       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                 │                                    │
+│                                 ▼                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │              wormgear.calculator                              │  │
+│  │  • core.py - Design functions                                 │  │
+│  │  • validation.py - Engineering rules                          │  │
+│  │  • output.py - Formatting                                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+1. **Single Entry Point**: All JS→Python calls go through `js_bridge.calculate(input_json)`
+   - No inline Python code in JavaScript
+   - Clear contract between languages
+   - Easy to test and debug
+
+2. **Validation at Both Boundaries**:
+   - **JavaScript side**: `schema-validator.js` validates before sending
+   - **Python side**: Pydantic `CalculatorInputs` validates on receipt
+   - Defense in depth - catches errors early
+
+3. **JSON as Transport**:
+   - Simple string serialization
+   - No Pyodide object proxies
+   - Easy to inspect and debug
+
+4. **Pydantic Models**:
+   - Type-safe input validation
+   - Automatic normalization (e.g., lowercase hand values)
+   - Clear error messages for invalid inputs
+
+### Usage Example
+
+```javascript
+// JavaScript side
+import { getInputs } from './modules/parameter-handler.js';
+import { parseCalculatorResponse } from './modules/schema-validator.js';
+
+const inputs = getInputs(mode);  // Collect and validate
+const inputJson = JSON.stringify(inputs);
+
+calculatorPyodide.globals.set('input_json', inputJson);
+const resultJson = calculatorPyodide.runPython(`calculate(input_json)`);
+
+const { output, design } = parseCalculatorResponse(resultJson);
+if (output.success) {
+    displayDesign(design);
+} else {
+    showError(output.error);
+}
+```
+
+```python
+# Python side (js_bridge.py)
+def calculate(input_json: str) -> str:
+    """Single entry point for all calculator operations."""
+    data = json.loads(input_json)
+    inputs = CalculatorInputs.model_validate(data)  # Pydantic validation
+
+    design = _call_design_function(inputs.mode, inputs, kwargs)
+    validation = validate_design(design)
+
+    return CalculatorOutput(
+        success=True,
+        design_json=to_json(design),
+        valid=validation.valid,
+        messages=[...]
+    ).model_dump_json()
 ```
 
 ## Key Dataclasses

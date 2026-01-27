@@ -17,27 +17,28 @@
 
 ### Schema Workflow (ALWAYS FOLLOW)
 
-1. **Define in Python using Pydantic models** (`src/wormgear/calculator/models.py`)
-   - Single source of truth
-   - Type-safe with enums
-   - Built-in validation with Field() constraints
+1. **Define in Python using Pydantic models** (`src/wormgear/io/loaders.py`)
+   - Single source of truth for data structures
+   - Type-safe with enums from `src/wormgear/enums.py`
+   - Built-in validation with Pydantic validators
 
-2. **Generate JSON Schema** (automated in build)
+2. **Generate JSON Schema** (from Pydantic models)
    ```bash
    python scripts/generate_schemas.py
-   # Outputs: schemas/calculator-inputs-v2.0.json, schemas/design-output-v2.0.json
+   # Outputs: schemas/wormgear-design-v2.0.json, schemas/enums-v2.0.json, etc.
    ```
 
-3. **Generate TypeScript types** (automated in build)
+3. **Generate TypeScript types** (from JSON schemas)
    ```bash
+   cd web && npm install  # First time only
    bash scripts/generate_types.sh
-   # Outputs: web/types/*.d.ts
+   # Outputs: web/types/wormgear-design.generated.d.ts, web/types/enums.generated.d.ts
    ```
 
 4. **Use generated types in web code**
    ```typescript
-   import { CalculatorInputs, WormGearDesign } from '../types/calculator-inputs';
-   const inputs: CalculatorInputs = { ... };  // Compile-time type checking
+   import { WormGearDesign, WormParams } from './types/wormgear-design.generated';
+   const design: WormGearDesign = { ... };  // Compile-time type checking
    ```
 
 ### When to Update Schemas
@@ -51,23 +52,95 @@
 
 **How to update:**
 ```bash
-# 1. Edit Pydantic models in src/wormgear/calculator/models.py
+# 1. Edit Pydantic models in src/wormgear/io/loaders.py (or enums in src/wormgear/enums.py)
 # 2. Regenerate schemas
 python scripts/generate_schemas.py
 # 3. Regenerate TypeScript types
 bash scripts/generate_types.sh
-# 4. Update web code to use new types (TypeScript will catch errors)
+# 4. Run type checking
+bash scripts/typecheck.sh
 # 5. Run tests
 pytest tests/
-# 6. Commit all three: models.py + schemas/*.json + web/types/*.d.ts
+# 6. Commit all: loaders.py + schemas/*.json + web/types/*.generated.d.ts
 ```
+
+### Type Checking
+
+**Python (mypy)**:
+```bash
+mypy src/wormgear                    # Check all Python code
+bash scripts/typecheck.sh python     # Or use the helper script
+```
+
+**TypeScript (tsc)**:
+```bash
+cd web && npm run typecheck          # Check web code
+bash scripts/typecheck.sh ts         # Or use the helper script
+```
+
+**Both**:
+```bash
+bash scripts/typecheck.sh            # Run both Python and TypeScript checks
+```
+
+Type checking catches:
+- Enum/string mismatches
+- Missing or extra fields
+- Type coercion issues
+- Incompatible function signatures
 
 ### Schema Versioning
 
-- **schema_version field**: Every JSON output includes version (e.g., "2.0")
-- **Breaking changes**: Increment major version (2.0 → 3.0)
-- **Non-breaking additions**: Increment minor version (2.0 → 2.1)
-- **Keep old schemas**: Support migration from old versions
+**Current Version: 2.0** (as of January 2026)
+
+**Version Format**: `MAJOR.MINOR` (e.g., "2.0", "2.1", "3.0")
+
+**When to bump versions:**
+- **MAJOR version** (2.0 → 3.0): Breaking changes
+  - Remove a required field
+  - Change a field's type (e.g., string → number)
+  - Rename a field
+  - Change enum values
+  - Change field semantics (meaning changes even if type doesn't)
+
+- **MINOR version** (2.0 → 2.1): Non-breaking additions
+  - Add a new optional field
+  - Add a new enum value (if consumers ignore unknown values)
+  - Add new validation constraints that existing data satisfies
+  - Add new optional sections
+
+**Version bump checklist:**
+```bash
+# 1. Update SCHEMA_VERSION in src/wormgear/io/schema.py
+SCHEMA_VERSION = "2.1"  # or "3.0" for breaking changes
+
+# 2. Update version in Pydantic model docstrings if applicable
+
+# 3. Regenerate all schemas (they include version in filename)
+python scripts/generate_schemas.py
+# Creates: schemas/wormgear-design-v2.1.json, etc.
+
+# 4. Regenerate TypeScript types
+bash scripts/generate_types.sh
+
+# 5. Update any hardcoded version references in:
+#    - web/modules/pyodide-init.js (if loading specific schema version)
+#    - README.md (if documenting schema)
+#    - tests (if asserting specific version)
+
+# 6. For MAJOR versions: Add migration logic in upgrade_schema()
+```
+
+**Version history:**
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2025-01 | Initial schema with worm/wheel/assembly sections |
+| 2.0 | 2026-01 | Added features section, manufacturing params, Pydantic V2 |
+
+**Files that contain version:**
+- `src/wormgear/io/schema.py` - SCHEMA_VERSION constant
+- `schemas/*-v{VERSION}.json` - Generated schema files (version in filename)
+- JSON output - `schema_version` field in all exported designs
 
 ### What NOT to Do
 
@@ -187,7 +260,21 @@ Before EVERY push, ALL items must pass:
 
 **DO NOT PUSH** until all checkboxes are checked.
 
-### 5. Pyodide + Enum Compatibility
+### 5. Pyodide + Pydantic Compatibility
+
+**Key facts:**
+- Pyodide 0.29.0 includes Pydantic 2.12.5 (bundled, pre-compiled for WASM)
+- Pydantic v2 requires `pydantic-core` (Rust extension) - CANNOT install via micropip
+- MUST use `pyodide.loadPackage('pydantic')` NOT `micropip.install('pydantic')`
+
+**Correct loading order in Pyodide:**
+```javascript
+// In pyodide-init.js or generator-worker.js
+await pyodide.loadPackage(['micropip', 'pydantic']);  // Load pydantic FIRST
+// Then load wormgear modules that import from pydantic
+```
+
+### 6. Pyodide + Enum Compatibility
 
 **Myth**: "Pyodide can't handle enums, must use strings"
 
@@ -213,7 +300,7 @@ def design_from_module(hand: Union[Hand, str] = "right"):
 
 This gives best of both worlds: type safety in Python, flexibility for JavaScript.
 
-### 6. Manual JSON Parsing is a Bug Factory
+### 7. Manual JSON Parsing is a Bug Factory
 
 **What happened (Jan 2026)**: Chose dataclasses + manual parsing over Pydantic. Result: 6+ bugs from type mismatches over two days.
 
@@ -908,16 +995,75 @@ Helical sweep of trapezoidal tooth profile:
 - Complex mathematics but fast and clean
 - Most accurate theoretical approach
 
+## JS<->Python Bridge Architecture
+
+The web calculator uses a clean bridge pattern between JavaScript and Python (via Pyodide).
+
+### Bridge Components
+
+| File | Purpose |
+|------|---------|
+| `web/modules/parameter-handler.js` | Collects UI inputs into validated structure |
+| `web/modules/schema-validator.js` | Runtime validation in JavaScript |
+| `src/wormgear/calculator/js_bridge.py` | Single entry point for all JS→Python calls |
+
+### Data Flow
+
+```
+JavaScript                          │ Python (Pyodide)
+───────────────────────────────────│────────────────────────────
+parameter-handler.js                │
+  └─ getInputs(mode)               │
+       └─ validateCalculatorInputs()│
+            │                       │
+            ▼ JSON.stringify()      │
+            ├──────────────────────►│ js_bridge.calculate(json)
+            │                       │   └─ CalculatorInputs.model_validate()
+            │                       │   └─ _call_design_function()
+            │                       │   └─ validate_design()
+            │                       │   └─ CalculatorOutput.model_dump_json()
+            │◄──────────────────────┤
+            ▼ parseCalculatorResponse()
+schema-validator.js                 │
+  └─ validateCalculatorOutput()    │
+  └─ validateWormGearDesign()      │
+```
+
+### Key Rules
+
+1. **Single Entry Point**: All JS→Python calls go through `js_bridge.calculate(input_json: str) -> str`
+2. **Validation at Both Boundaries**: JS validates before sending, Python (Pydantic) validates on receipt
+3. **JSON Transport**: Simple strings, no Pyodide object proxies
+4. **No Inline Python**: JavaScript never contains Python code strings (except the import call)
+
+### Usage
+
+```javascript
+// JavaScript
+import { getInputs } from './modules/parameter-handler.js';
+import { parseCalculatorResponse } from './modules/schema-validator.js';
+
+const inputs = getInputs(mode);
+const inputJson = JSON.stringify(inputs);
+calculatorPyodide.globals.set('input_json', inputJson);
+
+const resultJson = calculatorPyodide.runPython(`calculate(input_json)`);
+const { output, design } = parseCalculatorResponse(resultJson);
+```
+
 ## File Structure
 
 ```
 wormgear/
 ├── src/wormgear/
 │   ├── __init__.py                    # Public API exports
+│   ├── enums.py                       # Hand, WormProfile, WormType enums
 │   ├── calculator/                    # Layer 2a: Engineering calculations
 │   │   ├── __init__.py
 │   │   ├── core.py                   # design_from_module, etc.
-│   │   └── validation.py             # validate_design, rules
+│   │   ├── validation.py             # validate_design, rules
+│   │   ├── output.py                 # to_json, to_markdown, to_summary
+│   │   └── js_bridge.py              # JS<->Python bridge (single entry point)
 │   ├── core/                          # Layer 1: Geometry generation
 │   │   ├── __init__.py
 │   │   ├── worm.py                   # WormGeometry
@@ -927,19 +1073,28 @@ wormgear/
 │   │   └── features.py               # BoreFeature, KeywayFeature, etc.
 │   ├── io/                            # Layer 2b: JSON schema and I/O
 │   │   ├── __init__.py
-│   │   ├── loaders.py                # load_design_json, save_design_json
+│   │   ├── loaders.py                # Pydantic models + load/save JSON
 │   │   └── schema.py                 # JSON Schema v1.0
 │   └── cli/                           # Layer 3: Command-line interface
 │       ├── __init__.py
 │       └── generate.py               # wormgear-geometry command
-├── web/                               # Web calculator (separate)
+├── web/                               # Web calculator (browser)
 │   ├── index.html                    # Web UI
-│   ├── app.js                        # JavaScript
-│   ├── wormcalc/                     # Python calculator for Pyodide
-│   │   ├── core.py
-│   │   ├── validation.py
-│   │   └── output.py
-│   └── wormgear-pyodide.js          # WASM geometry (experimental)
+│   ├── app.js                        # Main application
+│   ├── modules/
+│   │   ├── pyodide-init.js          # Pyodide initialization
+│   │   ├── parameter-handler.js     # UI input collection
+│   │   └── schema-validator.js      # Runtime JS validation
+│   ├── generator-worker.js          # Web Worker for geometry
+│   ├── wormgear/                     # Python source (built from src/, gitignored)
+│   └── types/                        # Generated TypeScript types
+│       └── *.generated.d.ts
+├── schemas/                           # Generated JSON schemas
+│   └── *.json
+├── scripts/
+│   ├── generate_schemas.py          # Pydantic → JSON Schema
+│   ├── generate_types.sh            # JSON Schema → TypeScript
+│   └── typecheck.sh                 # Run mypy + tsc
 ├── tests/
 ├── examples/
 ├── docs/

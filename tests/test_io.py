@@ -110,6 +110,8 @@ class TestLoadDesignJson:
 
     def test_load_missing_required_field(self, tmp_path, sample_design_7mm):
         """Test that missing required fields raise an error."""
+        from pydantic import ValidationError
+
         # Remove a required field
         del sample_design_7mm["worm"]["module_mm"]
 
@@ -117,7 +119,7 @@ class TestLoadDesignJson:
         with open(json_file, 'w') as f:
             json.dump(sample_design_7mm, f)
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValidationError):
             load_design_json(json_file)
 
     def test_load_with_optional_fields_missing(self, tmp_path, sample_design_7mm):
@@ -170,7 +172,7 @@ class TestWormParams:
         )
 
         assert params.module_mm == 1.0
-        assert params.hand == "right"
+        assert params.hand == Hand.RIGHT
 
 
 class TestWheelParams:
@@ -223,7 +225,7 @@ class TestManufacturingParams:
     def test_manufacturing_params_zk_profile(self):
         """Test setting ZK profile."""
         params = ManufacturingParams(profile="ZK")
-        assert params.profile == "ZK"
+        assert params.profile == WormProfile.ZK
 
     def test_manufacturing_params_all_fields(self):
         """Test creating ManufacturingParams with all fields."""
@@ -235,7 +237,7 @@ class TestManufacturingParams:
             sections_per_turn=48
         )
 
-        assert params.profile == "ZK"
+        assert params.profile == WormProfile.ZK
         assert params.virtual_hobbing is True
         assert params.hobbing_steps == 24
         assert params.throated_wheel is True
@@ -296,7 +298,7 @@ class TestProfileJsonSerialization:
 
         loaded = load_design_json(json_file)
         assert loaded.manufacturing is not None
-        assert loaded.manufacturing.profile == "ZA"
+        assert loaded.manufacturing.profile == WormProfile.ZA
 
     def test_save_and_load_zk_profile(self, tmp_path, base_design):
         """Test saving and loading ZK profile."""
@@ -307,7 +309,7 @@ class TestProfileJsonSerialization:
 
         loaded = load_design_json(json_file)
         assert loaded.manufacturing is not None
-        assert loaded.manufacturing.profile == "ZK"
+        assert loaded.manufacturing.profile == WormProfile.ZK
 
     def test_profile_in_saved_json_content(self, tmp_path, base_design):
         """Test that profile field appears correctly in saved JSON."""
@@ -337,7 +339,7 @@ class TestProfileJsonSerialization:
 
         loaded = load_design_json(json_file)
         assert loaded.manufacturing is not None
-        assert loaded.manufacturing.profile == "ZA"
+        assert loaded.manufacturing.profile == WormProfile.ZA
 
     def test_save_complete_design_with_all_manufacturing(self, tmp_path, base_design):
         """Test saving complete design with all manufacturing and features."""
@@ -368,7 +370,7 @@ class TestProfileJsonSerialization:
 
         loaded = load_design_json(json_file)
         assert loaded.manufacturing is not None
-        assert loaded.manufacturing.profile == "ZK"
+        assert loaded.manufacturing.profile == WormProfile.ZK
         assert loaded.manufacturing.virtual_hobbing is True
         assert loaded.features is not None
         assert loaded.features.worm is not None

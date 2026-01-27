@@ -6,7 +6,7 @@ the structure and types of wormgear JSON documents.
 """
 
 import pytest
-from src.wormgear.calculator.json_schema import (
+from wormgear.calculator.json_schema import (
     validate_design_json,
     validate_and_raise,
     ValidationError,

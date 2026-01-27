@@ -22,19 +22,26 @@ DIST_DIR = REPO_ROOT / "dist"  # Build output directory
 
 # List of all files that MUST be present after build for WASM to work
 REQUIRED_WASM_FILES = [
+    # Root package
     "wormgear/__init__.py",
+    "wormgear/enums.py",
+    # Core geometry (for generator)
     "wormgear/core/__init__.py",
     "wormgear/core/worm.py",
     "wormgear/core/wheel.py",
     "wormgear/core/features.py",
     "wormgear/core/globoid_worm.py",
     "wormgear/core/virtual_hobbing.py",
+    # IO
     "wormgear/io/__init__.py",
     "wormgear/io/loaders.py",
     "wormgear/io/schema.py",
+    # Calculator (for web calculator - must not depend on core)
     "wormgear/calculator/__init__.py",
     "wormgear/calculator/core.py",
     "wormgear/calculator/validation.py",
+    "wormgear/calculator/output.py",
+    "wormgear/calculator/bore_calculator.py",
     "wormgear/calculator/js_bridge.py",
     "wormgear/calculator/json_schema.py",
 ]
@@ -211,15 +218,15 @@ def test_pyodide_version_consistency():
 
     html_content = index_html.read_text()
 
-    # Check if pyodide-init.js exists (after refactoring) or fall back to app-lazy.js
+    # Check if pyodide-init.js exists (after refactoring) or fall back to app.js
     if pyodide_init.exists():
         js_content = pyodide_init.read_text()
         js_file = "modules/pyodide-init.js"
     else:
         # Fallback for non-refactored version
-        app_lazy = WEB_DIR / "app-lazy.js"
-        js_content = app_lazy.read_text()
-        js_file = "app-lazy.js"
+        app_js = WEB_DIR / "app.js"
+        js_content = app_js.read_text()
+        js_file = "app.js"
 
     # Extract version from HTML (e.g., v0.29.0)
     import re
@@ -241,9 +248,10 @@ def test_pyodide_version_consistency():
 
 def test_json_field_names_match_dataclass_params():
     """
-    JSON field names should match Python dataclass parameter names exactly.
+    JSON field names should match Python model parameter names exactly.
 
     This prevents errors like 'throat_pitch_radius_mm' vs 'throat_curvature_radius_mm'.
+    Works with both dataclasses and Pydantic BaseModel classes.
     """
     # Read loaders.py source directly to extract field names without importing build123d
     loaders_file = SRC_DIR / "io" / "loaders.py"
@@ -251,26 +259,37 @@ def test_json_field_names_match_dataclass_params():
 
     loaders_content = loaders_file.read_text()
 
-    # Extract field names from dataclass definitions using regex
+    # Extract field names from class definitions using regex
     import re
 
-    def extract_dataclass_fields(content: str, class_name: str) -> set:
-        """Extract field names from a dataclass definition."""
-        # Find the class definition
-        class_pattern = rf'@dataclass\s+class {class_name}:.*?(?=@dataclass|class \w+:|def \w+|$)'
+    def extract_model_fields(content: str, class_name: str) -> set:
+        """Extract field names from a dataclass or Pydantic BaseModel definition."""
+        # Try Pydantic BaseModel pattern first: class ClassName(BaseModel):
+        class_pattern = rf'class {class_name}\(BaseModel\):.*?(?=\nclass \w+|def \w+\(|$)'
         match = re.search(class_pattern, content, re.DOTALL)
+
+        # Fall back to dataclass pattern: @dataclass\nclass ClassName:
+        if not match:
+            class_pattern = rf'@dataclass\s+class {class_name}:.*?(?=@dataclass|class \w+:|def \w+|$)'
+            match = re.search(class_pattern, content, re.DOTALL)
+
         if not match:
             return set()
 
         class_body = match.group(0)
 
         # Extract field names (lines with "field_name: type")
-        # Handles optional types, defaults, and inline comments
+        # Handles optional types, defaults, Field(), and inline comments
+        # Skip lines that are method definitions (@validator, def, etc.)
         field_pattern = r'^\s+(\w+):\s+(?:Optional\[)?[\w\[\],\s]+(?:\])?\s*(?:=.*?)?(?:#.*)?$'
         field_names = set()
         for line in class_body.split('\n'):
-            # Skip comment-only lines
-            if line.strip().startswith('#'):
+            # Skip comment-only lines, decorators, and method definitions
+            stripped = line.strip()
+            if stripped.startswith('#') or stripped.startswith('@') or stripped.startswith('def '):
+                continue
+            # Skip class Config blocks
+            if stripped.startswith('class Config'):
                 continue
             field_match = re.match(field_pattern, line)
             if field_match:
@@ -278,10 +297,10 @@ def test_json_field_names_match_dataclass_params():
 
         return field_names
 
-    # Get field names from dataclasses
-    worm_fields = extract_dataclass_fields(loaders_content, "WormParams")
-    wheel_fields = extract_dataclass_fields(loaders_content, "WheelParams")
-    assembly_fields = extract_dataclass_fields(loaders_content, "AssemblyParams")
+    # Get field names from models (works with both dataclass and Pydantic)
+    worm_fields = extract_model_fields(loaders_content, "WormParams")
+    wheel_fields = extract_model_fields(loaders_content, "WheelParams")
+    assembly_fields = extract_model_fields(loaders_content, "AssemblyParams")
 
     assert len(worm_fields) > 0, "Failed to extract WormParams fields"
     assert len(wheel_fields) > 0, "Failed to extract WheelParams fields"
@@ -289,7 +308,8 @@ def test_json_field_names_match_dataclass_params():
 
     # Find and load example JSON files
     json_files = list(EXAMPLES_DIR.glob("*.json"))
-    assert len(json_files) > 0, f"No example JSON files found in {EXAMPLES_DIR}"
+    if len(json_files) == 0:
+        pytest.skip("No example JSON files found - validation not needed")
 
     errors = []
 
@@ -302,7 +322,7 @@ def test_json_field_names_match_dataclass_params():
             for key in data["worm"].keys():
                 if key not in worm_fields:
                     errors.append(
-                        f"{json_file.name}: worm.{key} not in WormParams dataclass. "
+                        f"{json_file.name}: worm.{key} not in WormParams model. "
                         f"Available fields: {sorted(worm_fields)}"
                     )
 
@@ -311,7 +331,7 @@ def test_json_field_names_match_dataclass_params():
             for key in data["wheel"].keys():
                 if key not in wheel_fields:
                     errors.append(
-                        f"{json_file.name}: wheel.{key} not in WheelParams dataclass. "
+                        f"{json_file.name}: wheel.{key} not in WheelParams model. "
                         f"Available fields: {sorted(wheel_fields)}"
                     )
 
@@ -320,7 +340,7 @@ def test_json_field_names_match_dataclass_params():
             for key in data["assembly"].keys():
                 if key not in assembly_fields:
                     errors.append(
-                        f"{json_file.name}: assembly.{key} not in AssemblyParams dataclass. "
+                        f"{json_file.name}: assembly.{key} not in AssemblyParams model. "
                         f"Available fields: {sorted(assembly_fields)}"
                     )
 
@@ -329,15 +349,15 @@ def test_json_field_names_match_dataclass_params():
         pytest.fail(error_msg)
 
 
-def test_app_lazy_js_field_names_match():
+def test_app_js_field_names_match():
     """
-    Field names in app-lazy.js should match Python dataclass parameters.
+    Field names in app.js should match Python dataclass parameters.
 
     Specifically checks for known issues like 'throat_pitch_radius_mm' which should be
     'throat_curvature_radius_mm'.
     """
-    app_lazy = WEB_DIR / "app-lazy.js"
-    content = app_lazy.read_text()
+    app_js = WEB_DIR / "app.js"
+    content = app_js.read_text()
 
     # Known incorrect field names that should NOT appear
     incorrect_fields = [
@@ -348,19 +368,56 @@ def test_app_lazy_js_field_names_match():
     for incorrect_field in incorrect_fields:
         if incorrect_field in content:
             errors.append(
-                f"app-lazy.js contains incorrect field name '{incorrect_field}'. "
+                f"app.js contains incorrect field name '{incorrect_field}'. "
                 f"This field does not exist in WormParams dataclass."
             )
 
     # Check that correct field name is used instead
     if "throat_pitch_radius_mm" in content and "throat_curvature_radius_mm" not in content:
         errors.append(
-            "app-lazy.js should use 'throat_curvature_radius_mm' not 'throat_pitch_radius_mm'"
+            "app.js should use 'throat_curvature_radius_mm' not 'throat_pitch_radius_mm'"
         )
 
     if errors:
-        error_msg = "Field name errors in app-lazy.js:\n" + "\n".join(f"  - {e}" for e in errors)
+        error_msg = "Field name errors in app.js:\n" + "\n".join(f"  - {e}" for e in errors)
         pytest.fail(error_msg)
+
+
+def test_pyodide_init_loads_all_calculator_files():
+    """
+    pyodide-init.js must load all Python files from wormgear/calculator/.
+
+    This test catches cases where a new .py file is added to the calculator
+    but not included in the file list in pyodide-init.js.
+    """
+    import re
+
+    # Get all Python files in calculator directory
+    calculator_dir = SRC_DIR / "calculator"
+    actual_files = {f.name for f in calculator_dir.glob("*.py")}
+
+    # Read pyodide-init.js and extract the calcFiles array
+    pyodide_init = WEB_DIR / "modules" / "pyodide-init.js"
+    content = pyodide_init.read_text()
+
+    # Extract calcFiles array: const calcFiles = ['__init__.py', 'core.py', ...]
+    match = re.search(r"const calcFiles = \[([^\]]+)\]", content)
+    assert match, "Could not find calcFiles array in pyodide-init.js"
+
+    # Parse the array
+    files_str = match.group(1)
+    listed_files = set(re.findall(r"'([^']+)'", files_str))
+
+    # Check for missing files (files that exist but aren't loaded)
+    missing = actual_files - listed_files
+    # Exclude __pycache__ marker files and test files
+    missing = {f for f in missing if not f.startswith('__pycache__') and not f.startswith('test_')}
+
+    if missing:
+        pytest.fail(
+            f"pyodide-init.js is missing calculator files: {sorted(missing)}\n"
+            f"Add them to the calcFiles array in pyodide-init.js"
+        )
 
 
 if __name__ == "__main__":

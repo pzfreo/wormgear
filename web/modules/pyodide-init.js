@@ -89,8 +89,8 @@ export async function initCalculator(onComplete) {
         }
         calculatorPyodide.FS.writeFile('/home/pyodide/wormgear/enums.py', enumsContent);
 
-        // Load calculator module files
-        const calcFiles = ['__init__.py', 'core.py', 'validation.py', 'output.py'];
+        // Load calculator module files (including js_bridge for clean JS<->Python interface)
+        const calcFiles = ['__init__.py', 'core.py', 'validation.py', 'output.py', 'bore_calculator.py', 'js_bridge.py', 'json_schema.py'];
         for (const file of calcFiles) {
             const response = await fetch(`wormgear/calculator/${file}?v=${cacheBuster}`);
             if (!response.ok) throw new Error(`Failed to load calculator/${file}: ${response.status}`);
@@ -113,6 +113,9 @@ export async function initCalculator(onComplete) {
             calculatorPyodide.FS.writeFile(`/home/pyodide/wormgear/io/${file}`, content);
         }
 
+        // Load pydantic (required by io/loaders.py)
+        await calculatorPyodide.loadPackage('pydantic');
+
         // Import unified package WITH enums
         await calculatorPyodide.runPythonAsync(`
 import sys
@@ -122,6 +125,9 @@ sys.path.insert(0, '/home/pyodide')
 for module_name in list(sys.modules.keys()):
     if module_name.startswith('wormgear'):
         del sys.modules[module_name]
+
+# Import the clean JS<->Python bridge (single entry point)
+from wormgear.calculator.js_bridge import calculate
 
 # Import wrapper functions that return WormGearDesign dataclass (needed for attribute access)
 from wormgear.calculator import (

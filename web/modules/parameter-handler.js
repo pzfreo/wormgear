@@ -1,13 +1,140 @@
 /**
  * Parameter Handler Module
  *
- * Handles parameter extraction from UI and formatting for Python calls.
+ * Collects parameters from UI and prepares them for the Python calculator.
+ * Works with schema-validator.js for runtime type checking.
  */
 
+import { validateCalculatorInputs } from './schema-validator.js';
+
 /**
- * Get design function name for given mode
+ * Safely parse a float value
+ * @param {string} value
+ * @returns {number|null}
+ */
+function safeParseFloat(value) {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Safely parse an integer value
+ * @param {string} value
+ * @returns {number|null}
+ */
+function safeParseInt(value) {
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Get element value safely
+ * @param {string} id
+ * @returns {string}
+ */
+function getValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+}
+
+/**
+ * Get checkbox state safely
+ * @param {string} id
+ * @returns {boolean}
+ */
+function getChecked(id) {
+    const el = document.getElementById(id);
+    return el ? el.checked : false;
+}
+
+/**
+ * Collect all inputs from UI into a structured object.
+ * Returns data in the format expected by the Python js_bridge.calculate() function.
+ *
  * @param {string} mode - Calculation mode
- * @returns {string} Python function name
+ * @returns {object} Validated inputs ready for JSON serialization
+ */
+export function getInputs(mode) {
+    // Collect bore settings
+    // Map UI "auto" to "custom" with null diameter (schema only has 'none' and 'custom')
+    const wormBoreType = getValue('worm-bore-type');
+    const wheelBoreType = getValue('wheel-bore-type');
+
+    const bore = {
+        worm_bore_type: wormBoreType === 'auto' ? 'custom' : wormBoreType,
+        worm_bore_diameter: wormBoreType === 'auto' ? null : safeParseFloat(getValue('worm-bore-diameter')),
+        worm_keyway: getValue('worm-anti-rotation'),
+        wheel_bore_type: wheelBoreType === 'auto' ? 'custom' : wheelBoreType,
+        wheel_bore_diameter: wheelBoreType === 'auto' ? null : safeParseFloat(getValue('wheel-bore-diameter')),
+        wheel_keyway: getValue('wheel-anti-rotation')
+    };
+
+    // Collect manufacturing settings
+    const wheelGeneration = getValue('wheel-generation');
+    const hobbingPrecision = getValue('hobbing-precision');
+    const hobbingStepsMap = {
+        'preview': 36,
+        'balanced': 72,
+        'high': 144
+    };
+
+    const manufacturing = {
+        virtual_hobbing: wheelGeneration === 'virtual-hobbing',
+        hobbing_steps: hobbingStepsMap[hobbingPrecision] || 72,
+        use_recommended_dims: getChecked('use-recommended-dims'),
+        worm_length: safeParseFloat(getValue('worm-length')),
+        wheel_width: safeParseFloat(getValue('wheel-width'))
+    };
+
+    // Build raw inputs object
+    const rawInputs = {
+        mode: mode,
+        pressure_angle: safeParseFloat(getValue('pressure-angle')),
+        backlash: safeParseFloat(getValue('backlash')),
+        num_starts: safeParseInt(getValue('num-starts')),
+        hand: getValue('hand'),
+        profile_shift: safeParseFloat(getValue('profile-shift')) || 0,
+        profile: getValue('profile'),
+        worm_type: getValue('worm-type'),
+        throat_reduction: safeParseFloat(getValue('throat-reduction')) || 0,
+        wheel_throated: getChecked('wheel-throated'),
+        bore: bore,
+        manufacturing: manufacturing
+    };
+
+    // Add mode-specific parameters
+    switch (mode) {
+        case 'envelope':
+            rawInputs.worm_od = safeParseFloat(getValue('worm-od'));
+            rawInputs.wheel_od = safeParseFloat(getValue('wheel-od'));
+            rawInputs.ratio = safeParseInt(getValue('ratio'));
+            rawInputs.od_as_maximum = getChecked('od-as-maximum');
+            rawInputs.use_standard_module = getChecked('use-standard-module');
+            break;
+        case 'from-wheel':
+            rawInputs.wheel_od = safeParseFloat(getValue('wheel-od-fw'));
+            rawInputs.ratio = safeParseInt(getValue('ratio-fw'));
+            rawInputs.target_lead_angle = safeParseFloat(getValue('target-lead-angle'));
+            break;
+        case 'from-module':
+            rawInputs.module = safeParseFloat(getValue('module'));
+            rawInputs.ratio = safeParseInt(getValue('ratio-fm'));
+            break;
+        case 'from-centre-distance':
+            rawInputs.centre_distance = safeParseFloat(getValue('centre-distance'));
+            rawInputs.ratio = safeParseInt(getValue('ratio-fcd'));
+            break;
+    }
+
+    // Validate and return
+    return validateCalculatorInputs(rawInputs);
+}
+
+/**
+ * Get the Python function name for the design mode.
+ * @deprecated Use the new js_bridge.calculate() which handles mode internally
+ * @param {string} mode
+ * @returns {string}
  */
 export function getDesignFunction(mode) {
     const functions = {
@@ -20,109 +147,19 @@ export function getDesignFunction(mode) {
 }
 
 /**
- * Get all input parameters from UI
- * @param {string} mode - Calculation mode
- * @returns {{calculator: object, manufacturing: object, bore: object}}
- */
-export function getInputs(mode) {
-    // Helper to safely parse numbers, returning null if invalid
-    const safeParseFloat = (value) => {
-        const parsed = parseFloat(value);
-        return isNaN(parsed) ? null : parsed;
-    };
-    const safeParseInt = (value) => {
-        const parsed = parseInt(value);
-        return isNaN(parsed) ? null : parsed;
-    };
-
-    // Calculator parameters only (passed to Python calculation functions)
-    const calculatorParams = {
-        pressure_angle: safeParseFloat(document.getElementById('pressure-angle').value),
-        backlash: safeParseFloat(document.getElementById('backlash').value),
-        num_starts: safeParseInt(document.getElementById('num-starts').value),
-        hand: document.getElementById('hand').value,
-        profile_shift: safeParseFloat(document.getElementById('profile-shift').value),
-        profile: document.getElementById('profile').value,
-        worm_type: document.getElementById('worm-type').value,
-        throat_reduction: safeParseFloat(document.getElementById('throat-reduction').value) || 0.0,
-        wheel_throated: document.getElementById('wheel-throated').checked
-    };
-
-    // Add mode-specific calculator parameters
-    switch (mode) {
-        case 'envelope':
-            calculatorParams.worm_od = safeParseFloat(document.getElementById('worm-od').value);
-            calculatorParams.wheel_od = safeParseFloat(document.getElementById('wheel-od').value);
-            calculatorParams.ratio = safeParseInt(document.getElementById('ratio').value);
-            calculatorParams.od_as_maximum = document.getElementById('od-as-maximum').checked;
-            calculatorParams.use_standard_module = document.getElementById('use-standard-module').checked;
-            break;
-        case 'from-wheel':
-            calculatorParams.wheel_od = safeParseFloat(document.getElementById('wheel-od-fw').value);
-            calculatorParams.ratio = safeParseInt(document.getElementById('ratio-fw').value);
-            calculatorParams.target_lead_angle = safeParseFloat(document.getElementById('target-lead-angle').value);
-            break;
-        case 'from-module':
-            calculatorParams.module = safeParseFloat(document.getElementById('module').value);
-            calculatorParams.ratio = safeParseInt(document.getElementById('ratio-fm').value);
-            break;
-        case 'from-centre-distance':
-            calculatorParams.centre_distance = safeParseFloat(document.getElementById('centre-distance').value);
-            calculatorParams.ratio = safeParseInt(document.getElementById('ratio-fcd').value);
-            break;
-    }
-
-    // Manufacturing parameters (for JSON export, not calculation)
-    const wheelGeneration = document.getElementById('wheel-generation').value;
-    const hobbingPrecision = document.getElementById('hobbing-precision').value;
-    const hobbingStepsMap = {
-        'preview': 36,
-        'balanced': 72,
-        'high': 144
-    };
-
-    const manufacturingParams = {
-        virtual_hobbing: wheelGeneration === 'virtual-hobbing',
-        hobbing_steps: hobbingStepsMap[hobbingPrecision] || 72,
-        use_recommended_dims: document.getElementById('use-recommended-dims').checked,
-        worm_length: safeParseFloat(document.getElementById('worm-length').value),
-        wheel_width: safeParseFloat(document.getElementById('wheel-width').value)
-    };
-
-    // Bore/keyway parameters (for JSON export, not calculation)
-    const boreParams = {
-        worm_bore_type: document.getElementById('worm-bore-type').value,
-        worm_bore_diameter: safeParseFloat(document.getElementById('worm-bore-diameter').value),
-        worm_keyway: document.getElementById('worm-anti-rotation').value,
-        wheel_bore_type: document.getElementById('wheel-bore-type').value,
-        wheel_bore_diameter: safeParseFloat(document.getElementById('wheel-bore-diameter').value),
-        wheel_keyway: document.getElementById('wheel-anti-rotation').value
-    };
-
-    return {
-        calculator: calculatorParams,
-        manufacturing: manufacturingParams,
-        bore: boreParams
-    };
-}
-
-/**
- * Format calculator parameters for Python function call
- * @param {object} calculatorParams - Calculator parameters
- * @returns {string} Formatted argument string for Python
+ * Format calculator parameters for Python function call.
+ * @deprecated Use the new js_bridge.calculate() which handles formatting internally
+ * @param {object} calculatorParams
+ * @returns {string}
  */
 export function formatArgs(calculatorParams) {
-    // Convert calculator parameters to Python function call arguments
     return Object.entries(calculatorParams)
         .filter(([key, value]) => value !== null && value !== undefined)
         .map(([key, value]) => {
-            // Enum conversions
             if (key === 'hand') return `hand=Hand.${value}`;
             if (key === 'profile') return `profile=WormProfile.${value}`;
             if (key === 'worm_type') return `worm_type=WormType.${value.toUpperCase()}`;
-            // Boolean conversion
             if (typeof value === 'boolean') return `${key}=${value ? 'True' : 'False'}`;
-            // Numeric/string values
             return `${key}=${value}`;
         })
         .join(', ');

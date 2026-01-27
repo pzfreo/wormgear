@@ -65,6 +65,11 @@ from .output import (
     to_summary,
 )
 
+from .bore_calculator import (
+    # Bore calculation
+    calculate_default_bore,
+)
+
 # Convenience imports
 from ..io import WormParams, WheelParams, AssemblyParams, WormGearDesign, ManufacturingParams
 

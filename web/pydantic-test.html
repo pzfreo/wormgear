@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pydantic v2 in Pyodide - Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d4ff; }
+        .test {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #16213e;
+            border-radius: 8px;
+        }
+        .pass { border-left: 4px solid #00ff88; }
+        .fail { border-left: 4px solid #ff4444; }
+        .pending { border-left: 4px solid #ffaa00; }
+        .test-name { font-weight: bold; margin-bottom: 0.5rem; }
+        .test-result { font-family: monospace; white-space: pre-wrap; font-size: 0.9rem; }
+        #status {
+            padding: 1rem;
+            background: #0f3460;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00d4ff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <h1>Pydantic v2 in Pyodide Test</h1>
+    <div id="status"><span class="loader"></span>Loading Pyodide...</div>
+    <div id="results"></div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
+    <script>
+        const results = document.getElementById('results');
+        const status = document.getElementById('status');
+
+        function addTest(name, state, result) {
+            const div = document.createElement('div');
+            div.className = `test ${state}`;
+            div.innerHTML = `
+                <div class="test-name">${state === 'pass' ? '✓' : state === 'fail' ? '✗' : '...'} ${name}</div>
+                <div class="test-result">${result}</div>
+            `;
+            results.appendChild(div);
+            return div;
+        }
+
+        async function runTests() {
+            try {
+                // Load Pyodide
+                status.innerHTML = '<span class="loader"></span>Loading Pyodide...';
+                const pyodide = await loadPyodide();
+                addTest('Pyodide loaded', 'pass', `Version: ${pyodide.version}`);
+
+                // Check/install pydantic
+                status.innerHTML = '<span class="loader"></span>Loading pydantic...';
+                await pyodide.loadPackage('micropip');
+                const micropip = pyodide.pyimport('micropip');
+
+                // Check if pydantic is available
+                let pydanticVersion;
+                try {
+                    pydanticVersion = await pyodide.runPythonAsync(`
+import pydantic
+pydantic.__version__
+`);
+                } catch (e) {
+                    // Not pre-installed, install it
+                    await micropip.install('pydantic');
+                    pydanticVersion = await pyodide.runPythonAsync(`
+import pydantic
+pydantic.__version__
+`);
+                }
+
+                const isV2 = pydanticVersion.startsWith('2.');
+                addTest('Pydantic version', isV2 ? 'pass' : 'fail',
+                    `Version: ${pydanticVersion} (${isV2 ? 'v2 - Good!' : 'v1 - Need v2!'})`);
+
+                // Test basic Pydantic v2 features
+                status.innerHTML = '<span class="loader"></span>Testing Pydantic v2 features...';
+
+                // Test 1: Basic BaseModel
+                const test1 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel, Field
+from typing import Optional
+from enum import Enum
+
+class Hand(Enum):
+    RIGHT = "right"
+    LEFT = "left"
+
+class TestModel(BaseModel):
+    name: str
+    value: float = Field(ge=0)
+    hand: Hand = Hand.RIGHT
+
+    class Config:
+        extra = 'ignore'
+
+# Create instance
+m = TestModel(name="test", value=42.5, hand=Hand.LEFT)
+f"Created: {m.name}, {m.value}, {m.hand.value}"
+`);
+                addTest('BaseModel with Enum', 'pass', test1);
+
+                // Test 2: Validator (v1 style - what we use)
+                const test2 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel, validator
+
+class ModelWithValidator(BaseModel):
+    hand: str
+
+    @validator('hand', pre=True)
+    def coerce_hand(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+m = ModelWithValidator(hand="RIGHT")
+f"Coerced: '{m.hand}'"
+`);
+                addTest('Validator (v1-style @validator)', 'pass', test2);
+
+                // Test 3: model_validate (v2 API)
+                const test3 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel
+
+class SimpleModel(BaseModel):
+    x: int
+    y: float
+
+data = {"x": 10, "y": 3.14, "extra": "ignored"}
+m = SimpleModel.model_validate(data)
+f"model_validate: x={m.x}, y={m.y}"
+`);
+                addTest('model_validate() (v2 API)', 'pass', test3);
+
+                // Test 4: model_dump (v2 API)
+                const test4 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel
+from enum import Enum
+
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+class DumpTest(BaseModel):
+    status: Status
+    count: int
+
+m = DumpTest(status=Status.ACTIVE, count=5)
+d = m.model_dump()
+f"model_dump: {d}"
+`);
+                addTest('model_dump() (v2 API)', 'pass', test4);
+
+                // Test 5: Our actual WormParams-like model
+                status.innerHTML = '<span class="loader"></span>Testing wormgear-like models...';
+                const test5 = await pyodide.runPythonAsync(`
+from pydantic import BaseModel, validator, Field
+from typing import Optional
+from enum import Enum
+
+class Hand(Enum):
+    RIGHT = "right"
+    LEFT = "left"
+
+class WormType(Enum):
+    CYLINDRICAL = "cylindrical"
+    GLOBOID = "globoid"
+
+class WormParams(BaseModel):
+    module_mm: float
+    num_starts: int
+    pitch_diameter_mm: float
+    lead_angle_deg: float
+    hand: Hand
+    type: Optional[WormType] = None
+
+    @validator('hand', pre=True)
+    def coerce_hand(cls, v):
+        if isinstance(v, str):
+            return Hand(v.lower())
+        return v
+
+    @validator('type', pre=True)
+    def coerce_type(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return WormType(v.lower())
+        return v
+
+    class Config:
+        extra = 'ignore'
+
+# Parse from JSON-like dict (simulating web input)
+json_data = {
+    "module_mm": 2.0,
+    "num_starts": 1,
+    "pitch_diameter_mm": 16.29,
+    "lead_angle_deg": 7.0,
+    "hand": "RIGHT",  # String from JSON
+    "type": "cylindrical",
+    "extra_field": "should be ignored"
+}
+
+worm = WormParams.model_validate(json_data)
+f"WormParams: module={worm.module_mm}, hand={worm.hand.value}, type={worm.type.value}"
+`);
+                addTest('WormParams-like model with enum coercion', 'pass', test5);
+
+                // Test 6: Full roundtrip (parse -> dump -> serialize enums)
+                const test6 = await pyodide.runPythonAsync(`
+import json
+from pydantic import BaseModel, validator
+from enum import Enum
+from typing import Optional
+
+class Hand(Enum):
+    RIGHT = "right"
+    LEFT = "left"
+
+class AssemblyParams(BaseModel):
+    centre_distance_mm: float
+    hand: Hand
+    ratio: int
+
+    @validator('hand', pre=True)
+    def coerce_hand(cls, v):
+        if isinstance(v, str):
+            return Hand(v.lower())
+        return v
+
+    class Config:
+        extra = 'ignore'
+
+# Parse
+data = {"centre_distance_mm": 38.14, "hand": "right", "ratio": 30}
+asm = AssemblyParams.model_validate(data)
+
+# Dump to dict
+d = asm.model_dump()
+
+# Convert enums to values for JSON
+def serialize_enums(obj):
+    if isinstance(obj, dict):
+        return {k: serialize_enums(v) for k, v in obj.items()}
+    elif hasattr(obj, 'value'):
+        return obj.value
+    return obj
+
+json_ready = serialize_enums(d)
+json_str = json.dumps(json_ready)
+f"JSON output: {json_str}"
+`);
+                addTest('Full roundtrip (parse -> dump -> JSON)', 'pass', test6);
+
+                status.innerHTML = '✓ All tests passed! Pydantic v2 works in Pyodide.';
+                status.style.background = '#0a4a2a';
+
+            } catch (error) {
+                status.innerHTML = `✗ Error: ${error.message}`;
+                status.style.background = '#4a0a0a';
+                addTest('Error', 'fail', error.stack || error.message);
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

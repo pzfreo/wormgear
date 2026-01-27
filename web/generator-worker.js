@@ -48,11 +48,11 @@ async function initializePyodide() {
 
         self.postMessage({ type: 'LOG', message: '✓ Pyodide loaded' });
 
-        // Install micropip
-        self.postMessage({ type: 'LOG', message: 'Installing micropip...' });
-        await pyodide.loadPackage('micropip');
+        // Install micropip and pydantic (pydantic must use loadPackage, not micropip, due to pydantic-core)
+        self.postMessage({ type: 'LOG', message: 'Installing micropip and pydantic...' });
+        await pyodide.loadPackage(['micropip', 'pydantic']);
         const micropip = pyodide.pyimport('micropip');
-        self.postMessage({ type: 'LOG', message: '✓ micropip ready' });
+        self.postMessage({ type: 'LOG', message: '✓ micropip and pydantic ready' });
 
         // Install build123d and OCP
         self.postMessage({ type: 'LOG', message: '📦 Installing build123d and OCP (2-5 minutes)...' });
@@ -165,6 +165,7 @@ if '/home/pyodide' not in sys.path:
         { path: 'wormgear/calculator/core.py', pyPath: '/home/pyodide/wormgear/calculator/core.py' },
         { path: 'wormgear/calculator/validation.py', pyPath: '/home/pyodide/wormgear/calculator/validation.py' },
         { path: 'wormgear/calculator/output.py', pyPath: '/home/pyodide/wormgear/calculator/output.py' },
+        { path: 'wormgear/calculator/bore_calculator.py', pyPath: '/home/pyodide/wormgear/calculator/bore_calculator.py' },
         { path: 'wormgear/calculator/js_bridge.py', pyPath: '/home/pyodide/wormgear/calculator/js_bridge.py' },
         { path: 'wormgear/calculator/json_schema.py', pyPath: '/home/pyodide/wormgear/calculator/json_schema.py' },
     ];
@@ -280,19 +281,9 @@ worm_bore_diameter = None
 
 if 'worm' in features:
     worm_feat = features['worm']
-    if 'bore_diameter_mm' in worm_feat:
+    if 'bore_diameter_mm' in worm_feat and worm_feat['bore_diameter_mm'] is not None:
         worm_bore_diameter = worm_feat['bore_diameter_mm']
-        print(f"Worm bore: {worm_bore_diameter} mm (custom)")
-    elif 'auto_bore' in worm_feat and worm_feat['auto_bore']:
-        # Calculate default bore diameter
-        worm_bore_diameter, thin_rim_warning = calculate_default_bore(
-            worm_params.pitch_diameter_mm,
-            worm_params.root_diameter_mm
-        )
-        if worm_bore_diameter:
-            print(f"Worm bore: {worm_bore_diameter} mm (auto-calculated)")
-        else:
-            print("Worm bore: skipped (gear too small)")
+        print(f"Worm bore: {worm_bore_diameter} mm")
 
     # Create bore feature if diameter was determined
     if worm_bore_diameter is not None:
@@ -309,7 +300,7 @@ if 'worm' in features:
                 else:
                     print(f"Worm keyway: skipped (bore {worm_bore_diameter}mm < 6mm minimum for DIN 6885)")
 
-            elif anti_rot == 'DD-cut':
+            elif anti_rot == 'ddcut':
                 # Calculate depth as ~10% of bore diameter (standard practice for small shafts)
                 dd_depth = round(worm_bore_diameter * 0.1, 1)
                 print(f"Worm DD-cut: double-D flat anti-rotation (depth={dd_depth}mm)")
@@ -326,19 +317,9 @@ wheel_bore_diameter = None
 
 if 'wheel' in features:
     wheel_feat = features['wheel']
-    if 'bore_diameter_mm' in wheel_feat:
+    if 'bore_diameter_mm' in wheel_feat and wheel_feat['bore_diameter_mm'] is not None:
         wheel_bore_diameter = wheel_feat['bore_diameter_mm']
-        print(f"Wheel bore: {wheel_bore_diameter} mm (custom)")
-    elif 'auto_bore' in wheel_feat and wheel_feat['auto_bore']:
-        # Calculate default bore diameter
-        wheel_bore_diameter, thin_rim_warning = calculate_default_bore(
-            wheel_params.pitch_diameter_mm,
-            wheel_params.root_diameter_mm
-        )
-        if wheel_bore_diameter:
-            print(f"Wheel bore: {wheel_bore_diameter} mm (auto-calculated)")
-        else:
-            print("Wheel bore: skipped (gear too small)")
+        print(f"Wheel bore: {wheel_bore_diameter} mm")
 
     # Create bore feature if diameter was determined
     if wheel_bore_diameter is not None:
@@ -355,7 +336,7 @@ if 'wheel' in features:
                 else:
                     print(f"Wheel keyway: skipped (bore {wheel_bore_diameter}mm < 6mm minimum for DIN 6885)")
 
-            elif anti_rot == 'DD-cut':
+            elif anti_rot == 'ddcut':
                 # Calculate depth as ~10% of bore diameter (standard practice for small shafts)
                 dd_depth = round(wheel_bore_diameter * 0.1, 1)
                 print(f"Wheel DD-cut: double-D flat anti-rotation (depth={dd_depth}mm)")
@@ -425,32 +406,57 @@ if generate_type in ['worm', 'both']:
         worm_b64 = base64.b64encode(worm_step).decode('utf-8')
 
         # Export 3MF for 3D printing (preferred - has explicit units and better precision)
-        print("  Exporting to 3MF format...")
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.3mf', delete=False) as tmp:
-            temp_3mf_path = tmp.name
+        # Note: 3MF export can fail for complex geometry due to mesh issues - make it non-fatal
+        try:
+            print("  Exporting to 3MF format...")
 
-        # Use build123d Mesher for 3MF export
-        from build123d import Mesher, Unit
-        mesher = Mesher(unit=Unit.MM)  # Explicit millimeters
-        mesher.add_shape(worm)
-        mesher.write(temp_3mf_path)
+            # Validate shape before meshing (diagnostic)
+            shape_valid = worm.is_valid
+            print(f"    Shape validity check: {shape_valid}")
+            if not shape_valid:
+                print("    ⚠️ Shape has validity issues - 3MF may fail")
 
-        # Read back as bytes
-        with open(temp_3mf_path, 'rb') as f:
-            worm_3mf = f.read()
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.3mf', delete=False) as tmp:
+                temp_3mf_path = tmp.name
 
-        # Clean up temp file
-        os.unlink(temp_3mf_path)
+            # Use build123d Mesher for 3MF export with finer mesh settings
+            # Lower deflection values = finer mesh, may help avoid duplicate vertex issues
+            from build123d import Mesher, Unit
+            mesher = Mesher(unit=Unit.MM)
+            mesher.add_shape(
+                worm,
+                linear_deflection=0.0005,   # Finer than default 0.001
+                angular_deflection=0.05     # Finer than default 0.1
+            )
+            mesher.write(temp_3mf_path)
 
-        worm_3mf_b64 = base64.b64encode(worm_3mf).decode('utf-8')
+            # Read back as bytes
+            with open(temp_3mf_path, 'rb') as f:
+                worm_3mf = f.read()
+
+            # Clean up temp file
+            os.unlink(temp_3mf_path)
+
+            worm_3mf_b64 = base64.b64encode(worm_3mf).decode('utf-8')
+        except Exception as e:
+            print(f"  ⚠️ 3MF export failed (non-fatal): {e}")
+            print(f"    This is a known issue with complex geometry meshing.")
+            print(f"    STEP and STL files are still available.")
+            worm_3mf_b64 = None
 
         # Also export STL for compatibility
+        # Use finer mesh settings consistent with 3MF export for better detail
         print("  Exporting to STL format...")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
             temp_stl_path = tmp.name
 
         from build123d import export_stl
-        export_stl(worm, temp_stl_path)
+        export_stl(
+            worm,
+            temp_stl_path,
+            tolerance=0.0005,       # Finer than default 0.001 for better gear tooth detail
+            angular_tolerance=0.05  # Finer than default 0.1 for curved surfaces
+        )
 
         with open(temp_stl_path, 'rb') as f:
             worm_stl = f.read()
@@ -459,10 +465,11 @@ if generate_type in ['worm', 'both']:
         worm_stl_b64 = base64.b64encode(worm_stl).decode('utf-8')
 
         size_kb = len(worm_step) / 1024
-        mf3_size_kb = len(worm_3mf) / 1024
+        mf3_size_kb = len(worm_3mf) / 1024 if worm_3mf_b64 else 0
         stl_size_kb = len(worm_stl) / 1024
         print(f"✓ Worm generated successfully!")
-        print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_size_kb:.1f} KB, STL: {stl_size_kb:.1f} KB")
+        mf3_status = f"{mf3_size_kb:.1f} KB" if worm_3mf_b64 else "failed"
+        print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_status}, STL: {stl_size_kb:.1f} KB")
     except Exception as e:
         print(f"✗ Worm generation failed: {e}")
         import traceback
@@ -533,32 +540,57 @@ if generate_type in ['wheel', 'both']:
         wheel_b64 = base64.b64encode(wheel_step).decode('utf-8')
 
         # Export 3MF for 3D printing (preferred - has explicit units and better precision)
-        print("  Exporting to 3MF format...")
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.3mf', delete=False) as tmp:
-            temp_3mf_path = tmp.name
+        # Note: 3MF export can fail for complex geometry due to mesh issues - make it non-fatal
+        try:
+            print("  Exporting to 3MF format...")
 
-        # Use build123d Mesher for 3MF export
-        from build123d import Mesher, Unit
-        mesher = Mesher(unit=Unit.MM)  # Explicit millimeters
-        mesher.add_shape(wheel)
-        mesher.write(temp_3mf_path)
+            # Validate shape before meshing (diagnostic)
+            shape_valid = wheel.is_valid
+            print(f"    Shape validity check: {shape_valid}")
+            if not shape_valid:
+                print("    ⚠️ Shape has validity issues - 3MF may fail")
 
-        # Read back as bytes
-        with open(temp_3mf_path, 'rb') as f:
-            wheel_3mf = f.read()
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.3mf', delete=False) as tmp:
+                temp_3mf_path = tmp.name
 
-        # Clean up temp file
-        os.unlink(temp_3mf_path)
+            # Use build123d Mesher for 3MF export with finer mesh settings
+            # Lower deflection values = finer mesh, may help avoid duplicate vertex issues
+            from build123d import Mesher, Unit
+            mesher = Mesher(unit=Unit.MM)
+            mesher.add_shape(
+                wheel,
+                linear_deflection=0.0005,   # Finer than default 0.001
+                angular_deflection=0.05     # Finer than default 0.1
+            )
+            mesher.write(temp_3mf_path)
 
-        wheel_3mf_b64 = base64.b64encode(wheel_3mf).decode('utf-8')
+            # Read back as bytes
+            with open(temp_3mf_path, 'rb') as f:
+                wheel_3mf = f.read()
+
+            # Clean up temp file
+            os.unlink(temp_3mf_path)
+
+            wheel_3mf_b64 = base64.b64encode(wheel_3mf).decode('utf-8')
+        except Exception as e:
+            print(f"  ⚠️ 3MF export failed (non-fatal): {e}")
+            print(f"    This is a known issue with complex geometry meshing.")
+            print(f"    STEP and STL files are still available.")
+            wheel_3mf_b64 = None
 
         # Also export STL for compatibility
+        # Use finer mesh settings consistent with 3MF export for better detail
         print("  Exporting to STL format...")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
             temp_stl_path = tmp.name
 
         from build123d import export_stl
-        export_stl(wheel, temp_stl_path)
+        export_stl(
+            wheel,
+            temp_stl_path,
+            tolerance=0.0005,       # Finer than default 0.001 for better gear tooth detail
+            angular_tolerance=0.05  # Finer than default 0.1 for curved surfaces
+        )
 
         with open(temp_stl_path, 'rb') as f:
             wheel_stl = f.read()
@@ -567,10 +599,11 @@ if generate_type in ['wheel', 'both']:
         wheel_stl_b64 = base64.b64encode(wheel_stl).decode('utf-8')
 
         size_kb = len(wheel_step) / 1024
-        mf3_size_kb = len(wheel_3mf) / 1024
+        mf3_size_kb = len(wheel_3mf) / 1024 if wheel_3mf_b64 else 0
         stl_size_kb = len(wheel_stl) / 1024
         print(f"✓ Wheel generated successfully!")
-        print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_size_kb:.1f} KB, STL: {stl_size_kb:.1f} KB")
+        mf3_status = f"{mf3_size_kb:.1f} KB" if wheel_3mf_b64 else "failed"
+        print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_status}, STL: {stl_size_kb:.1f} KB")
     except Exception as e:
         print(f"✗ Wheel generation failed: {e}")
         import traceback
