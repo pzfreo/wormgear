@@ -1,0 +1,14 @@
+{
+  "name": "wormgear-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Worm gear calculator web interface",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate-types": "json2ts ../schemas/wormgear-design-v2.0.json -o types/wormgear-design.generated.d.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "json-schema-to-typescript": "^13.1.0"
+  }
+}
