@@ -17,27 +17,23 @@ let generatorTabVisited = false;
 // UI HELPERS
 // ============================================================================
 
-// Update throat reduction auto hint based on module
-// If moduleValue is provided, use it (from calculation result)
-// Otherwise, try to get from input or show generic message
-function updateThroatReductionAutoHint(moduleValue) {
+// Update throat reduction auto hint based on worm pitch diameter
+// Uses ~2% of worm pitch diameter as the auto value
+function updateThroatReductionAutoHint(pitchDiameter) {
     const hint = document.getElementById('throat-reduction-auto-value');
     if (!hint) return;
 
-    let module = moduleValue;
-    if (module === undefined) {
-        // Try to get module from current mode's input
-        const mode = document.getElementById('mode')?.value;
-        if (mode === 'from-module') {
-            module = parseFloat(document.getElementById('module')?.value);
-        }
+    let pitchDia = pitchDiameter;
+    if (pitchDia === undefined) {
+        // Try to get from current design
+        pitchDia = currentDesign?.worm?.pitch_diameter_mm;
     }
 
-    if (module && !isNaN(module)) {
-        const autoValue = (module * 0.15).toFixed(2);
-        hint.textContent = `≈ ${autoValue}mm for module ${module.toFixed(1)}`;
+    if (pitchDia && !isNaN(pitchDia)) {
+        const autoValue = (pitchDia * 0.02).toFixed(2);
+        hint.textContent = `≈ ${autoValue}mm (~2% of Ø${pitchDia.toFixed(1)}mm)`;
     } else {
-        hint.textContent = `15% of calculated module`;
+        hint.textContent = `~2% of worm pitch diameter`;
     }
 }
 
@@ -145,7 +141,7 @@ calculate(input_json)
 
         // Update UI
         updateBoreDisplaysAndDefaults(currentDesign);
-        updateThroatReductionAutoHint(design.worm?.module_mm);
+        updateThroatReductionAutoHint(design.worm?.pitch_diameter_mm);
         document.getElementById('results-text').textContent = output.summary;
         updateValidationUI(output.valid, output.messages);
 
@@ -551,14 +547,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Worm type switching (show throat reduction for globoid)
-    document.getElementById('worm-type').addEventListener('change', (e) => {
-        const isGloboid = e.target.value === 'globoid';
+    // Helper to update throat reduction visibility (globoid + helical only)
+    function updateThroatReductionVisibility() {
+        const isGloboid = document.getElementById('worm-type')?.value === 'globoid';
+        const isHelical = document.getElementById('wheel-generation')?.value === 'helical';
         const throatReductionGroup = document.getElementById('throat-reduction-group');
-        throatReductionGroup.style.display = isGloboid ? 'block' : 'none';
-        if (isGloboid) {
+
+        // Only show throat reduction for globoid worm with helical wheel generation
+        const shouldShow = isGloboid && isHelical;
+        throatReductionGroup.style.display = shouldShow ? 'block' : 'none';
+
+        if (shouldShow) {
             updateThroatReductionAutoHint();
         }
+    }
+
+    // Worm type switching
+    document.getElementById('worm-type').addEventListener('change', () => {
+        updateThroatReductionVisibility();
     });
 
     // Throat reduction mode switching (auto vs custom)
@@ -567,15 +573,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('throat-reduction-custom').style.display = isCustom ? 'block' : 'none';
         document.getElementById('throat-reduction-auto-hint').style.display = isCustom ? 'none' : 'block';
         if (isCustom) {
-            // Pre-fill with the auto value from current design (if available) or input
-            const module = currentDesign?.worm?.module_mm || parseFloat(document.getElementById('module')?.value) || 2.0;
-            document.getElementById('throat-reduction').value = (module * 0.15).toFixed(2);
-        }
-    });
-
-    document.getElementById('module')?.addEventListener('change', () => {
-        if (document.getElementById('worm-type')?.value === 'globoid') {
-            updateThroatReductionAutoHint();
+            // Pre-fill with the auto value from current design (~2% of worm pitch diameter)
+            const pitchDia = currentDesign?.worm?.pitch_diameter_mm;
+            if (pitchDia) {
+                document.getElementById('throat-reduction').value = (pitchDia * 0.02).toFixed(2);
+            } else {
+                // Fallback estimate based on module
+                const module = parseFloat(document.getElementById('module')?.value) || 2.0;
+                document.getElementById('throat-reduction').value = (module * 0.15).toFixed(2);
+            }
         }
     });
 
@@ -595,6 +601,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             throatOptionGroup.style.display = 'block';
         }
+
+        // Update throat reduction visibility (only for globoid + helical)
+        updateThroatReductionVisibility();
     });
 
     // Use recommended dimensions toggle

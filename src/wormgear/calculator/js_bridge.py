@@ -172,6 +172,12 @@ def calculate(input_json: str) -> str:
         # Call appropriate design function
         design = _call_design_function(inputs.mode, inputs, kwargs)
 
+        # Auto-default throat reduction for globoid worms (~2% of worm pitch diameter)
+        if inputs.worm_type == 'globoid' and design.worm:
+            if not design.worm.throat_reduction_mm or design.worm.throat_reduction_mm <= 0:
+                # Use 2% of worm pitch diameter for visible hourglass effect
+                design.worm.throat_reduction_mm = design.worm.pitch_diameter_mm * 0.02
+
         # Update manufacturing params from UI settings
         if design.manufacturing:
             design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
@@ -235,14 +241,11 @@ def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
         'profile_shift': inputs.profile_shift,
     }
 
-    # Add throat reduction for globoid worms
+    # Add user-specified throat reduction for globoid worms
+    # (auto-default is calculated after design, when we have the pitch diameter)
     if inputs.worm_type == 'globoid':
         if inputs.throat_reduction and inputs.throat_reduction > 0:
-            # User specified a value
             kwargs['throat_reduction'] = inputs.throat_reduction
-        elif inputs.module:
-            # Default to 15% of module for visible hourglass effect
-            kwargs['throat_reduction'] = inputs.module * 0.15
 
     # Add wheel throated flag
     if inputs.wheel_throated:

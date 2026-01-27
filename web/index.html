@@ -232,21 +232,6 @@
                                 <option value="globoid">Globoid (hourglass - better contact)</option>
                             </select>
 
-                            <div id="throat-reduction-group" style="display: none;">
-                                <label for="throat-reduction-mode">Throat Reduction:</label>
-                                <select id="throat-reduction-mode">
-                                    <option value="auto" selected>Auto (15% of module)</option>
-                                    <option value="custom">Custom</option>
-                                </select>
-                                <div id="throat-reduction-custom" style="display: none;">
-                                    <input type="number" id="throat-reduction" value="0.3" step="0.1" min="0.01" max="3">
-                                    <small class="hint">mm - Controls hourglass depth (~2x this value)</small>
-                                </div>
-                                <div id="throat-reduction-auto-hint">
-                                    <small class="hint" id="throat-reduction-auto-value">≈ 0.30mm for module 2.0</small>
-                                </div>
-                            </div>
-
                             <label for="wheel-generation">Wheel Tooth Generation:</label>
                             <select id="wheel-generation">
                                 <option value="helical" selected>Helical (simple, fast)</option>
@@ -261,6 +246,21 @@
                                     <option value="high">High (144 steps, 1-2 hours)</option>
                                 </select>
                                 <small class="hint">Times shown for WASM in browser</small>
+                            </div>
+
+                            <div id="throat-reduction-group" style="display: none;">
+                                <label for="throat-reduction-mode">Throat Reduction:</label>
+                                <select id="throat-reduction-mode">
+                                    <option value="auto" selected>Auto (~2% of worm diameter)</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <div id="throat-reduction-custom" style="display: none;">
+                                    <input type="number" id="throat-reduction" value="0.3" step="0.1" min="0.01" max="3">
+                                    <small class="hint">mm - Controls hourglass depth (~2x this value)</small>
+                                </div>
+                                <div id="throat-reduction-auto-hint">
+                                    <small class="hint" id="throat-reduction-auto-value">~2% of worm pitch diameter</small>
+                                </div>
                             </div>
 
                             <div id="throat-option-group">

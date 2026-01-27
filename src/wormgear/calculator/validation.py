@@ -524,7 +524,7 @@ def _validate_worm_type(design: DesignInput) -> List[ValidationMessage]:
     if worm_type == 'globoid':
         throat_reduction = _get(design, 'worm', 'throat_reduction_mm')
         throat_curvature = _get(design, 'worm', 'throat_curvature_radius_mm')
-        module = _get(design, 'worm', 'module_mm', default=1.0)
+        pitch_diameter = _get(design, 'worm', 'pitch_diameter_mm', default=16.0)
 
         # Check throat parameters are present
         if throat_curvature is None:
@@ -535,31 +535,32 @@ def _validate_worm_type(design: DesignInput) -> List[ValidationMessage]:
                 suggestion="Ensure throat radii are calculated for proper geometry"
             ))
         else:
-            # Calculate recommended throat reduction (15% of module)
-            recommended_reduction = module * 0.15
+            # Calculate recommended throat reduction (~2% of worm pitch diameter)
+            recommended_reduction = pitch_diameter * 0.02
             hourglass_depth = recommended_reduction * 2  # Approximate hourglass depth
 
             # Validate throat reduction value if present
             if throat_reduction is not None and throat_reduction > 0:
-                if throat_reduction < 0.02:
+                reduction_percent = (throat_reduction / pitch_diameter) * 100
+                if reduction_percent < 0.5:
                     messages.append(ValidationMessage(
                         severity=Severity.WARNING,
                         code="THROAT_REDUCTION_VERY_SMALL",
-                        message=f"Throat reduction {throat_reduction:.3f}mm is very small - minimal hourglass effect",
-                        suggestion=f"Recommended: {recommended_reduction:.2f}mm (15% of module) for visible hourglass"
+                        message=f"Throat reduction {throat_reduction:.3f}mm ({reduction_percent:.1f}% of Ø{pitch_diameter:.1f}mm) is very small",
+                        suggestion=f"Recommended: ~{recommended_reduction:.2f}mm (~2% of diameter) for visible hourglass"
                     ))
-                elif throat_reduction > module * 0.5:
+                elif reduction_percent > 5:
                     messages.append(ValidationMessage(
                         severity=Severity.ERROR,
                         code="THROAT_REDUCTION_TOO_LARGE",
-                        message=f"Throat reduction {throat_reduction:.3f}mm is too large (>{module * 0.5:.3f}mm = 50% of module)",
-                        suggestion="Reduce throat reduction to less than 50% of module"
+                        message=f"Throat reduction {throat_reduction:.3f}mm ({reduction_percent:.1f}% of Ø{pitch_diameter:.1f}mm) is too large",
+                        suggestion="Reduce throat reduction to less than 5% of worm diameter"
                     ))
-                elif throat_reduction > module * 0.3:
+                elif reduction_percent > 3.5:
                     messages.append(ValidationMessage(
                         severity=Severity.WARNING,
                         code="THROAT_REDUCTION_LARGE",
-                        message=f"Throat reduction {throat_reduction:.3f}mm is large (>{module * 0.3:.3f}mm = 30% of module)",
+                        message=f"Throat reduction {throat_reduction:.3f}mm ({reduction_percent:.1f}% of Ø{pitch_diameter:.1f}mm) is large",
                         suggestion="Consider reducing for better manufacturability"
                     ))
                 else:
@@ -567,15 +568,15 @@ def _validate_worm_type(design: DesignInput) -> List[ValidationMessage]:
                     messages.append(ValidationMessage(
                         severity=Severity.INFO,
                         code="THROAT_REDUCTION_SET",
-                        message=f"Throat reduction: {throat_reduction:.2f}mm (hourglass depth ~{throat_reduction * 2:.2f}mm)",
-                        suggestion=None
+                        message=f"Throat reduction: {throat_reduction:.2f}mm ({reduction_percent:.1f}% of Ø{pitch_diameter:.1f}mm)",
+                        suggestion=f"Hourglass depth ~{throat_reduction * 2:.2f}mm"
                     ))
             else:
                 # No throat reduction specified - show recommendation
                 messages.append(ValidationMessage(
                     severity=Severity.INFO,
                     code="THROAT_REDUCTION_DEFAULT",
-                    message=f"Using default throat reduction: {recommended_reduction:.2f}mm (15% of module)",
+                    message=f"Using default throat reduction: {recommended_reduction:.2f}mm (~2% of Ø{pitch_diameter:.1f}mm)",
                     suggestion=f"This gives ~{hourglass_depth:.2f}mm hourglass depth. Adjust in settings if needed."
                 ))
 
