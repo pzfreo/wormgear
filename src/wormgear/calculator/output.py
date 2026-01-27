@@ -9,15 +9,11 @@ from enum import Enum
 from typing import Optional, TYPE_CHECKING, Any
 
 from ..io import WormGearDesign
-from ..io.loaders import PYDANTIC_V2
 
 
 def _model_to_dict(model) -> dict:
     """Convert Pydantic model to dict."""
-    if PYDANTIC_V2:
-        return model.model_dump()
-    else:
-        return model.dict()
+    return model.model_dump()
 
 if TYPE_CHECKING:
     from .validation import ValidationResult
