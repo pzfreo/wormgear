@@ -445,12 +445,18 @@ if generate_type in ['worm', 'both']:
             worm_3mf_b64 = None
 
         # Also export STL for compatibility
+        # Use finer mesh settings consistent with 3MF export for better detail
         print("  Exporting to STL format...")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
             temp_stl_path = tmp.name
 
         from build123d import export_stl
-        export_stl(worm, temp_stl_path)
+        export_stl(
+            worm,
+            temp_stl_path,
+            tolerance=0.0005,       # Finer than default 0.001 for better gear tooth detail
+            angular_tolerance=0.05  # Finer than default 0.1 for curved surfaces
+        )
 
         with open(temp_stl_path, 'rb') as f:
             worm_stl = f.read()
@@ -573,12 +579,18 @@ if generate_type in ['wheel', 'both']:
             wheel_3mf_b64 = None
 
         # Also export STL for compatibility
+        # Use finer mesh settings consistent with 3MF export for better detail
         print("  Exporting to STL format...")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
             temp_stl_path = tmp.name
 
         from build123d import export_stl
-        export_stl(wheel, temp_stl_path)
+        export_stl(
+            wheel,
+            temp_stl_path,
+            tolerance=0.0005,       # Finer than default 0.001 for better gear tooth detail
+            angular_tolerance=0.05  # Finer than default 0.1 for curved surfaces
+        )
 
         with open(temp_stl_path, 'rb') as f:
             wheel_stl = f.read()
