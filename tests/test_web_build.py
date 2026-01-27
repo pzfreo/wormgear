@@ -22,19 +22,26 @@ DIST_DIR = REPO_ROOT / "dist"  # Build output directory
 
 # List of all files that MUST be present after build for WASM to work
 REQUIRED_WASM_FILES = [
+    # Root package
     "wormgear/__init__.py",
+    "wormgear/enums.py",
+    # Core geometry (for generator)
     "wormgear/core/__init__.py",
     "wormgear/core/worm.py",
     "wormgear/core/wheel.py",
     "wormgear/core/features.py",
     "wormgear/core/globoid_worm.py",
     "wormgear/core/virtual_hobbing.py",
+    # IO
     "wormgear/io/__init__.py",
     "wormgear/io/loaders.py",
     "wormgear/io/schema.py",
+    # Calculator (for web calculator - must not depend on core)
     "wormgear/calculator/__init__.py",
     "wormgear/calculator/core.py",
     "wormgear/calculator/validation.py",
+    "wormgear/calculator/output.py",
+    "wormgear/calculator/bore_calculator.py",
     "wormgear/calculator/js_bridge.py",
     "wormgear/calculator/json_schema.py",
 ]
