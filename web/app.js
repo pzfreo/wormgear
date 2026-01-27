@@ -46,9 +46,10 @@ function initTabs() {
                     progressContainer.style.display = 'none';
                 }
 
-                // Lazy load generator if needed (only when tab is first clicked)
+                // Generator should already be loading in background (started after calculator ready)
+                // If not ready yet, start it without modal - user will see status in the tab
                 if (!getGeneratorWorker()) {
-                    initGeneratorTab(true);  // true = show loading modal
+                    initGeneratorTab(false);  // false = no modal, load in background
                 }
 
                 // Auto-load from calculator on first visit
@@ -71,6 +72,13 @@ async function initCalculatorTab() {
     await initCalculator(() => {
         loadFromUrl();
         calculate();
+
+        // Start loading generator in background after calculator is ready (no modal)
+        if (!getGeneratorWorker()) {
+            initGeneratorTab(false).catch(err => {
+                console.log('Generator background loading failed (non-fatal):', err);
+            });
+        }
     });
 }
 
