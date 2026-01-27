@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Optional, TYPE_CHECKING, Any
 
 from ..io import WormGearDesign
+from ..core.features import calculate_default_bore
 
 
 def _model_to_dict(model) -> dict:
@@ -72,12 +73,19 @@ def to_json(
             return value
 
         # Worm bore/keyway features
+        # "custom" type with explicit diameter = use that diameter
+        # "custom" type with None diameter = auto-calculate based on worm dimensions
         worm_bore_type = bore_settings.get('worm_bore_type', 'none')
-        if worm_bore_type == 'auto':
-            # Auto bore - CLI will calculate, but we signal it should have a bore
-            features['worm'] = {'bore_diameter_mm': None}  # None = auto-calculate
-        elif worm_bore_type == 'custom' and bore_settings.get('worm_bore_diameter'):
-            features['worm'] = {'bore_diameter_mm': bore_settings['worm_bore_diameter']}
+        if worm_bore_type == 'custom':
+            worm_bore_diameter = bore_settings.get('worm_bore_diameter')
+            if worm_bore_diameter is None:
+                # Auto-calculate based on worm dimensions
+                worm_bore_diameter, _ = calculate_default_bore(
+                    design.worm.pitch_diameter_mm,
+                    design.worm.root_diameter_mm
+                )
+            if worm_bore_diameter:
+                features['worm'] = {'bore_diameter_mm': worm_bore_diameter}
 
         # Add worm anti-rotation if bore exists
         if 'worm' in features:
@@ -87,11 +95,19 @@ def to_json(
                 features['worm']['anti_rotation'] = anti_rot
 
         # Wheel bore/keyway features
+        # "custom" type with explicit diameter = use that diameter
+        # "custom" type with None diameter = auto-calculate based on wheel dimensions
         wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
-        if wheel_bore_type == 'auto':
-            features['wheel'] = {'bore_diameter_mm': None}  # None = auto-calculate
-        elif wheel_bore_type == 'custom' and bore_settings.get('wheel_bore_diameter'):
-            features['wheel'] = {'bore_diameter_mm': bore_settings['wheel_bore_diameter']}
+        if wheel_bore_type == 'custom':
+            wheel_bore_diameter = bore_settings.get('wheel_bore_diameter')
+            if wheel_bore_diameter is None:
+                # Auto-calculate based on wheel dimensions
+                wheel_bore_diameter, _ = calculate_default_bore(
+                    design.wheel.pitch_diameter_mm,
+                    design.wheel.root_diameter_mm
+                )
+            if wheel_bore_diameter:
+                features['wheel'] = {'bore_diameter_mm': wheel_bore_diameter}
 
         # Add wheel anti-rotation if bore exists
         if 'wheel' in features:
@@ -248,12 +264,13 @@ def to_markdown(
 
         # Worm bore
         worm_bore_type = bore_settings.get('worm_bore_type', 'none')
-        if worm_bore_type != 'none':
+        if worm_bore_type == 'custom':
             md += "### Worm\n\n"
-            if worm_bore_type == 'auto':
-                md += "- Bore: Auto-calculated\n"
-            elif worm_bore_type == 'custom':
-                md += f"- Bore Diameter: {bore_settings.get('worm_bore_diameter', 0):.1f} mm\n"
+            worm_bore_diameter = bore_settings.get('worm_bore_diameter')
+            if worm_bore_diameter:
+                md += f"- Bore Diameter: {worm_bore_diameter:.1f} mm\n"
+            else:
+                md += "- Bore: Auto-calculated from dimensions\n"
             worm_keyway = bore_settings.get('worm_keyway', 'none')
             if worm_keyway and worm_keyway != 'none':
                 md += f"- Anti-Rotation: {worm_keyway}\n"
@@ -261,12 +278,13 @@ def to_markdown(
 
         # Wheel bore
         wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
-        if wheel_bore_type != 'none':
+        if wheel_bore_type == 'custom':
             md += "### Wheel\n\n"
-            if wheel_bore_type == 'auto':
-                md += "- Bore: Auto-calculated\n"
-            elif wheel_bore_type == 'custom':
-                md += f"- Bore Diameter: {bore_settings.get('wheel_bore_diameter', 0):.1f} mm\n"
+            wheel_bore_diameter = bore_settings.get('wheel_bore_diameter')
+            if wheel_bore_diameter:
+                md += f"- Bore Diameter: {wheel_bore_diameter:.1f} mm\n"
+            else:
+                md += "- Bore: Auto-calculated from dimensions\n"
             wheel_keyway = bore_settings.get('wheel_keyway', 'none')
             if wheel_keyway and wheel_keyway != 'none':
                 md += f"- Anti-Rotation: {wheel_keyway}\n"

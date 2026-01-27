@@ -280,22 +280,9 @@ worm_bore_diameter = None
 
 if 'worm' in features:
     worm_feat = features['worm']
-    if 'bore_diameter_mm' in worm_feat:
-        bore_val = worm_feat['bore_diameter_mm']
-        if bore_val is not None:
-            # Custom bore diameter specified
-            worm_bore_diameter = bore_val
-            print(f"Worm bore: {worm_bore_diameter} mm (custom)")
-        else:
-            # bore_diameter_mm is None = auto-calculate
-            worm_bore_diameter, thin_rim_warning = calculate_default_bore(
-                worm_params.pitch_diameter_mm,
-                worm_params.root_diameter_mm
-            )
-            if worm_bore_diameter:
-                print(f"Worm bore: {worm_bore_diameter} mm (auto-calculated)")
-            else:
-                print("Worm bore: skipped (gear too small)")
+    if 'bore_diameter_mm' in worm_feat and worm_feat['bore_diameter_mm'] is not None:
+        worm_bore_diameter = worm_feat['bore_diameter_mm']
+        print(f"Worm bore: {worm_bore_diameter} mm")
 
     # Create bore feature if diameter was determined
     if worm_bore_diameter is not None:
@@ -329,22 +316,9 @@ wheel_bore_diameter = None
 
 if 'wheel' in features:
     wheel_feat = features['wheel']
-    if 'bore_diameter_mm' in wheel_feat:
-        bore_val = wheel_feat['bore_diameter_mm']
-        if bore_val is not None:
-            # Custom bore diameter specified
-            wheel_bore_diameter = bore_val
-            print(f"Wheel bore: {wheel_bore_diameter} mm (custom)")
-        else:
-            # bore_diameter_mm is None = auto-calculate
-            wheel_bore_diameter, thin_rim_warning = calculate_default_bore(
-                wheel_params.pitch_diameter_mm,
-                wheel_params.root_diameter_mm
-            )
-            if wheel_bore_diameter:
-                print(f"Wheel bore: {wheel_bore_diameter} mm (auto-calculated)")
-            else:
-                print("Wheel bore: skipped (gear too small)")
+    if 'bore_diameter_mm' in wheel_feat and wheel_feat['bore_diameter_mm'] is not None:
+        wheel_bore_diameter = wheel_feat['bore_diameter_mm']
+        print(f"Wheel bore: {wheel_bore_diameter} mm")
 
     # Create bore feature if diameter was determined
     if wheel_bore_diameter is not None:

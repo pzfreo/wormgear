@@ -16,7 +16,7 @@
 const VALID_HANDS = ['right', 'left'];
 const VALID_PROFILES = ['ZA', 'ZK', 'ZI'];
 const VALID_WORM_TYPES = ['cylindrical', 'globoid'];
-const VALID_BORE_TYPES = ['none', 'auto', 'custom'];
+const VALID_BORE_TYPES = ['none', 'custom'];  // 'custom' with null diameter = auto-calculate
 const VALID_ANTI_ROTATION = ['none', 'DIN6885', 'ddcut'];
 const VALID_MODES = ['from-module', 'from-centre-distance', 'from-wheel', 'envelope'];
 const VALID_SEVERITIES = ['error', 'warning', 'info'];
