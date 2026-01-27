@@ -174,6 +174,17 @@
           "$ref": "#/$defs/WormProfile",
           "default": "ZA"
         },
+        "worm_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WormType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "virtual_hobbing": {
           "default": false,
           "title": "Virtual Hobbing",
@@ -217,6 +228,28 @@
           ],
           "default": null,
           "title": "Wheel Width Mm"
+        },
+        "worm_features": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WormFeatures"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wheel_features": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WheelFeatures"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "ManufacturingParams",

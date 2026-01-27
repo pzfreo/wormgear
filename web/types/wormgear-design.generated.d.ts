@@ -185,10 +185,13 @@ export interface HubSpec {
  */
 export interface ManufacturingParams {
   profile?: WormProfile;
+  worm_type?: WormType | null;
   virtual_hobbing?: VirtualHobbing;
   hobbing_steps?: HobbingSteps;
   throated_wheel?: ThroatedWheel;
   sections_per_turn?: SectionsPerTurn;
   worm_length_mm?: WormLengthMm;
   wheel_width_mm?: WheelWidthMm;
+  worm_features?: WormFeatures | null;
+  wheel_features?: WheelFeatures | null;
 }

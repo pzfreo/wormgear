@@ -40,9 +40,13 @@ except:
 
 
 def get_model_schema(model_class) -> dict:
-    """Get JSON schema from a Pydantic model."""
+    """Get JSON schema from a Pydantic model.
+
+    Uses by_alias=False to use field names (not aliases) in the schema.
+    This ensures the schema matches what model_dump() produces by default.
+    """
     if PYDANTIC_V2:
-        return model_class.model_json_schema()
+        return model_class.model_json_schema(by_alias=False)
     else:
         return model_class.schema()
 

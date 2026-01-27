@@ -77,6 +77,9 @@ class GloboidWormGeometry:
         self.profile = profile.upper() if isinstance(profile, str) else profile
         self.progress_callback = progress_callback
 
+        # Extract throat reduction from params (calculator-computed value)
+        self.throat_reduction_mm = params.throat_reduction_mm or 0.0
+
         # Store basic parameters
         pitch_radius = params.pitch_diameter_mm / 2.0
         root_radius = params.root_diameter_mm / 2.0
@@ -89,13 +92,14 @@ class GloboidWormGeometry:
         # to ensure proper conjugate action where worm surface envelopes wheel pitch cylinder
         #
         # For a true globoid, at the throat (center):
-        #   throat_pitch_radius = center_distance - wheel_pitch_radius
+        #   throat_pitch_radius = center_distance - wheel_pitch_radius - throat_reduction
         #
-        # This ensures the worm wraps around the wheel's pitch cylinder.
+        # The throat_reduction_mm is computed by the calculator and allows the user
+        # to control how much the worm "wraps around" the wheel.
         # The nominal pitch radius is used at the ends where the worm transitions
         # back to cylindrical form.
         center_distance = assembly_params.centre_distance_mm
-        self.throat_pitch_radius = center_distance - wheel_pitch_radius
+        self.throat_pitch_radius = center_distance - wheel_pitch_radius - self.throat_reduction_mm
         self.nominal_pitch_radius = pitch_radius  # Standard pitch radius at ends
 
         # Validate throat geometry makes sense

@@ -1,5 +1,201 @@
 {
   "$defs": {
+    "HubSpec": {
+      "description": "Hub specification (wheel only).",
+      "properties": {
+        "type": {
+          "default": "flush",
+          "title": "Type",
+          "type": "string"
+        },
+        "length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Length Mm"
+        },
+        "flange_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange Diameter Mm"
+        },
+        "flange_thickness_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange Thickness Mm"
+        },
+        "bolt_holes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bolt Holes"
+        },
+        "bolt_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bolt Diameter Mm"
+        }
+      },
+      "title": "HubSpec",
+      "type": "object"
+    },
+    "SetScrewSpec": {
+      "description": "Set screw specification.",
+      "properties": {
+        "size": {
+          "title": "Size",
+          "type": "string"
+        },
+        "count": {
+          "default": 1,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "title": "SetScrewSpec",
+      "type": "object"
+    },
+    "WheelFeatures": {
+      "description": "Manufacturing features for wheel.",
+      "properties": {
+        "bore_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bore Diameter Mm"
+        },
+        "anti_rotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anti Rotation"
+        },
+        "ddcut_depth_percent": {
+          "default": 15.0,
+          "title": "Ddcut Depth Percent",
+          "type": "number"
+        },
+        "set_screw": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hub": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HubSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "WheelFeatures",
+      "type": "object"
+    },
+    "WormFeatures": {
+      "description": "Manufacturing features for worm.",
+      "properties": {
+        "bore_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bore Diameter Mm"
+        },
+        "anti_rotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anti Rotation"
+        },
+        "ddcut_depth_percent": {
+          "default": 15.0,
+          "title": "Ddcut Depth Percent",
+          "type": "number"
+        },
+        "set_screw": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "WormFeatures",
+      "type": "object"
+    },
     "WormProfile": {
       "description": "Worm tooth profile type per DIN 3975",
       "enum": [
@@ -9,6 +205,15 @@
       ],
       "title": "WormProfile",
       "type": "string"
+    },
+    "WormType": {
+      "description": "Worm geometry type",
+      "enum": [
+        "cylindrical",
+        "globoid"
+      ],
+      "title": "WormType",
+      "type": "string"
     }
   },
   "description": "Manufacturing/generation parameters.",
@@ -16,6 +221,17 @@
     "profile": {
       "$ref": "#/$defs/WormProfile",
       "default": "ZA"
+    },
+    "worm_type": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WormType"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "virtual_hobbing": {
       "default": false,
@@ -60,6 +276,28 @@
       ],
       "default": null,
       "title": "Wheel Width Mm"
+    },
+    "worm_features": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WormFeatures"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "wheel_features": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WheelFeatures"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "title": "ManufacturingParams",
