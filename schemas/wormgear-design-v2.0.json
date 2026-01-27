@@ -1,55 +1,533 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wormgear.dev/schemas/wormgear-design-v2.0.json",
-  "title": "Worm Gear Design",
-  "description": "Complete worm gear design output from calculator. This schema defines the contract between the Python calculator and JavaScript web UI.",
-  "type": "object",
-  "required": ["schema_version", "worm", "wheel", "assembly"],
-  "additionalProperties": false,
-  "properties": {
-    "schema_version": {
-      "type": "string",
-      "const": "2.0",
-      "description": "Schema version for compatibility checking"
-    },
-    "worm": {
-      "$ref": "#/$defs/WormParams"
-    },
-    "wheel": {
-      "$ref": "#/$defs/WheelParams"
-    },
-    "assembly": {
-      "$ref": "#/$defs/AssemblyParams"
-    },
-    "manufacturing": {
-      "$ref": "#/$defs/ManufacturingParams"
-    },
-    "features": {
-      "$ref": "#/$defs/Features"
-    },
-    "validation": {
-      "$ref": "#/$defs/ValidationResult"
-    }
-  },
   "$defs": {
+    "AssemblyParams": {
+      "description": "Assembly parameters from calculator.",
+      "properties": {
+        "centre_distance_mm": {
+          "title": "Centre Distance Mm",
+          "type": "number"
+        },
+        "pressure_angle_deg": {
+          "title": "Pressure Angle Deg",
+          "type": "number"
+        },
+        "backlash_mm": {
+          "title": "Backlash Mm",
+          "type": "number"
+        },
+        "hand": {
+          "$ref": "#/$defs/Hand"
+        },
+        "ratio": {
+          "title": "Ratio",
+          "type": "integer"
+        },
+        "efficiency_percent": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Efficiency Percent"
+        },
+        "self_locking": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Self Locking"
+        }
+      },
+      "required": [
+        "centre_distance_mm",
+        "pressure_angle_deg",
+        "backlash_mm",
+        "hand",
+        "ratio"
+      ],
+      "title": "AssemblyParams",
+      "type": "object"
+    },
+    "Features": {
+      "description": "Manufacturing features for worm and wheel.",
+      "properties": {
+        "worm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WormFeatures"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wheel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WheelFeatures"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Features",
+      "type": "object"
+    },
     "Hand": {
-      "type": "string",
-      "enum": ["right", "left"],
-      "description": "Thread/gear hand direction"
+      "description": "Thread hand / helix direction",
+      "enum": [
+        "right",
+        "left"
+      ],
+      "title": "Hand",
+      "type": "string"
     },
-    "WormProfile": {
-      "type": "string",
-      "enum": ["ZA", "ZK", "ZI"],
-      "description": "Tooth profile per DIN 3975: ZA (straight flanks), ZK (circular arc), ZI (involute)"
+    "HubSpec": {
+      "description": "Hub specification (wheel only).",
+      "properties": {
+        "type": {
+          "default": "flush",
+          "title": "Type",
+          "type": "string"
+        },
+        "length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Length Mm"
+        },
+        "flange_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange Diameter Mm"
+        },
+        "flange_thickness_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange Thickness Mm"
+        },
+        "bolt_holes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bolt Holes"
+        },
+        "bolt_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bolt Diameter Mm"
+        }
+      },
+      "title": "HubSpec",
+      "type": "object"
     },
-    "WormType": {
-      "type": "string",
-      "enum": ["cylindrical", "globoid"],
-      "description": "Worm geometry type: cylindrical (standard) or globoid (hourglass)"
+    "ManufacturingParams": {
+      "description": "Manufacturing/generation parameters.",
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/WormProfile",
+          "default": "ZA"
+        },
+        "virtual_hobbing": {
+          "default": false,
+          "title": "Virtual Hobbing",
+          "type": "boolean"
+        },
+        "hobbing_steps": {
+          "default": 18,
+          "title": "Hobbing Steps",
+          "type": "integer"
+        },
+        "throated_wheel": {
+          "default": false,
+          "title": "Throated Wheel",
+          "type": "boolean"
+        },
+        "sections_per_turn": {
+          "default": 36,
+          "title": "Sections Per Turn",
+          "type": "integer"
+        },
+        "worm_length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worm Length Mm"
+        },
+        "wheel_width_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wheel Width Mm"
+        }
+      },
+      "title": "ManufacturingParams",
+      "type": "object"
+    },
+    "SetScrewSpec": {
+      "description": "Set screw specification.",
+      "properties": {
+        "size": {
+          "title": "Size",
+          "type": "string"
+        },
+        "count": {
+          "default": 1,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "title": "SetScrewSpec",
+      "type": "object"
+    },
+    "WheelFeatures": {
+      "description": "Manufacturing features for wheel.",
+      "properties": {
+        "bore_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bore Diameter Mm"
+        },
+        "anti_rotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anti Rotation"
+        },
+        "ddcut_depth_percent": {
+          "default": 15.0,
+          "title": "Ddcut Depth Percent",
+          "type": "number"
+        },
+        "set_screw": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hub": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HubSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "WheelFeatures",
+      "type": "object"
+    },
+    "WheelParams": {
+      "description": "Wheel dimensional parameters from calculator.",
+      "properties": {
+        "module_mm": {
+          "title": "Module Mm",
+          "type": "number"
+        },
+        "num_teeth": {
+          "title": "Num Teeth",
+          "type": "integer"
+        },
+        "pitch_diameter_mm": {
+          "title": "Pitch Diameter Mm",
+          "type": "number"
+        },
+        "tip_diameter_mm": {
+          "title": "Tip Diameter Mm",
+          "type": "number"
+        },
+        "root_diameter_mm": {
+          "title": "Root Diameter Mm",
+          "type": "number"
+        },
+        "throat_diameter_mm": {
+          "title": "Throat Diameter Mm",
+          "type": "number"
+        },
+        "helix_angle_deg": {
+          "title": "Helix Angle Deg",
+          "type": "number"
+        },
+        "addendum_mm": {
+          "title": "Addendum Mm",
+          "type": "number"
+        },
+        "dedendum_mm": {
+          "title": "Dedendum Mm",
+          "type": "number"
+        },
+        "profile_shift": {
+          "default": 0.0,
+          "title": "Profile Shift",
+          "type": "number"
+        },
+        "width_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width Mm"
+        }
+      },
+      "required": [
+        "module_mm",
+        "num_teeth",
+        "pitch_diameter_mm",
+        "tip_diameter_mm",
+        "root_diameter_mm",
+        "throat_diameter_mm",
+        "helix_angle_deg",
+        "addendum_mm",
+        "dedendum_mm"
+      ],
+      "title": "WheelParams",
+      "type": "object"
+    },
+    "WormFeatures": {
+      "description": "Manufacturing features for worm.",
+      "properties": {
+        "bore_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bore Diameter Mm"
+        },
+        "anti_rotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anti Rotation"
+        },
+        "ddcut_depth_percent": {
+          "default": 15.0,
+          "title": "Ddcut Depth Percent",
+          "type": "number"
+        },
+        "set_screw": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "WormFeatures",
+      "type": "object"
     },
     "WormParams": {
-      "type": "object",
-      "description": "Worm dimensional parameters",
+      "description": "Worm dimensional parameters from calculator.",
+      "properties": {
+        "module_mm": {
+          "title": "Module Mm",
+          "type": "number"
+        },
+        "num_starts": {
+          "title": "Num Starts",
+          "type": "integer"
+        },
+        "pitch_diameter_mm": {
+          "title": "Pitch Diameter Mm",
+          "type": "number"
+        },
+        "tip_diameter_mm": {
+          "title": "Tip Diameter Mm",
+          "type": "number"
+        },
+        "root_diameter_mm": {
+          "title": "Root Diameter Mm",
+          "type": "number"
+        },
+        "lead_mm": {
+          "title": "Lead Mm",
+          "type": "number"
+        },
+        "axial_pitch_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Axial Pitch Mm"
+        },
+        "lead_angle_deg": {
+          "title": "Lead Angle Deg",
+          "type": "number"
+        },
+        "addendum_mm": {
+          "title": "Addendum Mm",
+          "type": "number"
+        },
+        "dedendum_mm": {
+          "title": "Dedendum Mm",
+          "type": "number"
+        },
+        "thread_thickness_mm": {
+          "title": "Thread Thickness Mm",
+          "type": "number"
+        },
+        "hand": {
+          "$ref": "#/$defs/Hand"
+        },
+        "profile_shift": {
+          "default": 0.0,
+          "title": "Profile Shift",
+          "type": "number"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WormType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "throat_reduction_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Throat Reduction Mm"
+        },
+        "throat_curvature_radius_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Throat Curvature Radius Mm"
+        },
+        "length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Length Mm"
+        }
+      },
       "required": [
         "module_mm",
         "num_starts",
@@ -63,417 +541,70 @@
         "thread_thickness_mm",
         "hand"
       ],
-      "additionalProperties": false,
-      "properties": {
-        "module_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Axial module (mm)"
-        },
-        "num_starts": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4,
-          "description": "Number of thread starts"
-        },
-        "pitch_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Pitch diameter (mm)"
-        },
-        "tip_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Tip/outside diameter (mm)"
-        },
-        "root_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Root diameter (mm)"
-        },
-        "lead_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Lead per revolution (mm)"
-        },
-        "lead_angle_deg": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "exclusiveMaximum": 90,
-          "description": "Lead angle (degrees)"
-        },
-        "addendum_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Addendum height (mm)"
-        },
-        "dedendum_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Dedendum depth (mm)"
-        },
-        "thread_thickness_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Thread thickness at pitch line (mm)"
-        },
-        "hand": {
-          "$ref": "#/$defs/Hand"
-        },
-        "profile_shift": {
-          "type": "number",
-          "default": 0,
-          "description": "Profile shift coefficient (dimensionless)"
-        },
-        "type": {
-          "$ref": "#/$defs/WormType"
-        },
-        "throat_reduction_mm": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Throat reduction for globoid worms (mm)"
-        },
-        "throat_curvature_radius_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Throat curvature radius for globoid worms (mm)"
-        },
-        "length_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Worm length override (mm)"
-        }
-      }
+      "title": "WormParams",
+      "type": "object"
     },
-    "WheelParams": {
-      "type": "object",
-      "description": "Wheel dimensional parameters",
-      "required": [
-        "module_mm",
-        "num_teeth",
-        "pitch_diameter_mm",
-        "tip_diameter_mm",
-        "root_diameter_mm",
-        "throat_diameter_mm",
-        "helix_angle_deg",
-        "addendum_mm",
-        "dedendum_mm"
+    "WormProfile": {
+      "description": "Worm tooth profile type per DIN 3975",
+      "enum": [
+        "ZA",
+        "ZK",
+        "ZI"
       ],
-      "additionalProperties": false,
-      "properties": {
-        "module_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Transverse module (mm)"
-        },
-        "num_teeth": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Number of teeth"
-        },
-        "pitch_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Pitch diameter (mm)"
-        },
-        "tip_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Tip/outside diameter (mm)"
-        },
-        "root_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Root diameter (mm)"
-        },
-        "throat_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Throat diameter for enveloping geometry (mm)"
-        },
-        "helix_angle_deg": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 90,
-          "description": "Helix angle (degrees)"
-        },
-        "addendum_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Addendum height (mm)"
-        },
-        "dedendum_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Dedendum depth (mm)"
-        },
-        "profile_shift": {
-          "type": "number",
-          "default": 0,
-          "description": "Profile shift coefficient (dimensionless)"
-        },
-        "width_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Wheel face width override (mm)"
-        }
-      }
+      "title": "WormProfile",
+      "type": "string"
     },
-    "AssemblyParams": {
-      "type": "object",
-      "description": "Assembly parameters",
-      "required": [
-        "centre_distance_mm",
-        "pressure_angle_deg",
-        "backlash_mm",
-        "hand",
-        "ratio"
+    "WormType": {
+      "description": "Worm geometry type",
+      "enum": [
+        "cylindrical",
+        "globoid"
       ],
-      "additionalProperties": false,
-      "properties": {
-        "centre_distance_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Centre distance between axes (mm)"
-        },
-        "pressure_angle_deg": {
-          "type": "number",
-          "minimum": 14.5,
-          "maximum": 30,
-          "description": "Pressure angle (degrees)"
-        },
-        "backlash_mm": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Backlash allowance (mm)"
-        },
-        "hand": {
-          "$ref": "#/$defs/Hand"
-        },
-        "ratio": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Gear ratio (wheel teeth / worm starts)"
-        },
-        "efficiency_percent": {
-          "type": ["number", "null"],
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Estimated efficiency (%)"
-        },
-        "self_locking": {
-          "type": ["boolean", "null"],
-          "description": "True if design is self-locking"
-        }
-      }
-    },
-    "ManufacturingParams": {
-      "type": "object",
-      "description": "Manufacturing/generation parameters",
-      "additionalProperties": false,
-      "properties": {
-        "profile": {
-          "$ref": "#/$defs/WormProfile",
-          "default": "ZA"
-        },
-        "virtual_hobbing": {
-          "type": "boolean",
-          "default": false,
-          "description": "Use virtual hobbing simulation for wheel"
-        },
-        "hobbing_steps": {
-          "type": "integer",
-          "minimum": 6,
-          "maximum": 72,
-          "default": 18,
-          "description": "Number of steps for virtual hobbing"
-        },
-        "throated_wheel": {
-          "type": "boolean",
-          "default": false,
-          "description": "True for throated/hobbed wheel style"
-        },
-        "sections_per_turn": {
-          "type": "integer",
-          "minimum": 12,
-          "maximum": 72,
-          "default": 36,
-          "description": "Loft sections per helix turn (smoothness)"
-        },
-        "worm_length_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Recommended worm length (mm)"
-        },
-        "wheel_width_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Recommended wheel face width (mm)"
-        }
-      }
-    },
-    "SetScrewSpec": {
-      "type": "object",
-      "description": "Set screw specification",
-      "required": ["size"],
-      "additionalProperties": false,
-      "properties": {
-        "size": {
-          "type": "string",
-          "pattern": "^M[0-9]+(\\.[0-9]+)?$",
-          "description": "Metric size (e.g., M2, M3, M4)"
-        },
-        "count": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 3,
-          "default": 1,
-          "description": "Number of set screws"
-        }
-      }
-    },
-    "HubSpec": {
-      "type": "object",
-      "description": "Hub specification (wheel only)",
-      "additionalProperties": false,
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["flush", "extended", "flanged"],
-          "default": "flush"
-        },
-        "length_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Hub length for extended/flanged types (mm)"
-        },
-        "flange_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Flange diameter for flanged type (mm)"
-        },
-        "flange_thickness_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Flange thickness for flanged type (mm)"
-        },
-        "bolt_holes": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Number of bolt holes for flanged type"
-        },
-        "bolt_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Bolt hole diameter for flanged type (mm)"
-        }
-      }
-    },
-    "PartFeatures": {
-      "type": "object",
-      "description": "Manufacturing features for a part",
-      "additionalProperties": false,
-      "properties": {
-        "bore_diameter_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Bore diameter (mm), null for solid"
-        },
-        "anti_rotation": {
-          "type": "string",
-          "enum": ["none", "DIN6885", "ddcut"],
-          "default": "none",
-          "description": "Anti-rotation feature type"
-        },
-        "ddcut_depth_percent": {
-          "type": "number",
-          "minimum": 5,
-          "maximum": 30,
-          "default": 15,
-          "description": "D-cut depth as percentage of bore diameter"
-        },
-        "set_screw": {
-          "$ref": "#/$defs/SetScrewSpec"
-        },
-        "hub": {
-          "$ref": "#/$defs/HubSpec",
-          "description": "Hub specification (wheel only)"
-        }
-      }
-    },
-    "Features": {
-      "type": "object",
-      "description": "Manufacturing features for worm and wheel",
-      "additionalProperties": false,
-      "properties": {
-        "worm": {
-          "$ref": "#/$defs/PartFeatures"
-        },
-        "wheel": {
-          "$ref": "#/$defs/PartFeatures"
-        }
-      }
-    },
-    "MessageSeverity": {
-      "type": "string",
-      "enum": ["error", "warning", "info"],
-      "description": "Validation message severity level"
-    },
-    "ValidationMessage": {
-      "type": "object",
-      "description": "A validation message with severity and suggestion",
-      "required": ["severity", "code", "message"],
-      "additionalProperties": false,
-      "properties": {
-        "severity": {
-          "$ref": "#/$defs/MessageSeverity"
-        },
-        "code": {
-          "type": "string",
-          "description": "Machine-readable error code"
-        },
-        "message": {
-          "type": "string",
-          "description": "Human-readable message"
-        },
-        "suggestion": {
-          "type": ["string", "null"],
-          "description": "Suggested action to fix the issue"
-        }
-      }
-    },
-    "ValidationResult": {
-      "type": "object",
-      "description": "Design validation results",
-      "required": ["valid", "errors", "warnings", "infos"],
-      "additionalProperties": false,
-      "properties": {
-        "valid": {
-          "type": "boolean",
-          "description": "True if design has no errors"
-        },
-        "errors": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValidationMessage"
-          },
-          "description": "Error messages (design is invalid)"
-        },
-        "warnings": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValidationMessage"
-          },
-          "description": "Warning messages (design may have issues)"
-        },
-        "infos": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValidationMessage"
-          },
-          "description": "Informational messages"
-        }
-      }
+      "title": "WormType",
+      "type": "string"
     }
-  }
+  },
+  "description": "Complete worm gear design output from calculator",
+  "properties": {
+    "worm": {
+      "$ref": "#/$defs/WormParams"
+    },
+    "wheel": {
+      "$ref": "#/$defs/WheelParams"
+    },
+    "assembly": {
+      "$ref": "#/$defs/AssemblyParams"
+    },
+    "features": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Features"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "manufacturing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ManufacturingParams"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "worm",
+    "wheel",
+    "assembly"
+  ],
+  "title": "WormGearDesign",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/wormgear-design-v2.0.json"
 }

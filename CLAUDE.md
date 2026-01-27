@@ -17,27 +17,28 @@
 
 ### Schema Workflow (ALWAYS FOLLOW)
 
-1. **Define in Python using Pydantic models** (`src/wormgear/calculator/models.py`)
-   - Single source of truth
-   - Type-safe with enums
-   - Built-in validation with Field() constraints
+1. **Define in Python using Pydantic models** (`src/wormgear/io/loaders.py`)
+   - Single source of truth for data structures
+   - Type-safe with enums from `src/wormgear/enums.py`
+   - Built-in validation with Pydantic validators
 
-2. **Generate JSON Schema** (automated in build)
+2. **Generate JSON Schema** (from Pydantic models)
    ```bash
    python scripts/generate_schemas.py
-   # Outputs: schemas/calculator-inputs-v2.0.json, schemas/design-output-v2.0.json
+   # Outputs: schemas/wormgear-design-v2.0.json, schemas/enums-v2.0.json, etc.
    ```
 
-3. **Generate TypeScript types** (automated in build)
+3. **Generate TypeScript types** (from JSON schemas)
    ```bash
+   cd web && npm install  # First time only
    bash scripts/generate_types.sh
-   # Outputs: web/types/*.d.ts
+   # Outputs: web/types/wormgear-design.generated.d.ts, web/types/enums.generated.d.ts
    ```
 
 4. **Use generated types in web code**
    ```typescript
-   import { CalculatorInputs, WormGearDesign } from '../types/calculator-inputs';
-   const inputs: CalculatorInputs = { ... };  // Compile-time type checking
+   import { WormGearDesign, WormParams } from './types/wormgear-design.generated';
+   const design: WormGearDesign = { ... };  // Compile-time type checking
    ```
 
 ### When to Update Schemas
@@ -51,16 +52,42 @@
 
 **How to update:**
 ```bash
-# 1. Edit Pydantic models in src/wormgear/calculator/models.py
+# 1. Edit Pydantic models in src/wormgear/io/loaders.py (or enums in src/wormgear/enums.py)
 # 2. Regenerate schemas
 python scripts/generate_schemas.py
 # 3. Regenerate TypeScript types
 bash scripts/generate_types.sh
-# 4. Update web code to use new types (TypeScript will catch errors)
+# 4. Run type checking
+bash scripts/typecheck.sh
 # 5. Run tests
 pytest tests/
-# 6. Commit all three: models.py + schemas/*.json + web/types/*.d.ts
+# 6. Commit all: loaders.py + schemas/*.json + web/types/*.generated.d.ts
 ```
+
+### Type Checking
+
+**Python (mypy)**:
+```bash
+mypy src/wormgear                    # Check all Python code
+bash scripts/typecheck.sh python     # Or use the helper script
+```
+
+**TypeScript (tsc)**:
+```bash
+cd web && npm run typecheck          # Check web code
+bash scripts/typecheck.sh ts         # Or use the helper script
+```
+
+**Both**:
+```bash
+bash scripts/typecheck.sh            # Run both Python and TypeScript checks
+```
+
+Type checking catches:
+- Enum/string mismatches
+- Missing or extra fields
+- Type coercion issues
+- Incompatible function signatures
 
 ### Schema Versioning
 
@@ -187,7 +214,21 @@ Before EVERY push, ALL items must pass:
 
 **DO NOT PUSH** until all checkboxes are checked.
 
-### 5. Pyodide + Enum Compatibility
+### 5. Pyodide + Pydantic Compatibility
+
+**Key facts:**
+- Pyodide 0.29.0 includes Pydantic 2.12.5 (bundled, pre-compiled for WASM)
+- Pydantic v2 requires `pydantic-core` (Rust extension) - CANNOT install via micropip
+- MUST use `pyodide.loadPackage('pydantic')` NOT `micropip.install('pydantic')`
+
+**Correct loading order in Pyodide:**
+```javascript
+// In pyodide-init.js or generator-worker.js
+await pyodide.loadPackage(['micropip', 'pydantic']);  // Load pydantic FIRST
+// Then load wormgear modules that import from pydantic
+```
+
+### 6. Pyodide + Enum Compatibility
 
 **Myth**: "Pyodide can't handle enums, must use strings"
 
@@ -213,7 +254,7 @@ def design_from_module(hand: Union[Hand, str] = "right"):
 
 This gives best of both worlds: type safety in Python, flexibility for JavaScript.
 
-### 6. Manual JSON Parsing is a Bug Factory
+### 7. Manual JSON Parsing is a Bug Factory
 
 **What happened (Jan 2026)**: Chose dataclasses + manual parsing over Pydantic. Result: 6+ bugs from type mismatches over two days.
 

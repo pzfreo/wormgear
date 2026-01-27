@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "WormProfile": {
+      "description": "Worm tooth profile type per DIN 3975",
+      "enum": [
+        "ZA",
+        "ZK",
+        "ZI"
+      ],
+      "title": "WormProfile",
+      "type": "string"
+    }
+  },
+  "description": "Manufacturing/generation parameters.",
+  "properties": {
+    "profile": {
+      "$ref": "#/$defs/WormProfile",
+      "default": "ZA"
+    },
+    "virtual_hobbing": {
+      "default": false,
+      "title": "Virtual Hobbing",
+      "type": "boolean"
+    },
+    "hobbing_steps": {
+      "default": 18,
+      "title": "Hobbing Steps",
+      "type": "integer"
+    },
+    "throated_wheel": {
+      "default": false,
+      "title": "Throated Wheel",
+      "type": "boolean"
+    },
+    "sections_per_turn": {
+      "default": 36,
+      "title": "Sections Per Turn",
+      "type": "integer"
+    },
+    "worm_length_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Worm Length Mm"
+    },
+    "wheel_width_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Wheel Width Mm"
+    }
+  },
+  "title": "ManufacturingParams",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/manufacturing-params-v2.0.json"
+}
