@@ -383,6 +383,43 @@ def test_app_js_field_names_match():
         pytest.fail(error_msg)
 
 
+def test_pyodide_init_loads_all_calculator_files():
+    """
+    pyodide-init.js must load all Python files from wormgear/calculator/.
+
+    This test catches cases where a new .py file is added to the calculator
+    but not included in the file list in pyodide-init.js.
+    """
+    import re
+
+    # Get all Python files in calculator directory
+    calculator_dir = SRC_DIR / "calculator"
+    actual_files = {f.name for f in calculator_dir.glob("*.py")}
+
+    # Read pyodide-init.js and extract the calcFiles array
+    pyodide_init = WEB_DIR / "modules" / "pyodide-init.js"
+    content = pyodide_init.read_text()
+
+    # Extract calcFiles array: const calcFiles = ['__init__.py', 'core.py', ...]
+    match = re.search(r"const calcFiles = \[([^\]]+)\]", content)
+    assert match, "Could not find calcFiles array in pyodide-init.js"
+
+    # Parse the array
+    files_str = match.group(1)
+    listed_files = set(re.findall(r"'([^']+)'", files_str))
+
+    # Check for missing files (files that exist but aren't loaded)
+    missing = actual_files - listed_files
+    # Exclude __pycache__ marker files and test files
+    missing = {f for f in missing if not f.startswith('__pycache__') and not f.startswith('test_')}
+
+    if missing:
+        pytest.fail(
+            f"pyodide-init.js is missing calculator files: {sorted(missing)}\n"
+            f"Add them to the calcFiles array in pyodide-init.js"
+        )
+
+
 if __name__ == "__main__":
     # Allow running tests directly
     pytest.main([__file__, "-v"])
