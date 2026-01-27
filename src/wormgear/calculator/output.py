@@ -95,6 +95,7 @@ def to_json(
         # Worm bore/keyway features
         # "custom" type with explicit diameter = use that diameter
         # "custom" type with None diameter = auto-calculate based on worm dimensions
+        # "none" type = solid part (no bore)
         worm_bore_type = bore_settings.get('worm_bore_type', 'none')
         if worm_bore_type == 'custom':
             worm_bore_diameter = bore_settings.get('worm_bore_diameter')
@@ -105,7 +106,13 @@ def to_json(
                     design.worm.root_diameter_mm
                 )
             if worm_bore_diameter:
-                features['worm'] = {'bore_diameter_mm': worm_bore_diameter}
+                features['worm'] = {
+                    'bore_type': 'custom',
+                    'bore_diameter_mm': worm_bore_diameter
+                }
+        elif worm_bore_type == 'none':
+            # Explicit none - include bore_type in features if we need other features
+            features['worm'] = {'bore_type': 'none'}
 
         # Add worm anti-rotation if bore exists
         if 'worm' in features:
@@ -117,6 +124,7 @@ def to_json(
         # Wheel bore/keyway features
         # "custom" type with explicit diameter = use that diameter
         # "custom" type with None diameter = auto-calculate based on wheel dimensions
+        # "none" type = solid part (no bore)
         wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
         if wheel_bore_type == 'custom':
             wheel_bore_diameter = bore_settings.get('wheel_bore_diameter')
@@ -127,7 +135,13 @@ def to_json(
                     design.wheel.root_diameter_mm
                 )
             if wheel_bore_diameter:
-                features['wheel'] = {'bore_diameter_mm': wheel_bore_diameter}
+                features['wheel'] = {
+                    'bore_type': 'custom',
+                    'bore_diameter_mm': wheel_bore_diameter
+                }
+        elif wheel_bore_type == 'none':
+            # Explicit none - include bore_type in features if we need other features
+            features['wheel'] = {'bore_type': 'none'}
 
         # Add wheel anti-rotation if bore exists
         if 'wheel' in features:

@@ -13,7 +13,7 @@ from ..io.loaders import (
     ManufacturingParams,
     ManufacturingFeatures
 )
-from ..enums import WormType, WormProfile
+from ..enums import WormType, WormProfile, BoreType
 from ..core.worm import WormGeometry
 from ..core.globoid_worm import GloboidWormGeometry
 from ..core.wheel import WheelGeometry
@@ -349,17 +349,29 @@ Examples:
         worm_thin_rim_warning = False
         if not args.no_bore:
             if args.worm_bore is not None:
-                # CLI override
+                # CLI override takes priority
                 worm_bore_diameter = args.worm_bore
                 actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
                 worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
-            elif json_worm_features and json_worm_features.bore_diameter_mm is not None:
-                # From JSON features
-                worm_bore_diameter = json_worm_features.bore_diameter_mm
-                actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
-                worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+            elif json_worm_features:
+                # Check bore_type from JSON features
+                json_bore_type = json_worm_features.bore_type
+                if json_bore_type == BoreType.NONE:
+                    # Explicit none - solid part
+                    worm_bore_diameter = None
+                elif json_bore_type == BoreType.CUSTOM and json_worm_features.bore_diameter_mm is not None:
+                    # Custom bore with explicit diameter
+                    worm_bore_diameter = json_worm_features.bore_diameter_mm
+                    actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
+                    worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+                else:
+                    # Custom bore without diameter - auto-calculate
+                    worm_bore_diameter, worm_thin_rim_warning = calculate_default_bore(
+                        design.worm.pitch_diameter_mm,
+                        design.worm.root_diameter_mm
+                    )
             else:
-                # Auto-calculate bore (may return None for very small gears)
+                # No JSON features - auto-calculate bore
                 worm_bore_diameter, worm_thin_rim_warning = calculate_default_bore(
                     design.worm.pitch_diameter_mm,
                     design.worm.root_diameter_mm
@@ -490,17 +502,29 @@ Examples:
         wheel_thin_rim_warning = False
         if not args.no_bore:
             if args.wheel_bore is not None:
-                # CLI override
+                # CLI override takes priority
                 wheel_bore_diameter = args.wheel_bore
                 actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
                 wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
-            elif json_wheel_features and json_wheel_features.bore_diameter_mm is not None:
-                # From JSON features
-                wheel_bore_diameter = json_wheel_features.bore_diameter_mm
-                actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
-                wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+            elif json_wheel_features:
+                # Check bore_type from JSON features
+                json_bore_type = json_wheel_features.bore_type
+                if json_bore_type == BoreType.NONE:
+                    # Explicit none - solid part
+                    wheel_bore_diameter = None
+                elif json_bore_type == BoreType.CUSTOM and json_wheel_features.bore_diameter_mm is not None:
+                    # Custom bore with explicit diameter
+                    wheel_bore_diameter = json_wheel_features.bore_diameter_mm
+                    actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
+                    wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+                else:
+                    # Custom bore without diameter - auto-calculate
+                    wheel_bore_diameter, wheel_thin_rim_warning = calculate_default_bore(
+                        design.wheel.pitch_diameter_mm,
+                        design.wheel.root_diameter_mm
+                    )
             else:
-                # Auto-calculate bore (may return None for very small gears)
+                # No JSON features - auto-calculate bore
                 wheel_bore_diameter, wheel_thin_rim_warning = calculate_default_bore(
                     design.wheel.pitch_diameter_mm,
                     design.wheel.root_diameter_mm
