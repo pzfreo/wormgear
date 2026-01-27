@@ -949,16 +949,75 @@ Helical sweep of trapezoidal tooth profile:
 - Complex mathematics but fast and clean
 - Most accurate theoretical approach
 
+## JS<->Python Bridge Architecture
+
+The web calculator uses a clean bridge pattern between JavaScript and Python (via Pyodide).
+
+### Bridge Components
+
+| File | Purpose |
+|------|---------|
+| `web/modules/parameter-handler.js` | Collects UI inputs into validated structure |
+| `web/modules/schema-validator.js` | Runtime validation in JavaScript |
+| `src/wormgear/calculator/js_bridge.py` | Single entry point for all JS→Python calls |
+
+### Data Flow
+
+```
+JavaScript                          │ Python (Pyodide)
+───────────────────────────────────│────────────────────────────
+parameter-handler.js                │
+  └─ getInputs(mode)               │
+       └─ validateCalculatorInputs()│
+            │                       │
+            ▼ JSON.stringify()      │
+            ├──────────────────────►│ js_bridge.calculate(json)
+            │                       │   └─ CalculatorInputs.model_validate()
+            │                       │   └─ _call_design_function()
+            │                       │   └─ validate_design()
+            │                       │   └─ CalculatorOutput.model_dump_json()
+            │◄──────────────────────┤
+            ▼ parseCalculatorResponse()
+schema-validator.js                 │
+  └─ validateCalculatorOutput()    │
+  └─ validateWormGearDesign()      │
+```
+
+### Key Rules
+
+1. **Single Entry Point**: All JS→Python calls go through `js_bridge.calculate(input_json: str) -> str`
+2. **Validation at Both Boundaries**: JS validates before sending, Python (Pydantic) validates on receipt
+3. **JSON Transport**: Simple strings, no Pyodide object proxies
+4. **No Inline Python**: JavaScript never contains Python code strings (except the import call)
+
+### Usage
+
+```javascript
+// JavaScript
+import { getInputs } from './modules/parameter-handler.js';
+import { parseCalculatorResponse } from './modules/schema-validator.js';
+
+const inputs = getInputs(mode);
+const inputJson = JSON.stringify(inputs);
+calculatorPyodide.globals.set('input_json', inputJson);
+
+const resultJson = calculatorPyodide.runPython(`calculate(input_json)`);
+const { output, design } = parseCalculatorResponse(resultJson);
+```
+
 ## File Structure
 
 ```
 wormgear/
 ├── src/wormgear/
 │   ├── __init__.py                    # Public API exports
+│   ├── enums.py                       # Hand, WormProfile, WormType enums
 │   ├── calculator/                    # Layer 2a: Engineering calculations
 │   │   ├── __init__.py
 │   │   ├── core.py                   # design_from_module, etc.
-│   │   └── validation.py             # validate_design, rules
+│   │   ├── validation.py             # validate_design, rules
+│   │   ├── output.py                 # to_json, to_markdown, to_summary
+│   │   └── js_bridge.py              # JS<->Python bridge (single entry point)
 │   ├── core/                          # Layer 1: Geometry generation
 │   │   ├── __init__.py
 │   │   ├── worm.py                   # WormGeometry
@@ -968,19 +1027,28 @@ wormgear/
 │   │   └── features.py               # BoreFeature, KeywayFeature, etc.
 │   ├── io/                            # Layer 2b: JSON schema and I/O
 │   │   ├── __init__.py
-│   │   ├── loaders.py                # load_design_json, save_design_json
+│   │   ├── loaders.py                # Pydantic models + load/save JSON
 │   │   └── schema.py                 # JSON Schema v1.0
 │   └── cli/                           # Layer 3: Command-line interface
 │       ├── __init__.py
 │       └── generate.py               # wormgear-geometry command
-├── web/                               # Web calculator (separate)
+├── web/                               # Web calculator (browser)
 │   ├── index.html                    # Web UI
-│   ├── app.js                        # JavaScript
-│   ├── wormcalc/                     # Python calculator for Pyodide
-│   │   ├── core.py
-│   │   ├── validation.py
-│   │   └── output.py
-│   └── wormgear-pyodide.js          # WASM geometry (experimental)
+│   ├── app-lazy.js                   # Main application (lazy-loaded)
+│   ├── modules/
+│   │   ├── pyodide-init.js          # Pyodide initialization
+│   │   ├── parameter-handler.js     # UI input collection
+│   │   └── schema-validator.js      # Runtime JS validation
+│   ├── generator-worker.js          # Web Worker for geometry
+│   ├── wormgear/                     # Python source (built from src/, gitignored)
+│   └── types/                        # Generated TypeScript types
+│       └── *.generated.d.ts
+├── schemas/                           # Generated JSON schemas
+│   └── *.json
+├── scripts/
+│   ├── generate_schemas.py          # Pydantic → JSON Schema
+│   ├── generate_types.sh            # JSON Schema → TypeScript
+│   └── typecheck.sh                 # Run mypy + tsc
 ├── tests/
 ├── examples/
 ├── docs/

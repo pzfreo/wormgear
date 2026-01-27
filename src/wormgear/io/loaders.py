@@ -4,7 +4,7 @@ JSON input/output for worm gear parameters.
 Loads design parameters from wormgearcalc (Tool 1) JSON output.
 Supports schema v1.0 with separate features section.
 
-Uses Pydantic for automatic validation and enum coercion.
+Uses Pydantic V2 for automatic validation and enum coercion.
 """
 
 import json
@@ -12,30 +12,23 @@ from math import pi
 from pathlib import Path
 from typing import Optional, Union, Dict, Any
 
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..enums import Hand, WormType, WormProfile
 
 
-# Check Pydantic version for API compatibility
-try:
-    from pydantic import __version__ as PYDANTIC_VERSION
-    PYDANTIC_V2 = int(PYDANTIC_VERSION.split('.')[0]) >= 2
-except:
-    PYDANTIC_V2 = False
-
-
 class SetScrewSpec(BaseModel):
     """Set screw specification."""
+    model_config = ConfigDict(extra='ignore')
+
     size: str  # e.g., "M2", "M3", "M4"
     count: int = 1  # Number of set screws (1-3)
-
-    class Config:
-        extra = 'ignore'
 
 
 class HubSpec(BaseModel):
     """Hub specification (wheel only)."""
+    model_config = ConfigDict(extra='ignore')
+
     type: str = "flush"  # "flush", "extended", "flanged"
     length_mm: Optional[float] = None  # For extended/flanged
     flange_diameter_mm: Optional[float] = None  # For flanged only
@@ -43,44 +36,40 @@ class HubSpec(BaseModel):
     bolt_holes: Optional[int] = None  # For flanged only
     bolt_diameter_mm: Optional[float] = None  # For flanged only
 
-    class Config:
-        extra = 'ignore'
-
 
 class WormFeatures(BaseModel):
     """Manufacturing features for worm."""
+    model_config = ConfigDict(extra='ignore')
+
     bore_diameter_mm: Optional[float] = None
     anti_rotation: Optional[str] = None  # "none" | "DIN6885" | "ddcut"
     ddcut_depth_percent: float = 15.0  # Only used if anti_rotation is "ddcut"
     set_screw: Optional[SetScrewSpec] = None
 
-    class Config:
-        extra = 'ignore'
-
 
 class WheelFeatures(BaseModel):
     """Manufacturing features for wheel."""
+    model_config = ConfigDict(extra='ignore')
+
     bore_diameter_mm: Optional[float] = None
     anti_rotation: Optional[str] = None  # "none" | "DIN6885" | "ddcut"
     ddcut_depth_percent: float = 15.0  # Only used if anti_rotation is "ddcut"
     set_screw: Optional[SetScrewSpec] = None
     hub: Optional[HubSpec] = None
 
-    class Config:
-        extra = 'ignore'
-
 
 class Features(BaseModel):
     """Manufacturing features for worm and wheel."""
+    model_config = ConfigDict(extra='ignore')
+
     worm: Optional[WormFeatures] = None
     wheel: Optional[WheelFeatures] = None
-
-    class Config:
-        extra = 'ignore'
 
 
 class ManufacturingParams(BaseModel):
     """Manufacturing/generation parameters."""
+    model_config = ConfigDict(extra='ignore')
+
     profile: WormProfile = WormProfile.ZA
     virtual_hobbing: bool = False
     hobbing_steps: int = 18
@@ -89,19 +78,18 @@ class ManufacturingParams(BaseModel):
     worm_length_mm: Optional[float] = None
     wheel_width_mm: Optional[float] = None
 
-    @validator('profile', pre=True)
+    @field_validator('profile', mode='before')
+    @classmethod
     def coerce_profile(cls, v):
         if isinstance(v, str):
             return WormProfile(v.upper())
         return v
 
-    class Config:
-        extra = 'ignore'
-        use_enum_values = False  # Keep as enum internally
-
 
 class WormParams(BaseModel):
     """Worm dimensional parameters from calculator."""
+    model_config = ConfigDict(extra='ignore')
+
     module_mm: float
     num_starts: int
     pitch_diameter_mm: float
@@ -120,13 +108,15 @@ class WormParams(BaseModel):
     throat_curvature_radius_mm: Optional[float] = None
     length_mm: Optional[float] = None
 
-    @validator('hand', pre=True)
+    @field_validator('hand', mode='before')
+    @classmethod
     def coerce_hand(cls, v):
         if isinstance(v, str):
             return Hand(v.lower())
         return v
 
-    @validator('type', pre=True)
+    @field_validator('type', mode='before')
+    @classmethod
     def coerce_type(cls, v):
         if v is None:
             return None
@@ -134,19 +124,17 @@ class WormParams(BaseModel):
             return WormType(v.lower())
         return v
 
-    @validator('axial_pitch_mm', always=True)
-    def calc_axial_pitch(cls, v, values):
-        if v is None and 'module_mm' in values:
-            return values['module_mm'] * pi
-        return v
-
-    class Config:
-        extra = 'ignore'
-        use_enum_values = False
+    @model_validator(mode='after')
+    def calc_axial_pitch(self):
+        if self.axial_pitch_mm is None:
+            self.axial_pitch_mm = self.module_mm * pi
+        return self
 
 
 class WheelParams(BaseModel):
     """Wheel dimensional parameters from calculator."""
+    model_config = ConfigDict(extra='ignore')
+
     module_mm: float
     num_teeth: int
     pitch_diameter_mm: float
@@ -159,12 +147,11 @@ class WheelParams(BaseModel):
     profile_shift: float = 0.0
     width_mm: Optional[float] = None
 
-    class Config:
-        extra = 'ignore'
-
 
 class AssemblyParams(BaseModel):
     """Assembly parameters from calculator."""
+    model_config = ConfigDict(extra='ignore')
+
     centre_distance_mm: float
     pressure_angle_deg: float
     backlash_mm: float
@@ -173,32 +160,30 @@ class AssemblyParams(BaseModel):
     efficiency_percent: Optional[float] = None
     self_locking: Optional[bool] = None
 
-    @validator('hand', pre=True)
+    @field_validator('hand', mode='before')
+    @classmethod
     def coerce_hand(cls, v):
         if isinstance(v, str):
             return Hand(v.lower())
         return v
 
-    class Config:
-        extra = 'ignore'
-        use_enum_values = False
-
 
 class WormGearDesign(BaseModel):
     """Complete worm gear design from calculator."""
+    model_config = ConfigDict(extra='ignore')
+
     worm: WormParams
     wheel: WheelParams
     assembly: AssemblyParams
     features: Optional[Features] = None
     manufacturing: Optional[ManufacturingParams] = None
 
-    class Config:
-        extra = 'ignore'
-
 
 # Legacy dataclass for backward compatibility
 class ManufacturingFeatures(BaseModel):
     """Manufacturing features for a gear part - LEGACY."""
+    model_config = ConfigDict(extra='ignore')
+
     bore_diameter: Optional[float] = None
     keyway_width: Optional[float] = None
     keyway_depth: Optional[float] = None
@@ -210,25 +195,6 @@ class ManufacturingFeatures(BaseModel):
     flange_thickness: Optional[float] = None
     flange_bolts: Optional[int] = None
     bolt_diameter: Optional[float] = None
-
-    class Config:
-        extra = 'ignore'
-
-
-def _parse_obj(model_class, data: dict):
-    """Parse dict to model, handling both Pydantic v1 and v2."""
-    if PYDANTIC_V2:
-        return model_class.model_validate(data)
-    else:
-        return model_class.parse_obj(data)
-
-
-def _to_dict(model) -> dict:
-    """Convert model to dict, handling both Pydantic v1 and v2."""
-    if PYDANTIC_V2:
-        return model.model_dump(exclude_none=True)
-    else:
-        return model.dict(exclude_none=True)
 
 
 def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
@@ -274,7 +240,7 @@ def load_design_json(filepath: Union[str, Path]) -> WormGearDesign:
         asm_data['hand'] = worm_data['hand']
 
     # Pydantic does all the heavy lifting here
-    return _parse_obj(WormGearDesign, data)
+    return WormGearDesign.model_validate(data)
 
 
 def save_design_json(design: WormGearDesign, filepath: Union[str, Path]) -> None:
@@ -288,7 +254,7 @@ def save_design_json(design: WormGearDesign, filepath: Union[str, Path]) -> None
     filepath = Path(filepath)
 
     # Convert to dict, handling enums
-    data = _to_dict(design)
+    data = design.model_dump(exclude_none=True)
 
     # Add schema version
     data['schema_version'] = '1.0'

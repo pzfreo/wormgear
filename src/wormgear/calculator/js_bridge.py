@@ -1,228 +1,321 @@
 """
-JavaScript-Python boundary layer for Pyodide.
+JavaScript-Python bridge for Pyodide.
 
-Handles type conversions and validation when passing data between
-JavaScript and Python in the browser environment.
+Provides a single, clean entry point for all JS->Python calculator calls.
+All inputs are validated via Pydantic models before processing.
+
+Usage from JavaScript:
+    pyodide.globals.set('input_json', JSON.stringify(inputs));
+    const result = await pyodide.runPythonAsync(`
+        from wormgear.calculator.js_bridge import calculate
+        calculate(input_json)
+    `);
+    const design = JSON.parse(result);
 """
-from typing import Any, Dict, Optional, Union
+
+import json
+from typing import Any, Dict, List, Optional, Union
+from enum import Enum
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from ..enums import Hand, WormProfile, WormType
+from .core import (
+    design_from_module,
+    design_from_centre_distance,
+    design_from_wheel,
+    design_from_envelope,
+)
+from .validation import validate_design
+from .output import to_json, to_markdown, to_summary
 
 
-def sanitize_js_value(value: Any) -> Any:
+# ============================================================================
+# Input Models (Pydantic validation for JS inputs)
+# ============================================================================
+
+class BoreSettings(BaseModel):
+    """Bore configuration from UI."""
+    model_config = ConfigDict(extra='ignore')
+
+    worm_bore_type: str = "none"  # "none" | "auto" | "custom"
+    worm_bore_diameter: Optional[float] = None
+    worm_keyway: str = "none"  # "none" | "DIN6885" | "ddcut"
+    wheel_bore_type: str = "none"
+    wheel_bore_diameter: Optional[float] = None
+    wheel_keyway: str = "none"
+
+
+class ManufacturingSettings(BaseModel):
+    """Manufacturing settings from UI."""
+    model_config = ConfigDict(extra='ignore')
+
+    virtual_hobbing: bool = False
+    hobbing_steps: int = 72
+    use_recommended_dims: bool = True
+    worm_length: Optional[float] = None
+    wheel_width: Optional[float] = None
+
+
+class CalculatorInputs(BaseModel):
     """
-    Convert JavaScript value to Python, handling Pyodide edge cases.
+    All inputs from the calculator UI.
 
-    Handles:
-    - JsNull (JavaScript null) → None
-    - JavaScript undefined → None
-    - JavaScript true/false → Python True/False (already handled by Pyodide)
-    - Empty strings → None
-    - Invalid numeric types
+    This is the single source of truth for what JavaScript sends to Python.
+    """
+    model_config = ConfigDict(extra='ignore')
+
+    # Calculation mode
+    mode: str = "from-module"  # "from-module" | "from-centre-distance" | "from-wheel" | "envelope"
+
+    # Common parameters
+    pressure_angle: float = 20.0
+    backlash: float = 0.05
+    num_starts: int = 1
+    hand: str = "right"
+    profile_shift: float = 0.0
+    profile: str = "ZA"
+    worm_type: str = "cylindrical"
+    throat_reduction: float = 0.0
+    wheel_throated: bool = False
+
+    # Mode-specific parameters (optional, presence depends on mode)
+    module: Optional[float] = None
+    ratio: Optional[int] = None
+    centre_distance: Optional[float] = None
+    worm_od: Optional[float] = None
+    wheel_od: Optional[float] = None
+    target_lead_angle: Optional[float] = None
+    od_as_maximum: bool = False
+    use_standard_module: bool = True
+
+    # Nested settings
+    bore: BoreSettings = Field(default_factory=BoreSettings)
+    manufacturing: ManufacturingSettings = Field(default_factory=ManufacturingSettings)
+
+    @field_validator('hand', mode='before')
+    @classmethod
+    def normalize_hand(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+    @field_validator('profile', mode='before')
+    @classmethod
+    def normalize_profile(cls, v):
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
+    @field_validator('worm_type', mode='before')
+    @classmethod
+    def normalize_worm_type(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+
+# ============================================================================
+# Output Models
+# ============================================================================
+
+class CalculatorOutput(BaseModel):
+    """Output from calculate() - matches what JS expects."""
+    model_config = ConfigDict(extra='ignore')
+
+    success: bool
+    error: Optional[str] = None
+
+    # Design data (JSON string for JS to parse)
+    design_json: Optional[str] = None
+
+    # Display formats
+    summary: Optional[str] = None
+    markdown: Optional[str] = None
+
+    # Validation
+    valid: bool = True
+    messages: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+def calculate(input_json: str) -> str:
+    """
+    Single entry point for all calculator operations from JavaScript.
 
     Args:
-        value: Value from JavaScript (may be JsNull, JsProxy, or native Python)
+        input_json: JSON string with CalculatorInputs structure
 
     Returns:
-        Sanitized Python value or None
+        JSON string with CalculatorOutput structure
     """
-    # Handle JsNull (Pyodide's representation of JavaScript null)
+    try:
+        # Parse and validate inputs using Pydantic
+        data = json.loads(input_json)
+        inputs = CalculatorInputs.model_validate(data)
+
+        # Build function arguments
+        kwargs = _build_calculator_kwargs(inputs)
+
+        # Call appropriate design function
+        design = _call_design_function(inputs.mode, inputs, kwargs)
+
+        # Update manufacturing params from UI settings
+        if design.manufacturing:
+            design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
+            design.manufacturing.hobbing_steps = inputs.manufacturing.hobbing_steps
+
+        # Validate the design
+        validation = validate_design(design)
+
+        # Convert bore settings to dict for output
+        bore_dict = inputs.bore.model_dump() if inputs.bore else None
+        mfg_dict = inputs.manufacturing.model_dump() if inputs.manufacturing else None
+
+        # Handle recommended dimensions
+        if inputs.manufacturing.use_recommended_dims:
+            mfg_dict['worm_length'] = None
+            mfg_dict['wheel_width'] = None
+
+        # Build output
+        output = CalculatorOutput(
+            success=True,
+            design_json=to_json(design, bore_settings=bore_dict, manufacturing_settings=mfg_dict),
+            summary=to_summary(design),
+            markdown=to_markdown(design, validation),
+            valid=validation.valid,
+            messages=[
+                {
+                    'severity': m.severity.value,
+                    'message': m.message,
+                    'code': m.code,
+                    'suggestion': m.suggestion
+                }
+                for m in validation.messages
+            ]
+        )
+
+        return output.model_dump_json()
+
+    except json.JSONDecodeError as e:
+        return CalculatorOutput(
+            success=False,
+            error=f"Invalid JSON: {e}"
+        ).model_dump_json()
+
+    except Exception as e:
+        return CalculatorOutput(
+            success=False,
+            error=str(e)
+        ).model_dump_json()
+
+
+def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
+    """Build kwargs for calculator functions from validated inputs."""
+    kwargs = {
+        'pressure_angle': inputs.pressure_angle,
+        'backlash': inputs.backlash,
+        'num_starts': inputs.num_starts,
+        'hand': Hand(inputs.hand),
+        'profile': WormProfile(inputs.profile),
+        'worm_type': WormType(inputs.worm_type),
+        'profile_shift': inputs.profile_shift,
+    }
+
+    # Add throat reduction for globoid
+    if inputs.worm_type == 'globoid' and inputs.throat_reduction:
+        kwargs['throat_reduction'] = inputs.throat_reduction
+
+    # Add wheel throated flag
+    if inputs.wheel_throated:
+        kwargs['wheel_throated'] = True
+
+    return kwargs
+
+
+def _call_design_function(mode: str, inputs: CalculatorInputs, kwargs: Dict[str, Any]):
+    """Call the appropriate design function based on mode."""
+    if mode == 'from-module':
+        if inputs.module is None or inputs.ratio is None:
+            raise ValueError("module and ratio are required for from-module mode")
+        return design_from_module(
+            module=inputs.module,
+            ratio=inputs.ratio,
+            **kwargs
+        )
+    elif mode == 'from-centre-distance':
+        if inputs.centre_distance is None or inputs.ratio is None:
+            raise ValueError("centre_distance and ratio are required for from-centre-distance mode")
+        return design_from_centre_distance(
+            centre_distance=inputs.centre_distance,
+            ratio=inputs.ratio,
+            **kwargs
+        )
+    elif mode == 'from-wheel':
+        if inputs.wheel_od is None or inputs.ratio is None:
+            raise ValueError("wheel_od and ratio are required for from-wheel mode")
+        return design_from_wheel(
+            wheel_od=inputs.wheel_od,
+            ratio=inputs.ratio,
+            target_lead_angle=inputs.target_lead_angle or 7.0,
+            **kwargs
+        )
+    elif mode == 'envelope':
+        if inputs.worm_od is None or inputs.wheel_od is None or inputs.ratio is None:
+            raise ValueError("worm_od, wheel_od, and ratio are required for envelope mode")
+        return design_from_envelope(
+            worm_od=inputs.worm_od,
+            wheel_od=inputs.wheel_od,
+            ratio=inputs.ratio,
+            od_as_maximum=inputs.od_as_maximum,
+            use_standard_module=inputs.use_standard_module,
+            **kwargs
+        )
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+
+# ============================================================================
+# Legacy sanitization functions (kept for backwards compatibility)
+# ============================================================================
+
+def sanitize_js_value(value: Any) -> Any:
+    """Convert JavaScript value to Python, handling Pyodide edge cases."""
     if value is None:
         return None
 
-    # Check for JsNull by class name (can't import it directly)
     if hasattr(value, '__class__'):
         class_name = str(value.__class__)
         if 'JsNull' in class_name or 'JsUndefined' in class_name:
             return None
 
-    # Empty string → None
     if value == '':
         return None
 
-    # Boolean false is valid, but check for it explicitly
     if isinstance(value, bool):
         return value
 
     return value
 
 
-def sanitize_numeric(value: Any, allow_none: bool = True) -> Optional[float]:
-    """
-    Convert value to float, handling JS edge cases.
-
-    Args:
-        value: Value that should be numeric
-        allow_none: If True, None/null values return None; if False, raises ValueError
-
-    Returns:
-        Float value or None
-
-    Raises:
-        ValueError: If value is invalid and allow_none is False
-    """
-    sanitized = sanitize_js_value(value)
-
-    if sanitized is None:
-        if allow_none:
-            return None
-        raise ValueError(f"Expected numeric value, got None/null")
-
-    try:
-        return float(sanitized)
-    except (TypeError, ValueError) as e:
-        if allow_none:
-            return None
-        raise ValueError(f"Cannot convert {sanitized!r} to float: {e}")
-
-
-def sanitize_boolean(value: Any, default: bool = False) -> bool:
-    """
-    Convert value to boolean, handling JS edge cases.
-
-    Args:
-        value: Value that should be boolean
-        default: Default value if conversion fails
-
-    Returns:
-        Boolean value
-    """
-    sanitized = sanitize_js_value(value)
-
-    if sanitized is None:
-        return default
-
-    if isinstance(sanitized, bool):
-        return sanitized
-
-    # Handle string booleans
-    if isinstance(sanitized, str):
-        return sanitized.lower() in ('true', '1', 'yes', 'on')
-
-    # Truthy conversion
-    return bool(sanitized)
-
-
-def sanitize_string(value: Any, allow_none: bool = True) -> Optional[str]:
-    """
-    Convert value to string, handling JS edge cases.
-
-    Args:
-        value: Value that should be string
-        allow_none: If True, None/null values return None; if False, raises ValueError
-
-    Returns:
-        String value or None
-
-    Raises:
-        ValueError: If value is invalid and allow_none is False
-    """
-    sanitized = sanitize_js_value(value)
-
-    if sanitized is None:
-        if allow_none:
-            return None
-        raise ValueError("Expected string value, got None/null")
-
-    return str(sanitized)
-
-
-def sanitize_dict(js_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Recursively sanitize a dictionary from JavaScript.
-
-    Converts all values using sanitize_js_value, removing entries that
-    become None unless explicitly needed.
-
-    Args:
-        js_dict: Dictionary potentially containing JS types
-
-    Returns:
-        Dictionary with sanitized Python values
-    """
+def sanitize_dict(js_dict: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Recursively sanitize a dictionary from JavaScript."""
     if js_dict is None:
         return {}
 
-    result = {}
+    result: Dict[str, Any] = {}
     for key, value in js_dict.items():
-        # Recursively handle nested dicts
         if isinstance(value, dict):
             result[key] = sanitize_dict(value)
-        # Recursively handle lists
         elif isinstance(value, list):
-            result[key] = [sanitize_dict(v) if isinstance(v, dict) else sanitize_js_value(v)
-                          for v in value]
-        # Sanitize scalar values
+            sanitized_list = [
+                sanitize_dict(v) if isinstance(v, dict) else sanitize_js_value(v)
+                for v in value
+            ]
+            result[key] = sanitized_list
         else:
-            sanitized = sanitize_js_value(value)
-            # Keep the value even if None (let calling code decide if it's valid)
-            result[key] = sanitized
-
-    return result
-
-
-def validate_manufacturing_settings(settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Validate and sanitize manufacturing settings from JavaScript.
-
-    Args:
-        settings: Manufacturing settings dict (or None)
-
-    Returns:
-        Validated and sanitized settings dict with all keys present
-    """
-    sanitized = sanitize_dict(settings) if settings else {}
-
-    # Get hobbing_steps with proper fallback
-    hobbing_steps_value = sanitize_numeric(sanitized.get('hobbing_steps'), allow_none=True)
-    hobbing_steps = int(hobbing_steps_value) if hobbing_steps_value else 72
-
-    return {
-        'virtual_hobbing': sanitize_boolean(sanitized.get('virtual_hobbing'), default=False),
-        'hobbing_steps': hobbing_steps,
-        'use_recommended_dims': sanitize_boolean(sanitized.get('use_recommended_dims'), default=True),
-        'worm_length': sanitize_numeric(sanitized.get('worm_length'), allow_none=True),
-        'wheel_width': sanitize_numeric(sanitized.get('wheel_width'), allow_none=True),
-    }
-
-
-def validate_bore_settings(settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Validate and sanitize bore settings from JavaScript.
-
-    Args:
-        settings: Bore settings dict (or None)
-
-    Returns:
-        Validated and sanitized settings dict
-    """
-    if not settings:
-        return {}
-
-    sanitized = sanitize_dict(settings)
-
-    result = {}
-
-    # Worm bore
-    worm_bore_type = sanitize_string(sanitized.get('worm_bore_type'), allow_none=True)
-    if worm_bore_type and worm_bore_type != 'none':
-        result['worm_bore_type'] = worm_bore_type
-        if worm_bore_type == 'custom':
-            result['worm_bore_diameter'] = sanitize_numeric(sanitized.get('worm_bore_diameter'), allow_none=False)
-
-    # Worm keyway
-    worm_keyway = sanitize_string(sanitized.get('worm_keyway'), allow_none=True)
-    if worm_keyway and worm_keyway != 'none':
-        result['worm_keyway'] = worm_keyway
-
-    # Wheel bore
-    wheel_bore_type = sanitize_string(sanitized.get('wheel_bore_type'), allow_none=True)
-    if wheel_bore_type and wheel_bore_type != 'none':
-        result['wheel_bore_type'] = wheel_bore_type
-        if wheel_bore_type == 'custom':
-            result['wheel_bore_diameter'] = sanitize_numeric(sanitized.get('wheel_bore_diameter'), allow_none=False)
-
-    # Wheel keyway
-    wheel_keyway = sanitize_string(sanitized.get('wheel_keyway'), allow_none=True)
-    if wheel_keyway and wheel_keyway != 'none':
-        result['wheel_keyway'] = wheel_keyway
+            result[key] = sanitize_js_value(value)
 
     return result

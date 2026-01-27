@@ -1,9 +1,10 @@
 // Wormgear Complete Design System - Browser Application
-// Refactored with modular architecture
+// Clean modular architecture with validated JS<->Python bridge
 
 import { calculateBoreSize, getCalculatedBores, updateBoreDisplaysAndDefaults, updateAntiRotationOptions, setupBoreEventListeners } from './modules/bore-calculator.js';
 import { updateValidationUI } from './modules/validation-ui.js';
-import { getDesignFunction, getInputs, formatArgs } from './modules/parameter-handler.js';
+import { getInputs } from './modules/parameter-handler.js';
+import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete } from './modules/generator-ui.js';
 
@@ -74,74 +75,37 @@ async function calculate() {
 
     try {
         const mode = document.getElementById('mode').value;
+
+        // Get validated inputs (throws if invalid)
         const inputs = getInputs(mode);
-        const func = getDesignFunction(mode);
-        const args = formatArgs(inputs.calculator);
 
-        // Handle recommended dimensions
-        const manufacturingSettings = {
-            ...inputs.manufacturing,
-            worm_length: inputs.manufacturing.use_recommended_dims ? null : inputs.manufacturing.worm_length,
-            wheel_width: inputs.manufacturing.use_recommended_dims ? null : inputs.manufacturing.wheel_width
-        };
+        // Serialize to JSON for Python
+        const inputJson = JSON.stringify(inputs);
 
-        // Debug: Log manufacturing settings being sent to Python
-        console.log('[DEBUG] Manufacturing settings from UI:', manufacturingSettings);
+        // Set input for Python bridge
+        calculatorPyodide.globals.set('input_json', inputJson);
 
-        // Set globals for Python
-        calculatorPyodide.globals.set('bore_settings_dict', inputs.bore);
-        calculatorPyodide.globals.set('manufacturing_settings_dict', manufacturingSettings);
-
-        // Run calculation - all module rounding logic is now in Python
+        // Call the clean Python bridge
         const result = calculatorPyodide.runPython(`
-import json
-
-design = ${func}(${args})
-
-# Get settings from JavaScript BEFORE validation
-bore_settings = bore_settings_dict.to_py() if 'bore_settings_dict' in dir() else None
-mfg_settings = manufacturing_settings_dict.to_py() if 'manufacturing_settings_dict' in dir() else None
-
-# Update manufacturing params with UI settings if present
-# IMPORTANT: Do this BEFORE validation so the validator sees the correct virtual_hobbing flag
-if mfg_settings and design.manufacturing:
-    design.manufacturing.virtual_hobbing = mfg_settings.get('virtual_hobbing', False)
-    design.manufacturing.hobbing_steps = mfg_settings.get('hobbing_steps', 72)
-
-# Now validate with the updated settings
-validation = validate_design(design)
-
-globals()['current_design'] = design
-globals()['current_validation'] = validation
-
-json.dumps({
-    'summary': to_summary(design),
-    'json_output': to_json(design, bore_settings=bore_settings, manufacturing_settings=mfg_settings),
-    'markdown': to_markdown(design, validation),
-    'valid': validation.valid,
-    'messages': [
-        {
-            'severity': m.severity.value,
-            'message': m.message,
-            'code': m.code,
-            'suggestion': m.suggestion
-        }
-        for m in validation.messages
-    ]
-})
+from wormgear.calculator.js_bridge import calculate
+calculate(input_json)
         `);
 
-        const data = JSON.parse(result);
-        currentDesign = typeof data.json_output === 'string' ? JSON.parse(data.json_output) : data.json_output;
-        currentValidation = data.valid;
+        // Parse and validate the response
+        const { output, design } = parseCalculatorResponse(result);
 
-        // Debug: Log what's in the calculated design
-        console.log('[DEBUG] Calculated design.manufacturing:', currentDesign.manufacturing);
+        if (!output.success) {
+            throw new Error(output.error);
+        }
+
+        // Update global state
+        currentDesign = design;
+        currentValidation = output.valid;
 
         // Update UI
         updateBoreDisplaysAndDefaults(currentDesign);
-        document.getElementById('results-text').textContent = data.summary;
-        updateValidationUI(data.valid, data.messages);
+        document.getElementById('results-text').textContent = output.summary;
+        updateValidationUI(output.valid, output.messages);
 
     } catch (error) {
         console.error('Calculation error:', error);
