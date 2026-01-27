@@ -241,9 +241,10 @@ def test_pyodide_version_consistency():
 
 def test_json_field_names_match_dataclass_params():
     """
-    JSON field names should match Python dataclass parameter names exactly.
+    JSON field names should match Python model parameter names exactly.
 
     This prevents errors like 'throat_pitch_radius_mm' vs 'throat_curvature_radius_mm'.
+    Works with both dataclasses and Pydantic BaseModel classes.
     """
     # Read loaders.py source directly to extract field names without importing build123d
     loaders_file = SRC_DIR / "io" / "loaders.py"
@@ -251,26 +252,37 @@ def test_json_field_names_match_dataclass_params():
 
     loaders_content = loaders_file.read_text()
 
-    # Extract field names from dataclass definitions using regex
+    # Extract field names from class definitions using regex
     import re
 
-    def extract_dataclass_fields(content: str, class_name: str) -> set:
-        """Extract field names from a dataclass definition."""
-        # Find the class definition
-        class_pattern = rf'@dataclass\s+class {class_name}:.*?(?=@dataclass|class \w+:|def \w+|$)'
+    def extract_model_fields(content: str, class_name: str) -> set:
+        """Extract field names from a dataclass or Pydantic BaseModel definition."""
+        # Try Pydantic BaseModel pattern first: class ClassName(BaseModel):
+        class_pattern = rf'class {class_name}\(BaseModel\):.*?(?=\nclass \w+|def \w+\(|$)'
         match = re.search(class_pattern, content, re.DOTALL)
+
+        # Fall back to dataclass pattern: @dataclass\nclass ClassName:
+        if not match:
+            class_pattern = rf'@dataclass\s+class {class_name}:.*?(?=@dataclass|class \w+:|def \w+|$)'
+            match = re.search(class_pattern, content, re.DOTALL)
+
         if not match:
             return set()
 
         class_body = match.group(0)
 
         # Extract field names (lines with "field_name: type")
-        # Handles optional types, defaults, and inline comments
+        # Handles optional types, defaults, Field(), and inline comments
+        # Skip lines that are method definitions (@validator, def, etc.)
         field_pattern = r'^\s+(\w+):\s+(?:Optional\[)?[\w\[\],\s]+(?:\])?\s*(?:=.*?)?(?:#.*)?$'
         field_names = set()
         for line in class_body.split('\n'):
-            # Skip comment-only lines
-            if line.strip().startswith('#'):
+            # Skip comment-only lines, decorators, and method definitions
+            stripped = line.strip()
+            if stripped.startswith('#') or stripped.startswith('@') or stripped.startswith('def '):
+                continue
+            # Skip class Config blocks
+            if stripped.startswith('class Config'):
                 continue
             field_match = re.match(field_pattern, line)
             if field_match:
@@ -278,10 +290,10 @@ def test_json_field_names_match_dataclass_params():
 
         return field_names
 
-    # Get field names from dataclasses
-    worm_fields = extract_dataclass_fields(loaders_content, "WormParams")
-    wheel_fields = extract_dataclass_fields(loaders_content, "WheelParams")
-    assembly_fields = extract_dataclass_fields(loaders_content, "AssemblyParams")
+    # Get field names from models (works with both dataclass and Pydantic)
+    worm_fields = extract_model_fields(loaders_content, "WormParams")
+    wheel_fields = extract_model_fields(loaders_content, "WheelParams")
+    assembly_fields = extract_model_fields(loaders_content, "AssemblyParams")
 
     assert len(worm_fields) > 0, "Failed to extract WormParams fields"
     assert len(wheel_fields) > 0, "Failed to extract WheelParams fields"
@@ -302,7 +314,7 @@ def test_json_field_names_match_dataclass_params():
             for key in data["worm"].keys():
                 if key not in worm_fields:
                     errors.append(
-                        f"{json_file.name}: worm.{key} not in WormParams dataclass. "
+                        f"{json_file.name}: worm.{key} not in WormParams model. "
                         f"Available fields: {sorted(worm_fields)}"
                     )
 
@@ -311,7 +323,7 @@ def test_json_field_names_match_dataclass_params():
             for key in data["wheel"].keys():
                 if key not in wheel_fields:
                     errors.append(
-                        f"{json_file.name}: wheel.{key} not in WheelParams dataclass. "
+                        f"{json_file.name}: wheel.{key} not in WheelParams model. "
                         f"Available fields: {sorted(wheel_fields)}"
                     )
 
@@ -320,7 +332,7 @@ def test_json_field_names_match_dataclass_params():
             for key in data["assembly"].keys():
                 if key not in assembly_fields:
                     errors.append(
-                        f"{json_file.name}: assembly.{key} not in AssemblyParams dataclass. "
+                        f"{json_file.name}: assembly.{key} not in AssemblyParams model. "
                         f"Available fields: {sorted(assembly_fields)}"
                     )
 
