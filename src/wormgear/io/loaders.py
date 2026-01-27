@@ -152,11 +152,12 @@ class WheelParams(BaseModel):
     pitch_diameter_mm: float
     tip_diameter_mm: float
     root_diameter_mm: float
-    throat_diameter_mm: float
-    helix_angle_deg: float
     addendum_mm: float
     dedendum_mm: float
     profile_shift: float = 0.0
+    # Informational fields (for markdown output, not used by generator)
+    throat_diameter_mm: Optional[float] = None
+    helix_angle_deg: Optional[float] = None
     width_mm: Optional[float] = None
 
 
