@@ -14,6 +14,34 @@ let currentValidation = null;
 let generatorTabVisited = false;
 
 // ============================================================================
+// UI HELPERS
+// ============================================================================
+
+// Update throat reduction auto hint based on module
+// If moduleValue is provided, use it (from calculation result)
+// Otherwise, try to get from input or show generic message
+function updateThroatReductionAutoHint(moduleValue) {
+    const hint = document.getElementById('throat-reduction-auto-value');
+    if (!hint) return;
+
+    let module = moduleValue;
+    if (module === undefined) {
+        // Try to get module from current mode's input
+        const mode = document.getElementById('mode')?.value;
+        if (mode === 'from-module') {
+            module = parseFloat(document.getElementById('module')?.value);
+        }
+    }
+
+    if (module && !isNaN(module)) {
+        const autoValue = (module * 0.15).toFixed(2);
+        hint.textContent = `≈ ${autoValue}mm for module ${module.toFixed(1)}`;
+    } else {
+        hint.textContent = `15% of calculated module`;
+    }
+}
+
+// ============================================================================
 // TAB SWITCHING
 // ============================================================================
 
@@ -117,6 +145,7 @@ calculate(input_json)
 
         // Update UI
         updateBoreDisplaysAndDefaults(currentDesign);
+        updateThroatReductionAutoHint(design.worm?.module_mm);
         document.getElementById('results-text').textContent = output.summary;
         updateValidationUI(output.valid, output.messages);
 
@@ -538,21 +567,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('throat-reduction-custom').style.display = isCustom ? 'block' : 'none';
         document.getElementById('throat-reduction-auto-hint').style.display = isCustom ? 'none' : 'block';
         if (isCustom) {
-            // Pre-fill with the auto value
-            const module = parseFloat(document.getElementById('module')?.value) || 2.0;
+            // Pre-fill with the auto value from current design (if available) or input
+            const module = currentDesign?.worm?.module_mm || parseFloat(document.getElementById('module')?.value) || 2.0;
             document.getElementById('throat-reduction').value = (module * 0.15).toFixed(2);
         }
     });
-
-    // Update throat reduction auto hint when module changes
-    function updateThroatReductionAutoHint() {
-        const module = parseFloat(document.getElementById('module')?.value) || 2.0;
-        const autoValue = (module * 0.15).toFixed(2);
-        const hint = document.getElementById('throat-reduction-auto-value');
-        if (hint) {
-            hint.textContent = `≈ ${autoValue}mm for module ${module.toFixed(1)}`;
-        }
-    }
 
     document.getElementById('module')?.addEventListener('change', () => {
         if (document.getElementById('worm-type')?.value === 'globoid') {
