@@ -235,9 +235,14 @@ def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
         'profile_shift': inputs.profile_shift,
     }
 
-    # Add throat reduction for globoid
-    if inputs.worm_type == 'globoid' and inputs.throat_reduction:
-        kwargs['throat_reduction'] = inputs.throat_reduction
+    # Add throat reduction for globoid worms
+    if inputs.worm_type == 'globoid':
+        if inputs.throat_reduction and inputs.throat_reduction > 0:
+            # User specified a value
+            kwargs['throat_reduction'] = inputs.throat_reduction
+        elif inputs.module:
+            # Default to 15% of module for visible hourglass effect
+            kwargs['throat_reduction'] = inputs.module * 0.15
 
     # Add wheel throated flag
     if inputs.wheel_throated:
