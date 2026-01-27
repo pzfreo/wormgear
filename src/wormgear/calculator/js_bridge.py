@@ -184,10 +184,11 @@ def calculate(input_json: str) -> str:
         bore_dict = inputs.bore.model_dump() if inputs.bore else None
         mfg_dict = inputs.manufacturing.model_dump() if inputs.manufacturing else None
 
-        # Handle recommended dimensions
+        # Handle recommended dimensions - remove from mfg_dict so calculator values aren't overwritten
         if inputs.manufacturing.use_recommended_dims:
-            mfg_dict['worm_length_mm'] = None
-            mfg_dict['wheel_width_mm'] = None
+            mfg_dict.pop('worm_length_mm', None)
+            mfg_dict.pop('wheel_width_mm', None)
+        # else: use custom values from user input (already in mfg_dict from model_dump)
 
         # Build output
         output = CalculatorOutput(
