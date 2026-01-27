@@ -34,14 +34,24 @@ from .output import to_json, to_markdown, to_summary
 # ============================================================================
 
 class BoreSettings(BaseModel):
-    """Bore configuration from UI."""
+    """Bore configuration from UI.
+
+    Bore types:
+    - "none": No bore (solid part)
+    - "custom": Custom bore with explicit diameter (required if type is custom)
+
+    Auto-calculation: The UI maps "auto" to "custom" with null diameter.
+    The calculator detects this and calculates the bore internally.
+    The OUTPUT always has concrete bore_diameter_mm values - the generator
+    never sees "auto" or null diameters.
+    """
     model_config = ConfigDict(extra='ignore')
 
-    worm_bore_type: str = "none"  # "none" | "auto" | "custom"
-    worm_bore_diameter: Optional[float] = None
+    worm_bore_type: str = "none"  # "none" | "custom"
+    worm_bore_diameter: Optional[float] = None  # null with custom = auto-calculate
     worm_keyway: str = "none"  # "none" | "DIN6885" | "ddcut"
-    wheel_bore_type: str = "none"
-    wheel_bore_diameter: Optional[float] = None
+    wheel_bore_type: str = "none"  # "none" | "custom"
+    wheel_bore_diameter: Optional[float] = None  # null with custom = auto-calculate
     wheel_keyway: str = "none"
 
 

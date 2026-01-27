@@ -56,12 +56,16 @@ function getChecked(id) {
  */
 export function getInputs(mode) {
     // Collect bore settings
+    // Map UI "auto" to "custom" with null diameter (schema only has 'none' and 'custom')
+    const wormBoreType = getValue('worm-bore-type');
+    const wheelBoreType = getValue('wheel-bore-type');
+
     const bore = {
-        worm_bore_type: getValue('worm-bore-type'),
-        worm_bore_diameter: safeParseFloat(getValue('worm-bore-diameter')),
+        worm_bore_type: wormBoreType === 'auto' ? 'custom' : wormBoreType,
+        worm_bore_diameter: wormBoreType === 'auto' ? null : safeParseFloat(getValue('worm-bore-diameter')),
         worm_keyway: getValue('worm-anti-rotation'),
-        wheel_bore_type: getValue('wheel-bore-type'),
-        wheel_bore_diameter: safeParseFloat(getValue('wheel-bore-diameter')),
+        wheel_bore_type: wheelBoreType === 'auto' ? 'custom' : wheelBoreType,
+        wheel_bore_diameter: wheelBoreType === 'auto' ? null : safeParseFloat(getValue('wheel-bore-diameter')),
         wheel_keyway: getValue('wheel-anti-rotation')
     };
 
