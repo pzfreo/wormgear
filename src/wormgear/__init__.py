@@ -17,51 +17,48 @@ Example:
     >>>
     >>> # Save design
     >>> save_design_json(design, "design.json")
+
+Note: All imports are lazy-loaded for fast startup. The calculator can be
+imported without triggering geometry (build123d) or IO (Pydantic) imports.
 """
 
 __version__ = "1.0.0-alpha"
 
-# Enums (shared types - no heavy dependencies)
-from .enums import (
-    Hand,
-    WormProfile,
-    WormType,
-)
+# Define which names come from which submodule
+# All imports are lazy to minimize startup time
 
-# Calculator (Layer 2a - no build123d dependency)
-from .calculator import (
-    STANDARD_MODULES,
-    calculate_design_from_module,
-    calculate_design_from_centre_distance,
-    calculate_design_from_wheel,
-    nearest_standard_module,
-    is_standard_module,
-    estimate_efficiency,
-    validate_design,
-    Severity,
-    ValidationResult,
-    calculate_default_bore,
-)
+_ENUMS = {"Hand", "WormProfile", "WormType"}
 
-# IO (Layer 2b - no build123d dependency)
-from .io import (
-    load_design_json,
-    save_design_json,
-    WormParams,
-    WheelParams,
-    AssemblyParams,
-    WormGearDesign,
-    Features,
-    WormFeatures,
-    WheelFeatures,
-    SetScrewSpec,
-    HubSpec,
-    ManufacturingParams,
-)
+_CALCULATOR = {
+    "STANDARD_MODULES",
+    "calculate_design_from_module",
+    "calculate_design_from_centre_distance",
+    "calculate_design_from_wheel",
+    "nearest_standard_module",
+    "is_standard_module",
+    "estimate_efficiency",
+    "validate_design",
+    "Severity",
+    "ValidationResult",
+    "calculate_default_bore",
+}
 
-# Core geometry (Layer 1) - LAZY LOADED to avoid build123d import
-# These are only imported when actually accessed
-_core_names = {
+_IO = {
+    "load_design_json",
+    "save_design_json",
+    "WormParams",
+    "WheelParams",
+    "AssemblyParams",
+    "WormGearDesign",
+    "Features",
+    "WormFeatures",
+    "WheelFeatures",
+    "SetScrewSpec",
+    "HubSpec",
+    "ManufacturingParams",
+}
+
+_CORE = {
     "WormGeometry",
     "WheelGeometry",
     "GloboidWormGeometry",
@@ -78,16 +75,38 @@ _core_names = {
     "get_din_6885_keyway",
 }
 
-_core_module = None
+# Cache for lazy-loaded modules
+_modules = {}
 
 
 def __getattr__(name):
-    """Lazy load core geometry module when its attributes are accessed."""
-    global _core_module
-    if name in _core_names:
-        if _core_module is None:
-            from . import core as _core_module
-        return getattr(_core_module, name)
+    """Lazy load submodules when their attributes are accessed."""
+    global _modules
+
+    if name in _ENUMS:
+        if "enums" not in _modules:
+            from . import enums
+            _modules["enums"] = enums
+        return getattr(_modules["enums"], name)
+
+    if name in _CALCULATOR:
+        if "calculator" not in _modules:
+            from . import calculator
+            _modules["calculator"] = calculator
+        return getattr(_modules["calculator"], name)
+
+    if name in _IO:
+        if "io" not in _modules:
+            from . import io
+            _modules["io"] = io
+        return getattr(_modules["io"], name)
+
+    if name in _CORE:
+        if "core" not in _modules:
+            from . import core
+            _modules["core"] = core
+        return getattr(_modules["core"], name)
+
     raise AttributeError(f"module 'wormgear' has no attribute {name!r}")
 
 
@@ -95,7 +114,7 @@ __all__ = [
     # Version
     "__version__",
 
-    # Geometry classes (lazy loaded)
+    # Geometry classes (lazy loaded from core)
     "WormGeometry",
     "WheelGeometry",
     "GloboidWormGeometry",
@@ -104,7 +123,7 @@ __all__ = [
     "get_hobbing_preset",
     "get_preset_steps",
 
-    # Features (lazy loaded)
+    # Features (lazy loaded from core)
     "BoreFeature",
     "KeywayFeature",
     "DDCutFeature",
@@ -114,12 +133,12 @@ __all__ = [
     "calculate_default_ddcut",
     "get_din_6885_keyway",
 
-    # Enums (type-safe)
+    # Enums (lazy loaded from enums)
     "Hand",
     "WormProfile",
     "WormType",
 
-    # Calculator
+    # Calculator (lazy loaded from calculator)
     "STANDARD_MODULES",
     "calculate_design_from_module",
     "calculate_design_from_centre_distance",
@@ -131,11 +150,11 @@ __all__ = [
     "Severity",
     "ValidationResult",
 
-    # IO
+    # IO (lazy loaded from io)
     "load_design_json",
     "save_design_json",
 
-    # Parameters
+    # Parameters (lazy loaded from io)
     "WormParams",
     "WheelParams",
     "AssemblyParams",
