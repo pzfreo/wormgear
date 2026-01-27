@@ -91,10 +91,56 @@ Type checking catches:
 
 ### Schema Versioning
 
-- **schema_version field**: Every JSON output includes version (e.g., "2.0")
-- **Breaking changes**: Increment major version (2.0 → 3.0)
-- **Non-breaking additions**: Increment minor version (2.0 → 2.1)
-- **Keep old schemas**: Support migration from old versions
+**Current Version: 2.0** (as of January 2026)
+
+**Version Format**: `MAJOR.MINOR` (e.g., "2.0", "2.1", "3.0")
+
+**When to bump versions:**
+- **MAJOR version** (2.0 → 3.0): Breaking changes
+  - Remove a required field
+  - Change a field's type (e.g., string → number)
+  - Rename a field
+  - Change enum values
+  - Change field semantics (meaning changes even if type doesn't)
+
+- **MINOR version** (2.0 → 2.1): Non-breaking additions
+  - Add a new optional field
+  - Add a new enum value (if consumers ignore unknown values)
+  - Add new validation constraints that existing data satisfies
+  - Add new optional sections
+
+**Version bump checklist:**
+```bash
+# 1. Update SCHEMA_VERSION in src/wormgear/io/schema.py
+SCHEMA_VERSION = "2.1"  # or "3.0" for breaking changes
+
+# 2. Update version in Pydantic model docstrings if applicable
+
+# 3. Regenerate all schemas (they include version in filename)
+python scripts/generate_schemas.py
+# Creates: schemas/wormgear-design-v2.1.json, etc.
+
+# 4. Regenerate TypeScript types
+bash scripts/generate_types.sh
+
+# 5. Update any hardcoded version references in:
+#    - web/modules/pyodide-init.js (if loading specific schema version)
+#    - README.md (if documenting schema)
+#    - tests (if asserting specific version)
+
+# 6. For MAJOR versions: Add migration logic in upgrade_schema()
+```
+
+**Version history:**
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2025-01 | Initial schema with worm/wheel/assembly sections |
+| 2.0 | 2026-01 | Added features section, manufacturing params, Pydantic V2 |
+
+**Files that contain version:**
+- `src/wormgear/io/schema.py` - SCHEMA_VERSION constant
+- `schemas/*-v{VERSION}.json` - Generated schema files (version in filename)
+- JSON output - `schema_version` field in all exported designs
 
 ### What NOT to Do
 

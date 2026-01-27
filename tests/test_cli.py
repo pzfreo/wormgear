@@ -431,7 +431,7 @@ class TestCLIGloboid:
 
         assert "manufacturing" in data
         assert data["manufacturing"]["worm_type"] == "globoid"
-        assert data["manufacturing"]["worm_length"] == 12.0
+        assert data["manufacturing"]["worm_length_mm"] == 12.0
 
     def test_cli_globoid_with_7mm_example(self, examples_dir, tmp_path):
         """Test globoid generation with 7mm.json example."""

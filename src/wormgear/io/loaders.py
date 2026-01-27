@@ -68,21 +68,33 @@ class Features(BaseModel):
 
 class ManufacturingParams(BaseModel):
     """Manufacturing/generation parameters."""
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
 
     profile: WormProfile = WormProfile.ZA
+    worm_type: Optional[WormType] = Field(default=None, alias='worm_type')
     virtual_hobbing: bool = False
     hobbing_steps: int = 18
-    throated_wheel: bool = False
+    throated_wheel: bool = Field(default=False, alias='wheel_throated')
     sections_per_turn: int = 36
-    worm_length_mm: Optional[float] = None
-    wheel_width_mm: Optional[float] = None
+    worm_length_mm: Optional[float] = Field(default=None, alias='worm_length')
+    wheel_width_mm: Optional[float] = Field(default=None, alias='wheel_width')
+    worm_features: Optional[WormFeatures] = None
+    wheel_features: Optional[WheelFeatures] = None
 
     @field_validator('profile', mode='before')
     @classmethod
     def coerce_profile(cls, v):
         if isinstance(v, str):
             return WormProfile(v.upper())
+        return v
+
+    @field_validator('worm_type', mode='before')
+    @classmethod
+    def coerce_worm_type(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return WormType(v.lower())
         return v
 
 
@@ -257,7 +269,7 @@ def save_design_json(design: WormGearDesign, filepath: Union[str, Path]) -> None
     data = design.model_dump(exclude_none=True)
 
     # Add schema version
-    data['schema_version'] = '1.0'
+    data['schema_version'] = '2.0'
 
     # Convert enums to their values for JSON
     def convert_enums(obj):

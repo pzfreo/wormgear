@@ -4,14 +4,17 @@ JSON schema definition and validation for worm gear parameters.
 This defines the contract between wormgearcalc (calculator) and
 wormgear-geometry (3D generation).
 
-Schema v1.0 uses Option B: Separate features section for clean separation
+Schema v2.0 uses Option B: Separate features section for clean separation
 between dimensional data and manufacturing features.
+
+Note: The primary schemas are now generated from Pydantic models via
+scripts/generate_schemas.py. This module provides runtime validation helpers.
 """
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"
 
 
 def get_schema_v1() -> Dict:
