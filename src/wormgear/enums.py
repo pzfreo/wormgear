@@ -30,3 +30,15 @@ class BoreType(Enum):
     """Bore configuration type"""
     NONE = "none"  # Solid part, no bore
     CUSTOM = "custom"  # Custom bore diameter specified
+
+
+class AntiRotation(Enum):
+    """Anti-rotation feature type for bores.
+
+    Defines shaft locking features per DIN 6885 and other standards.
+    Used in conjunction with BoreType.CUSTOM to specify how the
+    bore prevents rotation on the shaft.
+    """
+    NONE = "none"              # No anti-rotation feature (smooth bore)
+    DIN6885 = "DIN6885"        # Standard keyway per DIN 6885/ISO 6885
+    DDCUT = "ddcut"            # DD-cut (double-D flat) for small shafts

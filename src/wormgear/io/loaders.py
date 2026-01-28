@@ -14,7 +14,7 @@ from typing import Optional, Union, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..enums import Hand, WormType, WormProfile, BoreType
+from ..enums import Hand, WormType, WormProfile, BoreType, AntiRotation
 
 
 class SetScrewSpec(BaseModel):
@@ -43,6 +43,11 @@ class WormFeatures(BaseModel):
     bore_type is REQUIRED and must be explicitly specified:
     - "none": Solid part, no bore (bore_diameter_mm ignored)
     - "custom": Bore with specified diameter (bore_diameter_mm required)
+
+    anti_rotation specifies shaft locking feature:
+    - "none": Smooth bore (no anti-rotation)
+    - "DIN6885": Standard keyway per DIN 6885
+    - "ddcut": DD-cut (double-D flat) for small shafts
     """
     model_config = ConfigDict(extra='ignore')
 
@@ -55,8 +60,16 @@ class WormFeatures(BaseModel):
         gt=0,
         description="Bore diameter in mm. Required when bore_type is 'custom'."
     )
-    anti_rotation: Optional[str] = None  # "none" | "DIN6885" | "ddcut"
-    ddcut_depth_percent: float = 15.0  # Only used if anti_rotation is "ddcut"
+    anti_rotation: AntiRotation = Field(
+        default=AntiRotation.NONE,
+        description="Anti-rotation feature: 'none', 'DIN6885' (keyway), or 'ddcut'"
+    )
+    ddcut_depth_percent: float = Field(
+        default=15.0,
+        ge=5.0,
+        le=40.0,
+        description="DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'."
+    )
     set_screw: Optional[SetScrewSpec] = None
 
     @field_validator('bore_type', mode='before')
@@ -66,14 +79,32 @@ class WormFeatures(BaseModel):
             return BoreType(v.lower())
         return v
 
+    @field_validator('anti_rotation', mode='before')
+    @classmethod
+    def coerce_anti_rotation(cls, v):
+        if v is None:
+            return AntiRotation.NONE
+        if isinstance(v, str):
+            # Handle case variations
+            v_lower = v.lower()
+            if v_lower == 'din6885':
+                return AntiRotation.DIN6885
+            if v_lower == 'ddcut':
+                return AntiRotation.DDCUT
+            if v_lower == 'none':
+                return AntiRotation.NONE
+            # Try direct enum construction
+            return AntiRotation(v)
+        return v
+
     @model_validator(mode='after')
     def validate_bore_settings(self):
         # bore_diameter_mm is required when bore_type is 'custom'
         if self.bore_type == BoreType.CUSTOM and self.bore_diameter_mm is None:
             raise ValueError("bore_diameter_mm is required when bore_type is 'custom'")
         # anti_rotation makes no sense without a bore - clear it
-        if self.bore_type == BoreType.NONE and self.anti_rotation and self.anti_rotation != 'none':
-            self.anti_rotation = None
+        if self.bore_type == BoreType.NONE and self.anti_rotation != AntiRotation.NONE:
+            self.anti_rotation = AntiRotation.NONE
         return self
 
 
@@ -83,6 +114,11 @@ class WheelFeatures(BaseModel):
     bore_type is REQUIRED and must be explicitly specified:
     - "none": Solid part, no bore (bore_diameter_mm ignored)
     - "custom": Bore with specified diameter (bore_diameter_mm required)
+
+    anti_rotation specifies shaft locking feature:
+    - "none": Smooth bore (no anti-rotation)
+    - "DIN6885": Standard keyway per DIN 6885
+    - "ddcut": DD-cut (double-D flat) for small shafts
     """
     model_config = ConfigDict(extra='ignore')
 
@@ -95,8 +131,16 @@ class WheelFeatures(BaseModel):
         gt=0,
         description="Bore diameter in mm. Required when bore_type is 'custom'."
     )
-    anti_rotation: Optional[str] = None  # "none" | "DIN6885" | "ddcut"
-    ddcut_depth_percent: float = 15.0  # Only used if anti_rotation is "ddcut"
+    anti_rotation: AntiRotation = Field(
+        default=AntiRotation.NONE,
+        description="Anti-rotation feature: 'none', 'DIN6885' (keyway), or 'ddcut'"
+    )
+    ddcut_depth_percent: float = Field(
+        default=15.0,
+        ge=5.0,
+        le=40.0,
+        description="DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'."
+    )
     set_screw: Optional[SetScrewSpec] = None
     hub: Optional[HubSpec] = None
 
@@ -107,14 +151,32 @@ class WheelFeatures(BaseModel):
             return BoreType(v.lower())
         return v
 
+    @field_validator('anti_rotation', mode='before')
+    @classmethod
+    def coerce_anti_rotation(cls, v):
+        if v is None:
+            return AntiRotation.NONE
+        if isinstance(v, str):
+            # Handle case variations
+            v_lower = v.lower()
+            if v_lower == 'din6885':
+                return AntiRotation.DIN6885
+            if v_lower == 'ddcut':
+                return AntiRotation.DDCUT
+            if v_lower == 'none':
+                return AntiRotation.NONE
+            # Try direct enum construction
+            return AntiRotation(v)
+        return v
+
     @model_validator(mode='after')
     def validate_bore_settings(self):
         # bore_diameter_mm is required when bore_type is 'custom'
         if self.bore_type == BoreType.CUSTOM and self.bore_diameter_mm is None:
             raise ValueError("bore_diameter_mm is required when bore_type is 'custom'")
         # anti_rotation makes no sense without a bore - clear it
-        if self.bore_type == BoreType.NONE and self.anti_rotation and self.anti_rotation != 'none':
-            self.anti_rotation = None
+        if self.bore_type == BoreType.NONE and self.anti_rotation != AntiRotation.NONE:
+            self.anti_rotation = AntiRotation.NONE
         return self
 
 

@@ -59,7 +59,13 @@ export type BoreType = "none" | "custom";
  * Bore diameter in mm. Required when bore_type is 'custom'.
  */
 export type BoreDiameterMm = number | null;
-export type AntiRotation = string | null;
+/**
+ * Anti-rotation feature: 'none', 'DIN6885' (keyway), or 'ddcut'
+ */
+export type AntiRotation = "none" | "DIN6885" | "ddcut";
+/**
+ * DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'.
+ */
 export type DdcutDepthPercent = number;
 export type Size = string;
 export type Count = number;
@@ -71,7 +77,13 @@ export type BoreType1 = "none" | "custom";
  * Bore diameter in mm. Required when bore_type is 'custom'.
  */
 export type BoreDiameterMm1 = number | null;
-export type AntiRotation1 = string | null;
+/**
+ * Anti-rotation feature: 'none', 'DIN6885' (keyway), or 'ddcut'
+ */
+export type AntiRotation1 = "none" | "DIN6885" | "ddcut";
+/**
+ * DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'.
+ */
 export type DdcutDepthPercent1 = number;
 export type Type = string;
 export type LengthMm1 = number | null;
@@ -163,6 +175,11 @@ export interface Features {
  * bore_type is REQUIRED and must be explicitly specified:
  * - "none": Solid part, no bore (bore_diameter_mm ignored)
  * - "custom": Bore with specified diameter (bore_diameter_mm required)
+ *
+ * anti_rotation specifies shaft locking feature:
+ * - "none": Smooth bore (no anti-rotation)
+ * - "DIN6885": Standard keyway per DIN 6885
+ * - "ddcut": DD-cut (double-D flat) for small shafts
  */
 export interface WormFeatures {
   bore_type: BoreType;
@@ -184,6 +201,11 @@ export interface SetScrewSpec {
  * bore_type is REQUIRED and must be explicitly specified:
  * - "none": Solid part, no bore (bore_diameter_mm ignored)
  * - "custom": Bore with specified diameter (bore_diameter_mm required)
+ *
+ * anti_rotation specifies shaft locking feature:
+ * - "none": Smooth bore (no anti-rotation)
+ * - "DIN6885": Standard keyway per DIN 6885
+ * - "ddcut": DD-cut (double-D flat) for small shafts
  */
 export interface WheelFeatures {
   bore_type: BoreType1;

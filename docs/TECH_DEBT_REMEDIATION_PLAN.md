@@ -2641,7 +2641,7 @@ Use this table to track completion:
 | P1.3 | Add set screw tests | ✅ | 2026-01-28 | 14 tests added |
 | P1.4 | Add hub feature tests | ✅ | 2026-01-28 | 12 tests added |
 | P1.5 | Fix feature duplication | ✅ | 2026-01-28 | Removed from ManufacturingParams |
-| P1.6 | Complete BoreType enum | ⬜ | | Add anti-rotation options |
+| P1.6 | Complete BoreType enum | ✅ | 2026-01-28 | Added AntiRotation enum |
 | P1.7 | Replace print with logging | ⬜ | | 76 print statements |
 | P1.8 | Review architecture violation | ⬜ | | features.py import |
 
