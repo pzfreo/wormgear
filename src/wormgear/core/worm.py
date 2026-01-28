@@ -6,7 +6,11 @@ Creates CNC-ready worm geometry with helical threads.
 
 import math
 from typing import Optional, Literal
-from build123d import *
+from build123d import (
+    Part, Cylinder, Box, Align, Pos, Axis, Vector, Plane,
+    BuildSketch, BuildLine, Line, Spline, make_face, loft, Helix,
+    show, export_step,
+)
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
@@ -294,6 +298,8 @@ class WormGeometry:
         # Create profiles along the helix for lofting
         # Use extended length for sections calculation
         num_sections = int((extended_length / lead) * self.sections_per_turn) + 1
+        # Ensure at least 2 sections for loft operations (division by num_sections - 1)
+        num_sections = max(2, num_sections)
         sections = []
 
         # Thread end taper: ramp down thread depth over ~1 lead at each end
@@ -461,8 +467,8 @@ class WormGeometry:
         except ImportError:
             try:
                 show(worm)
-            except:
-                print("No viewer available.")
+            except (ImportError, NameError, AttributeError):
+                pass  # No viewer available - silent fallback
         return worm
 
     def export_step(self, filepath: str):

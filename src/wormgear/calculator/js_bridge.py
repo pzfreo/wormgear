@@ -14,9 +14,18 @@ Usage from JavaScript:
 """
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, TypedDict
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class ValidationMessageDict(TypedDict, total=False):
+    """Type for validation message dictionaries sent to JavaScript."""
+    severity: str  # "error", "warning", "info"
+    code: str  # e.g., "LEAD_ANGLE_LOW"
+    message: str
+    suggestion: Optional[str]
+    standard: Optional[str]  # e.g., "DIN 3975 §7.4"
 
 from ..enums import Hand, WormProfile, WormType
 from .core import (
@@ -154,7 +163,7 @@ class CalculatorOutput(BaseModel):
 
     # Validation
     valid: bool = True
-    messages: List[Dict[str, Any]] = Field(default_factory=list)
+    messages: List[ValidationMessageDict] = Field(default_factory=list)
 
     # Recommended bore values (calculated by Python, displayed by JS)
     recommended_worm_bore: Optional[RecommendedBore] = None

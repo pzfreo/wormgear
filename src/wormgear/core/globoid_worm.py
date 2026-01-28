@@ -7,7 +7,10 @@ This is a simplified prototype implementation.
 
 import math
 from typing import Optional, Literal, Callable
-from build123d import *
+from build123d import (
+    Part, Cylinder, Axis, Align, BuildPart, BuildSketch, Plane, Vector,
+    BuildLine, Polyline, Line, make_face, revolve, Spline, loft, export_step,
+)
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
@@ -525,6 +528,8 @@ class GloboidWormGeometry:
         # Use extended_length for section calculation
         num_turns = self.extended_length / lead
         num_sections = int(num_turns * self.sections_per_turn) + 1
+        # Ensure at least 2 sections for loft operations (division by num_sections - 1)
+        num_sections = max(2, num_sections)
         sections = []
 
         # Thread end taper: ramp down thread depth over ~1 lead at each end

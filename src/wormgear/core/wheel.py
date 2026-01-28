@@ -8,7 +8,11 @@ Creates worm wheel with two options:
 
 import math
 from typing import Optional, Literal
-from build123d import *
+from build123d import (
+    Part, Cylinder, Align, Vector, Plane,
+    BuildSketch, BuildLine, Line, Spline, make_face, loft, Axis,
+    show, export_step,
+)
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from ..enums import WormProfile
 from .features import (
@@ -236,10 +240,16 @@ class WheelGeometry:
                 # to match the worm's cylindrical surface
                 if self.throated and abs(z_pos) < arc_radius:
                     # Calculate where the worm surface is at this Z
-                    worm_surface_dist = centre_distance - math.sqrt(arc_radius**2 - z_pos**2)
-                    throated_inner = worm_surface_dist - pitch_radius
-                    # Use the shallower of the two (worm surface or calculated root)
-                    actual_inner = max(inner, throated_inner)
+                    # Guard against floating-point precision issues at boundary
+                    under_sqrt = arc_radius**2 - z_pos**2
+                    if under_sqrt >= 0:
+                        worm_surface_dist = centre_distance - math.sqrt(under_sqrt)
+                        throated_inner = worm_surface_dist - pitch_radius
+                        # Use the shallower of the two (worm surface or calculated root)
+                        actual_inner = max(inner, throated_inner)
+                    else:
+                        # Fallback at boundary due to floating-point precision
+                        actual_inner = inner
                 else:
                     actual_inner = inner
 
@@ -343,8 +353,8 @@ class WheelGeometry:
         except ImportError:
             try:
                 show(wheel)
-            except:
-                print("No viewer available.")
+            except (ImportError, NameError, AttributeError):
+                pass  # No viewer available - silent fallback
         return wheel
 
     def export_step(self, filepath: str):

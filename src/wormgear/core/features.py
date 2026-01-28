@@ -11,7 +11,9 @@ Supports:
 import math
 from dataclasses import dataclass
 from typing import Optional, Tuple
-from build123d import *
+from build123d import (
+    Part, Cylinder, Box, Align, Axis, Location, Pos,
+)
 
 # Import bore calculation from calculator (pure math, no geometry deps)
 from ..calculator.bore_calculator import calculate_default_bore
@@ -639,7 +641,13 @@ def create_ddcut(
 
     # Calculate chord width at the flat position for precise box sizing
     # For a circle, chord_half_width = sqrt(R^2 - d^2) where d is distance from center
-    chord_half_width = math.sqrt(bore_radius**2 - flat_position**2)
+    under_sqrt = bore_radius**2 - flat_position**2
+    if under_sqrt < 0:
+        raise ValueError(
+            f"DD-cut flat_depth ({flat_depth}mm) exceeds bore_radius ({bore_radius}mm). "
+            f"Maximum flat_depth is {bore_radius * 0.85:.2f}mm for bore diameter {bore_diameter}mm."
+        )
+    chord_half_width = math.sqrt(under_sqrt)
     box_width = 2 * chord_half_width  # Exact width of chord at flat position
 
     box_height = part_length  # Exact length along bore axis (no extension)

@@ -14,18 +14,22 @@ loaded JSON files (dataclasses).
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Union, Any, Dict
+from typing import List, Optional, Union, Dict, TYPE_CHECKING
 from enum import Enum
 from math import sin, radians
 
 from .core import is_standard_module, nearest_standard_module
 
+# Import for type checking only (avoids circular imports at runtime)
+if TYPE_CHECKING:
+    from ..io.loaders import WormGearDesign
 
-# Type alias for design input (dict or dataclass)
-DesignInput = Union[Dict[str, Any], Any]  # Any covers WormGearDesign
+# Type alias for design input - accepts both dict and WormGearDesign
+# Using string literal for forward reference to avoid circular import
+DesignInput = Union[Dict[str, Union[Dict, str, float, int, None]], "WormGearDesign"]
 
 
-def _get(obj: Any, *keys: str, default: Any = None) -> Any:
+def _get(obj: DesignInput, *keys: str, default: Optional[Union[str, float, int, bool]] = None) -> Optional[Union[str, float, int, bool, Dict]]:
     """
     Get nested value from dict or dataclass using dot-notation keys.
 
