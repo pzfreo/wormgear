@@ -6,6 +6,7 @@ Creates worm wheel with two options:
 2. Hobbed/Throated: Arc-bottomed teeth that match worm curvature - better contact
 """
 
+import logging
 import math
 from typing import Optional, Literal
 from build123d import (
@@ -28,6 +29,8 @@ from .features import (
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
 # ZK: Slightly convex flanks - better for 3D printing (reduces stress concentrations)
 ProfileType = Literal["ZA", "ZK", "ZI"]
+
+logger = logging.getLogger(__name__)
 
 
 class WheelGeometry:
@@ -340,7 +343,7 @@ class WheelGeometry:
                 space = loft(sections, ruled=True)
                 gear = gear - space
             except Exception as e:
-                print(f"Warning: Tooth space {i} failed: {e}")
+                logger.warning(f"Tooth space {i} failed: {e}")
 
         return gear
 
@@ -368,4 +371,4 @@ class WheelGeometry:
             from build123d import export_step as exp_step
             exp_step(self._part, filepath)
 
-        print(f"Exported wheel to {filepath}")
+        logger.info(f"Exported wheel to {filepath}")

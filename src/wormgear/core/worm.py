@@ -4,8 +4,11 @@ Worm geometry generation using build123d.
 Creates CNC-ready worm geometry with helical threads.
 """
 
+import logging
 import math
 from typing import Optional, Literal
+
+logger = logging.getLogger(__name__)
 from build123d import (
     Part, Cylinder, Box, Align, Pos, Axis, Vector, Plane,
     BuildSketch, BuildLine, Line, Spline, make_face, loft, Helix,
@@ -92,17 +95,17 @@ class WormGeometry:
         lead = self.params.lead_mm
 
         # Create thread(s) first to determine helix extent
-        print(f"    Creating {self.params.num_starts} thread(s)...")
+        logger.info(f"Creating {self.params.num_starts} thread(s)...")
         threads = self._create_threads()
         if threads is None:
-            print("    WARNING: No threads created!")
+            logger.warning("No threads created!")
         else:
-            print(f"    ✓ Threads created")
+            logger.debug("Threads created successfully")
 
         # Create core slightly longer than final worm to match extended threads
         # We'll trim to exact length after union
         extended_length = self.length + 2 * lead  # Add lead on each end
-        print(f"    Creating core cylinder (radius={root_radius:.2f}mm, height={extended_length:.2f}mm)...")
+        logger.info(f"Creating core cylinder (radius={root_radius:.2f}mm, height={extended_length:.2f}mm)...")
         core = Cylinder(
             radius=root_radius,
             height=extended_length,
@@ -110,7 +113,7 @@ class WormGeometry:
         )
 
         if threads is not None:
-            print(f"    Unioning core with threads...")
+            logger.info("Unioning core with threads...")
             # Use OCP fuse for reliable boolean union
             from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
 
@@ -123,24 +126,24 @@ class WormGeometry:
 
                 if fuse_op.IsDone():
                     worm = Part(fuse_op.Shape())
-                    print(f"    ✓ OCP union complete")
+                    logger.debug("OCP union complete")
                 else:
-                    print(f"    WARNING: OCP union failed, using build123d operator")
+                    logger.warning("OCP union failed, using build123d operator")
                     worm = core + threads
             except Exception as e:
-                print(f"    WARNING: OCP union error ({e}), using build123d operator")
+                logger.warning(f"OCP union error ({e}), using build123d operator")
                 worm = core + threads
         else:
-            print(f"    No threads to union - using core only")
+            logger.info("No threads to union - using core only")
             worm = core
 
         # Trim to exact length - removes fragile tapered thread ends
-        print(f"    Trimming to final length ({self.length:.2f}mm)...")
+        logger.info(f"Trimming to final length ({self.length:.2f}mm)...")
 
         # Prepare trim dimensions
         trim_diameter = tip_radius * 4  # Large enough for cutting boxes
         half_length = self.length / 2
-        print(f"    Cutting at Z = ±{half_length:.2f}mm...")
+        logger.info(f"Cutting at Z = ±{half_length:.2f}mm...")
 
         from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 
@@ -163,9 +166,9 @@ class WormGeometry:
 
             if cut_top.IsDone():
                 worm_shape = cut_top.Shape()
-                print(f"    ✓ Top cut successful")
+                logger.debug("Top cut successful")
             else:
-                print(f"    WARNING: Top cut failed")
+                logger.warning("Top cut failed")
 
             # Create bottom cutting box (remove everything below -half_length)
             bottom_cut_box = Box(
@@ -183,16 +186,16 @@ class WormGeometry:
 
             if cut_bottom.IsDone():
                 worm = Part(cut_bottom.Shape())
-                print(f"    ✓ Bottom cut successful")
+                logger.debug("Bottom cut successful")
             else:
-                print(f"    WARNING: Bottom cut failed")
+                logger.warning("Bottom cut failed")
                 worm = Part(worm_shape)
 
         except Exception as e:
-            print(f"    ERROR during cutting: {e}")
-            print(f"    Keeping extended worm (no trim)")
+            logger.error(f"Error during cutting: {e}")
+            logger.info("Keeping extended worm (no trim)")
 
-        print(f"    ✓ Worm trimmed to length")
+        logger.debug("Worm trimmed to length")
 
         # Ensure we have a single Solid for proper display in ocp_vscode
         if hasattr(worm, 'solids'):
@@ -215,7 +218,7 @@ class WormGeometry:
                 axis=Axis.Z
             )
 
-        print(f"    ✓ Final worm volume: {worm.volume:.2f} mm³")
+        logger.debug(f"Final worm volume: {worm.volume:.2f} mm³")
         # Cache the built geometry
         self._part = worm
         return worm
@@ -254,7 +257,7 @@ class WormGeometry:
         root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
         is_right_hand = self.params.hand == Hand.RIGHT
-        print(f"      Thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
+        logger.debug(f"Thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
 
         # Thread profile dimensions
         pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
@@ -452,9 +455,9 @@ class WormGeometry:
             sections.append(sk.sketch.faces()[0])
 
         # Loft with ruled=True for consistent geometry
-        print(f"      Lofting {len(sections)} sections...")
+        logger.debug(f"Lofting {len(sections)} sections...")
         thread = loft(sections, ruled=True)
-        print(f"      ✓ Thread lofted successfully")
+        logger.debug("Thread lofted successfully")
 
         return thread
 
@@ -476,11 +479,11 @@ class WormGeometry:
         if self._part is None:
             self.build()
 
-        print(f"    Exporting worm: volume={self._part.volume:.2f} mm³")
+        logger.info(f"Exporting worm: volume={self._part.volume:.2f} mm³")
         if hasattr(self._part, 'export_step'):
             self._part.export_step(filepath)
         else:
             from build123d import export_step as exp_step
             exp_step(self._part, filepath)
 
-        print(f"Exported worm to {filepath}")
+        logger.info(f"Exported worm to {filepath}")

@@ -20,6 +20,7 @@ Trade-offs:
 - Typical: 72-360 steps for a full wheel rotation
 """
 
+import logging
 import math
 import sys
 import time
@@ -42,6 +43,8 @@ from .features import (
 )
 
 ProfileType = Literal["ZA", "ZK", "ZI"]
+
+logger = logging.getLogger(__name__)
 
 # Step presets for virtual hobbing with estimated timings
 HOBBING_PRESETS = {
@@ -222,15 +225,15 @@ class VirtualHobbingWheelGeometry:
         if self._part is not None:
             return self._part
 
-        print(f"    Virtual hobbing with {self.hobbing_steps} steps...")
+        logger.info(f"Virtual hobbing with {self.hobbing_steps} steps...")
 
         # Create wheel blank
         wheel = self._create_blank()
 
         # Use provided hob geometry or create cylindrical hob
         if self.hob_geometry is not None:
-            print(f"    Using provided worm geometry as hob (e.g., globoid)")
-            print(f"    Applying simplification to complex hob geometry...")
+            logger.info(f"Using provided worm geometry as hob (e.g., globoid)")
+            logger.info(f"Applying simplification to complex hob geometry...")
             hob = self._create_simplified_hob(self.hob_geometry)
         else:
             # Create the hob (cutting tool based on worm geometry)
@@ -278,7 +281,7 @@ class VirtualHobbingWheelGeometry:
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
 
-        print(f"    ✓ Blank: radius={tip_radius:.2f}mm, height={self.face_width:.2f}mm")
+        logger.debug(f"Blank: radius={tip_radius:.2f}mm, height={self.face_width:.2f}mm")
         return blank
 
     def _create_hob(self) -> Part:
@@ -430,7 +433,7 @@ class VirtualHobbingWheelGeometry:
 
         hob = core + all_threads
 
-        print(f"    ✓ Hob created: length={hob_length:.2f}mm, {self.worm_params.num_starts} start(s)")
+        logger.debug(f"Hob created: length={hob_length:.2f}mm, {self.worm_params.num_starts} start(s)")
         return hob
 
     def _report_progress(self, message: str, percent: float, verbose: bool = True):
@@ -442,7 +445,7 @@ class VirtualHobbingWheelGeometry:
             verbose: If True, also print to console. If False, only call callback.
         """
         if verbose:
-            print(message)
+            logger.info(message)
         if self.progress_callback:
             try:
                 self.progress_callback(message, percent)
@@ -464,7 +467,7 @@ class VirtualHobbingWheelGeometry:
             Simplified part
         """
         if description:
-            print(f"    Simplifying {description}...", end="", flush=True)
+            logger.debug(f"Simplifying {description}...")
 
         simplify_start = time.time()
 
@@ -490,12 +493,12 @@ class VirtualHobbingWheelGeometry:
 
             simplify_time = time.time() - simplify_start
             if description:
-                print(f" done in {simplify_time:.1f}s")
+                logger.debug(f"done in {simplify_time:.1f}s")
 
             return simplified
         except Exception as e:
             simplify_time = time.time() - simplify_start
-            print(f" failed after {simplify_time:.1f}s: {e}, using original")
+            logger.warning(f"failed after {simplify_time:.1f}s: {e}, using original")
             return part
 
     def _create_simplified_hob(self, original_hob: Part) -> Part:
@@ -552,7 +555,7 @@ class VirtualHobbingWheelGeometry:
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
 
-        print(f"    Trimming envelope to wheel bounds (r={trim_radius:.2f}mm, h={trim_height:.2f}mm)...")
+        logger.info(f"Trimming envelope to wheel bounds (r={trim_radius:.2f}mm, h={trim_height:.2f}mm)...")
         sys.stdout.flush()
 
         trim_start = time.time()
@@ -563,18 +566,18 @@ class VirtualHobbingWheelGeometry:
                 if hasattr(envelope, 'wrapped'):
                     envelope = Part(envelope.wrapped)
                 else:
-                    print(f"    ⚠️  Envelope is not a Part (type: {type(envelope)}), skipping trim")
+                    logger.warning(f"Envelope is not a Part (type: {type(envelope)}), skipping trim")
                     return envelope
 
             # Intersect envelope with bounding cylinder
             trimmed = envelope & bounding_cylinder
             trim_time = time.time() - trim_start
-            print(f"    ✓ Envelope trimmed in {trim_time:.1f}s")
+            logger.debug(f"Envelope trimmed in {trim_time:.1f}s")
             return trimmed
         except Exception as e:
             trim_time = time.time() - trim_start
-            print(f"    ⚠️  Envelope trimming failed after {trim_time:.1f}s: {e}")
-            print(f"    ⚠️  Using untrimmed envelope (Phase 2 will be slower)")
+            logger.warning(f"Envelope trimming failed after {trim_time:.1f}s: {e}")
+            logger.warning(f"Using untrimmed envelope (Phase 2 will be slower)")
             return envelope
 
     def _simulate_hobbing_incremental(self, blank: Part, hob: Part) -> Part:
@@ -720,8 +723,8 @@ class VirtualHobbingWheelGeometry:
 
         # Warn about performance if using many steps (likely globoid worm)
         if self.hobbing_steps > 36 and self.worm_geometry is not None:
-            print(f"    ⚠️  WARNING: Using {self.hobbing_steps} steps with provided worm geometry (likely globoid).")
-            print(f"    ⚠️  Phase 2 may take 30+ minutes or fail. Consider using 18-36 steps for globoid worms.")
+            logger.warning(f"Using {self.hobbing_steps} steps with provided worm geometry (likely globoid).")
+            logger.warning(f"Phase 2 may take 30+ minutes or fail. Consider using 18-36 steps for globoid worms.")
             sys.stdout.flush()
 
         self._report_progress(
@@ -800,16 +803,16 @@ class VirtualHobbingWheelGeometry:
 
         # Ensure envelope is a proper Part (unions can sometimes create Compound/ShapeList)
         if not isinstance(envelope, Part):
-            print(f"    Converting envelope from {type(envelope).__name__} to Part...")
+            logger.info(f"Converting envelope from {type(envelope).__name__} to Part...")
             convert_start = time.time()
             try:
                 # If it's a ShapeList (list of shapes), we need to fuse them at OCP level
                 if isinstance(envelope, (list, tuple)):
                     if len(envelope) == 0:
-                        print(f"    ⚠️  ERROR: Envelope is empty list!")
+                        logger.warning(f"ERROR: Envelope is empty list!")
                         return blank
 
-                    print(f"    Fusing {len(envelope)} shapes from ShapeList...")
+                    logger.info(f"Fusing {len(envelope)} shapes from ShapeList...")
 
                     # Use OCP BRepAlgoAPI_Fuse to fuse all shapes
                     from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
@@ -823,7 +826,7 @@ class VirtualHobbingWheelGeometry:
                         fuser = BRepAlgoAPI_Fuse(current_shape, shape_ocp)
                         fuser.Build()
                         if not fuser.IsDone():
-                            print(f"    ⚠️  WARNING: Fuse failed at shape {i}")
+                            logger.warning(f"Fuse failed at shape {i}")
                             continue
                         current_shape = fuser.Shape()
 
@@ -834,19 +837,19 @@ class VirtualHobbingWheelGeometry:
                     # Has .wrapped - direct conversion
                     envelope = Part(envelope.wrapped)
                 else:
-                    print(f"    ⚠️  ERROR: Don't know how to convert {type(envelope)} to Part!")
+                    logger.warning(f"ERROR: Don't know how to convert {type(envelope)} to Part!")
                     return blank
 
                 # Final check that result is a Part
                 if not isinstance(envelope, Part):
-                    print(f"    ⚠️  ERROR: After conversion, still not a Part (is {type(envelope)})!")
+                    logger.warning(f"ERROR: After conversion, still not a Part (is {type(envelope)})!")
                     return blank
 
                 convert_time = time.time() - convert_start
-                print(f"    ✓ Conversion successful in {convert_time:.1f}s")
+                logger.debug(f"Conversion successful in {convert_time:.1f}s")
             except Exception as e:
                 convert_time = time.time() - convert_start
-                print(f"    ⚠️  ERROR: Failed to convert envelope to Part after {convert_time:.1f}s: {e}")
+                logger.warning(f"ERROR: Failed to convert envelope to Part after {convert_time:.1f}s: {e}")
                 import traceback
                 traceback.print_exc()
                 return blank
@@ -861,9 +864,9 @@ class VirtualHobbingWheelGeometry:
         # DEBUG: Check envelope validity before optimizations
         try:
             env_volume = envelope.volume
-            print(f"    Envelope volume before optimizations: {env_volume:.2f} mm³")
+            logger.info(f"Envelope volume before optimizations: {env_volume:.2f} mm³")
         except Exception as e:
-            print(f"    ⚠️  WARNING: Cannot compute envelope volume: {e}")
+            logger.warning(f"Cannot compute envelope volume: {e}")
 
         # Optimization #1: Trim envelope to wheel boundaries
         # This removes excess hob geometry that doesn't cut anything
@@ -872,24 +875,24 @@ class VirtualHobbingWheelGeometry:
         # DEBUG: Check envelope after trim
         try:
             env_volume_trimmed = envelope.volume
-            print(f"    Envelope volume after trim: {env_volume_trimmed:.2f} mm³")
+            logger.info(f"Envelope volume after trim: {env_volume_trimmed:.2f} mm³")
         except (AttributeError, ValueError, RuntimeError) as e:
-            print(f"    ⚠️  WARNING: Envelope invalid after trim! ({type(e).__name__})")
+            logger.warning(f"Envelope invalid after trim! ({type(e).__name__})")
 
         # Optimization #3: Final simplification before Phase 2
-        print(f"    Applying final simplification to envelope...")
+        logger.info(f"Applying final simplification to envelope...")
         sys.stdout.flush()
         simplify_start = time.time()
         envelope = self._simplify_geometry(envelope, "final envelope")
         simplify_time = time.time() - simplify_start
-        print(f"    ✓ Final simplification complete in {simplify_time:.1f}s")
+        logger.debug(f"Final simplification complete in {simplify_time:.1f}s")
 
         # DEBUG: Check envelope after simplification
         try:
             env_volume_final = envelope.volume
-            print(f"    Envelope volume after simplification: {env_volume_final:.2f} mm³")
+            logger.info(f"Envelope volume after simplification: {env_volume_final:.2f} mm³")
         except (AttributeError, ValueError, RuntimeError) as e:
-            print(f"    ⚠️  WARNING: Envelope invalid after simplification! ({type(e).__name__})")
+            logger.warning(f"Envelope invalid after simplification! ({type(e).__name__})")
 
         # Phase 2: Subtract envelope (this is a single complex boolean operation)
         self._report_progress(
@@ -938,7 +941,7 @@ class VirtualHobbingWheelGeometry:
     def export_step(self, filepath: str):
         """Export wheel to STEP file (builds if not already built)."""
         if self._part is None:
-            print("    Exporting to STEP format...")
+            logger.info("Exporting to STEP format...")
             self.build()
 
         if hasattr(self._part, 'export_step'):
@@ -947,4 +950,4 @@ class VirtualHobbingWheelGeometry:
             from build123d import export_step as exp_step
             exp_step(self._part, filepath)
 
-        print(f"Exported wheel to {filepath}")
+        logger.info(f"Exported wheel to {filepath}")
