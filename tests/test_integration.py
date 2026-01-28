@@ -101,7 +101,6 @@ class TestWormWheelPair:
 
         assert worm_params.module_mm == wheel_params.module_mm
 
-    @pytest.mark.xfail(reason="Large multi-start worm may produce invalid geometry - needs investigation")
     def test_pair_at_different_scales(self, sample_design_7mm, sample_design_large):
         """Test generating pairs at different scales."""
         for design_data in [sample_design_7mm, sample_design_large]:

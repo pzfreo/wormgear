@@ -587,17 +587,19 @@ class GloboidWormGeometry:
             local_tip_radius = local_pitch_radius + local_addendum
             local_root_radius = local_pitch_radius - local_dedendum
 
-            # IMPORTANT: Ensure thread root never goes above core radius
-            # Clamp the thread root to stay at or below the core radius to prevent gaps
-            local_root_radius = min(local_root_radius, root_radius)
+            # Validate profile is meaningful (avoid degenerate profiles)
+            profile_height = local_addendum + local_dedendum
+            if profile_height < 0.1:  # Less than 0.1mm - skip degenerate section
+                continue
 
             # Profile coordinates relative to local pitch radius
-            inner_r = local_root_radius - local_pitch_radius
-            outer_r = local_tip_radius - local_pitch_radius
+            # inner_r is negative (below pitch), outer_r is positive (above pitch)
+            inner_r = -local_dedendum
+            outer_r = local_addendum
 
-            # Apply taper factor to thread width as well
-            local_thread_half_width_root = thread_half_width_root * taper_factor
-            local_thread_half_width_tip = thread_half_width_tip * taper_factor
+            # Apply taper factor to thread width with minimum to avoid zero-width profiles
+            local_thread_half_width_root = max(0.05, thread_half_width_root * taper_factor)
+            local_thread_half_width_tip = max(0.05, thread_half_width_tip * taper_factor)
 
             # Create filled profile based on profile type
             with BuildSketch(profile_plane) as sk:
