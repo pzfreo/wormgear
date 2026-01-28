@@ -165,8 +165,13 @@ class TestCalculatorEnvironment:
         assert isinstance(has_warning, bool)
 
 
+@pytest.mark.slow
 class TestGeneratorEnvironment:
-    """Test generator imports work with full file set (requires build123d)."""
+    """Test generator imports work with full file set (requires build123d).
+
+    These tests are marked slow because they involve importing build123d
+    which takes significant time. Skip with: pytest -m "not slow"
+    """
 
     @pytest.fixture
     def generator_env(self, tmp_path):
