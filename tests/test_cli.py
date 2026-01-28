@@ -185,8 +185,12 @@ class TestCLIGeneration:
 
         assert result.returncode == 0
 
+    @pytest.mark.slow
     def test_cli_custom_sections(self, temp_json_file, tmp_path):
-        """Test custom sections per turn option."""
+        """Test custom sections per turn option.
+
+        Marked as slow because high section counts (72) take >2 minutes.
+        """
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 

@@ -10,7 +10,7 @@ import math
 from typing import Optional, Literal, Callable
 from build123d import (
     Part, Cylinder, Box, Axis, Align, BuildPart, BuildSketch, Plane, Vector,
-    BuildLine, Polyline, Line, make_face, revolve, Spline, loft, export_step,
+    BuildLine, Polyline, Line, make_face, revolve, Spline, loft, export_step, Pos,
 )
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
