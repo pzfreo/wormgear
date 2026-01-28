@@ -106,7 +106,12 @@ class TestWormGeometry:
             assert worm.volume > 0, f"Worm with length {length} has zero volume"
 
     def test_worm_short_length(self, worm_params, assembly_params):
-        """Test worm with very short length (edge case)."""
+        """Test worm with very short length (edge case).
+
+        Tests that very short worms (length < lead) produce valid geometry.
+        The profile calculation handles tapered ends correctly to avoid
+        degenerate profiles.
+        """
         # Length shorter than one lead
         length = worm_params.lead_mm * 0.5
         worm_geo = WormGeometry(

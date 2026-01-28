@@ -65,8 +65,8 @@ from .output import (
     to_summary,
 )
 
-from .bore_calculator import (
-    # Bore calculation
+from ..core.bore_sizing import (
+    # Bore calculation (pure geometry math, moved to core)
     calculate_default_bore,
 )
 

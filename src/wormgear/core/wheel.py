@@ -6,9 +6,14 @@ Creates worm wheel with two options:
 2. Hobbed/Throated: Arc-bottomed teeth that match worm curvature - better contact
 """
 
+import logging
 import math
 from typing import Optional, Literal
-from build123d import *
+from build123d import (
+    Part, Cylinder, Align, Vector, Plane,
+    BuildSketch, BuildLine, Line, Spline, make_face, loft, Axis,
+    export_step,
+)
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from ..enums import WormProfile
 from .features import (
@@ -24,6 +29,8 @@ from .features import (
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
 # ZK: Slightly convex flanks - better for 3D printing (reduces stress concentrations)
 ProfileType = Literal["ZA", "ZK", "ZI"]
+
+logger = logging.getLogger(__name__)
 
 
 class WheelGeometry:
@@ -236,10 +243,16 @@ class WheelGeometry:
                 # to match the worm's cylindrical surface
                 if self.throated and abs(z_pos) < arc_radius:
                     # Calculate where the worm surface is at this Z
-                    worm_surface_dist = centre_distance - math.sqrt(arc_radius**2 - z_pos**2)
-                    throated_inner = worm_surface_dist - pitch_radius
-                    # Use the shallower of the two (worm surface or calculated root)
-                    actual_inner = max(inner, throated_inner)
+                    # Guard against floating-point precision issues at boundary
+                    under_sqrt = arc_radius**2 - z_pos**2
+                    if under_sqrt >= 0:
+                        worm_surface_dist = centre_distance - math.sqrt(under_sqrt)
+                        throated_inner = worm_surface_dist - pitch_radius
+                        # Use the shallower of the two (worm surface or calculated root)
+                        actual_inner = max(inner, throated_inner)
+                    else:
+                        # Fallback at boundary due to floating-point precision
+                        actual_inner = inner
                 else:
                     actual_inner = inner
 
@@ -330,21 +343,18 @@ class WheelGeometry:
                 space = loft(sections, ruled=True)
                 gear = gear - space
             except Exception as e:
-                print(f"Warning: Tooth space {i} failed: {e}")
+                logger.warning(f"Tooth space {i} failed: {e}")
 
         return gear
 
     def show(self):
-        """Display the wheel in OCP viewer."""
+        """Display the wheel in OCP viewer (requires ocp_vscode)."""
         wheel = self.build()
         try:
             from ocp_vscode import show as ocp_show
             ocp_show(wheel)
         except ImportError:
-            try:
-                show(wheel)
-            except:
-                print("No viewer available.")
+            pass  # No viewer available - silent fallback
         return wheel
 
     def export_step(self, filepath: str):
@@ -358,4 +368,4 @@ class WheelGeometry:
             from build123d import export_step as exp_step
             exp_step(self._part, filepath)
 
-        print(f"Exported wheel to {filepath}")
+        logger.info(f"Exported wheel to {filepath}")

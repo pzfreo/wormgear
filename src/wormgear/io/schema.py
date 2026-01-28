@@ -189,34 +189,167 @@ def validate_json_schema(data: Dict) -> Dict[str, Any]:
     }
 
 
+def detect_schema_version(data: Dict) -> str:
+    """
+    Detect schema version from JSON data using heuristics.
+
+    Args:
+        data: Parsed JSON data
+
+    Returns:
+        Version string (e.g., "1.0", "2.0")
+    """
+    # Explicit version takes precedence
+    explicit_version = data.get('schema_version')
+    if explicit_version:
+        return str(explicit_version)
+
+    # Heuristics for version detection
+    if 'features' in data:
+        # features section was added in 2.0
+        return "2.0"
+    if 'manufacturing' in data and 'worm_features' in data.get('manufacturing', {}):
+        # Transitional version had features in manufacturing
+        return "1.5"
+
+    return "1.0"  # Default to oldest
+
+
 def upgrade_schema(data: Dict, target_version: str = SCHEMA_VERSION) -> Dict:
     """
     Upgrade JSON data from older schema version to target version.
+
+    Applies migrations sequentially from current version to target.
+    Returns a new dict - original data is not modified.
 
     Args:
         data: JSON data with old schema
         target_version: Target schema version (default: latest)
 
     Returns:
-        Upgraded JSON data
+        Upgraded JSON data (new dict)
+
+    Raises:
+        ValueError: If current version is newer than target or unsupported
 
     Example:
-        >>> old_data = {"worm": {...}}  # No schema_version
-        >>> new_data = upgrade_schema(old_data, "1.0")
-        >>> assert new_data["schema_version"] == "1.0"
+        >>> old_data = {"worm": {...}, "schema_version": "1.0"}
+        >>> new_data = upgrade_schema(old_data, "2.0")
+        >>> assert new_data["schema_version"] == "2.0"
     """
-    current_version = data.get("schema_version", "0.0")
+    import copy
 
-    if current_version == target_version:
-        return data
+    # Don't modify original
+    data = copy.deepcopy(data)
 
-    # TODO: Implement version upgrades when we have v1.1, v2.0, etc.
-    # For now, just add schema_version if missing
-    if "schema_version" not in data:
-        data["schema_version"] = "1.0"
-        data["_upgraded_from"] = "pre-v1.0"
+    current_version = detect_schema_version(data)
+    MIN_SUPPORTED_VERSION = "1.0"
+
+    # Parse versions for comparison
+    def version_tuple(v: str):
+        return tuple(int(x) for x in v.split('.'))
+
+    current = version_tuple(current_version)
+    target = version_tuple(target_version)
+    min_supported = version_tuple(MIN_SUPPORTED_VERSION)
+
+    if current > target:
+        raise ValueError(
+            f"Cannot downgrade schema from {current_version} to {target_version}. "
+            f"Use an older version of wormgear to read this file."
+        )
+
+    if current < min_supported:
+        raise ValueError(
+            f"Schema version {current_version} is too old. "
+            f"Minimum supported version is {MIN_SUPPORTED_VERSION}."
+        )
+
+    # Apply migrations in sequence
+    if current < (2, 0) and target >= (2, 0):
+        data = _migrate_1x_to_2x(data)
+
+    data['schema_version'] = target_version
+    return data
+
+
+def _migrate_1x_to_2x(data: Dict) -> Dict:
+    """
+    Migrate from schema 1.x to 2.x.
+
+    Changes:
+    - Move worm_features/wheel_features from manufacturing to features section
+    - Normalize enum values (hand to lowercase, profile to uppercase)
+    - Add missing required fields with defaults
+    - Add _upgraded_from metadata
+    """
+    # Track upgrade
+    data['_upgraded_from'] = data.get('schema_version', '1.0')
+
+    # 1. Move features from manufacturing to features section
+    manufacturing = data.get('manufacturing', {})
+
+    if 'worm_features' in manufacturing or 'wheel_features' in manufacturing:
+        if 'features' not in data:
+            data['features'] = {}
+
+        # Only migrate if target doesn't already exist (preserve existing features)
+        if 'worm_features' in manufacturing:
+            if 'worm' not in data['features']:
+                data['features']['worm'] = manufacturing.pop('worm_features')
+            else:
+                manufacturing.pop('worm_features')  # Just remove, don't overwrite
+
+        if 'wheel_features' in manufacturing:
+            if 'wheel' not in data['features']:
+                data['features']['wheel'] = manufacturing.pop('wheel_features')
+            else:
+                manufacturing.pop('wheel_features')  # Just remove, don't overwrite
+
+    # 2. Normalize hand enum (was uppercase in some 1.x versions)
+    for section in ['worm', 'assembly']:
+        if section in data and 'hand' in data[section]:
+            hand_value = data[section]['hand']
+            if isinstance(hand_value, str):
+                data[section]['hand'] = hand_value.lower()
+
+    # 3. Normalize profile enum (should be uppercase)
+    if 'manufacturing' in data and 'profile' in data['manufacturing']:
+        profile_value = data['manufacturing']['profile']
+        if isinstance(profile_value, str):
+            data['manufacturing']['profile'] = profile_value.upper()
+
+    # 4. Ensure features section exists with defaults
+    if 'features' not in data:
+        data['features'] = {
+            'worm': {'bore_type': 'none'},
+            'wheel': {'bore_type': 'none'}
+        }
 
     return data
+
+
+def validate_schema_version(data: Dict) -> bool:
+    """
+    Check if schema version is supported for loading.
+
+    Args:
+        data: JSON data to check
+
+    Returns:
+        True if version is supported
+    """
+    version = detect_schema_version(data)
+
+    def version_tuple(v: str):
+        return tuple(int(x) for x in v.split('.'))
+
+    MIN_SUPPORTED = "1.0"
+    current = version_tuple(version)
+    min_supported = version_tuple(MIN_SUPPORTED)
+    max_supported = version_tuple(SCHEMA_VERSION)
+
+    return min_supported <= current <= max_supported
 
 
 def create_example_schema_v1() -> Dict:

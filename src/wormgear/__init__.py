@@ -27,7 +27,7 @@ __version__ = "1.0.0-alpha"
 # Define which names come from which submodule
 # All imports are lazy to minimize startup time
 
-_ENUMS = {"Hand", "WormProfile", "WormType"}
+_ENUMS = {"Hand", "WormProfile", "WormType", "BoreType", "AntiRotation"}
 
 _CALCULATOR = {
     "STANDARD_MODULES",
@@ -137,6 +137,8 @@ __all__ = [
     "Hand",
     "WormProfile",
     "WormType",
+    "BoreType",
+    "AntiRotation",
 
     # Calculator (lazy loaded from calculator)
     "STANDARD_MODULES",

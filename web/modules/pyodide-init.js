@@ -90,7 +90,7 @@ export async function initCalculator(onComplete) {
         calculatorPyodide.FS.writeFile('/home/pyodide/wormgear/enums.py', enumsContent);
 
         // Load calculator module files (including js_bridge for clean JS<->Python interface)
-        const calcFiles = ['__init__.py', 'core.py', 'validation.py', 'output.py', 'bore_calculator.py', 'js_bridge.py', 'json_schema.py'];
+        const calcFiles = ['__init__.py', 'core.py', 'validation.py', 'output.py', 'constants.py', 'js_bridge.py', 'json_schema.py'];
         for (const file of calcFiles) {
             const response = await fetch(`wormgear/calculator/${file}?v=${cacheBuster}`);
             if (!response.ok) throw new Error(`Failed to load calculator/${file}: ${response.status}`);
@@ -99,6 +99,19 @@ export async function initCalculator(onComplete) {
                 throw new Error(`calculator/${file} contains HTML instead of Python code`);
             }
             calculatorPyodide.FS.writeFile(`/home/pyodide/wormgear/calculator/${file}`, content);
+        }
+
+        // Load core module files (bore_sizing needed by calculator)
+        calculatorPyodide.FS.mkdir('/home/pyodide/wormgear/core');
+        const coreFiles = ['__init__.py', 'bore_sizing.py'];
+        for (const file of coreFiles) {
+            const response = await fetch(`wormgear/core/${file}?v=${cacheBuster}`);
+            if (!response.ok) throw new Error(`Failed to load core/${file}: ${response.status}`);
+            const content = await response.text();
+            if (content.trim().startsWith('<!DOCTYPE')) {
+                throw new Error(`core/${file} contains HTML instead of Python code`);
+            }
+            calculatorPyodide.FS.writeFile(`/home/pyodide/wormgear/core/${file}`, content);
         }
 
         // Load io module files (dataclasses needed by calculator)

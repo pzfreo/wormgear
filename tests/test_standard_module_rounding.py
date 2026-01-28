@@ -66,7 +66,7 @@ class TestStandardModuleRounding:
                 pressure_angle=initial_design.assembly.pressure_angle_deg,
                 backlash=initial_design.assembly.backlash_mm,
                 num_starts=initial_design.worm.num_starts,
-                hand=initial_design.assembly.hand.lower() if isinstance(initial_design.assembly.hand, str) else initial_design.assembly.hand,
+                hand=initial_design.assembly.hand,
             )
 
             # Verify module was rounded
@@ -273,5 +273,6 @@ class TestStandardModuleEdgeCases:
                 hand="left"
             )
 
-            # Hand is already a string in the dataclass
-            assert rounded.assembly.hand.lower() == "left"
+            # Hand is an enum
+            from wormgear.enums import Hand
+            assert rounded.assembly.hand == Hand.LEFT

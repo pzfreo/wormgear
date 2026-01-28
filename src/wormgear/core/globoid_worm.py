@@ -5,9 +5,13 @@ Creates hourglass-shaped worms with helical threads following the curved surface
 This is a simplified prototype implementation.
 """
 
+import logging
 import math
 from typing import Optional, Literal, Callable
-from build123d import *
+from build123d import (
+    Part, Cylinder, Box, Axis, Align, BuildPart, BuildSketch, Plane, Vector,
+    BuildLine, Polyline, Line, make_face, revolve, Spline, loft, export_step, Pos,
+)
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
@@ -19,6 +23,8 @@ ProfileType = Literal["ZA", "ZK", "ZI"]
 
 # Progress callback type for WASM integration
 ProgressCallback = Callable[[str, float], None]  # (message, percent_complete)
+
+logger = logging.getLogger(__name__)
 
 
 class GloboidWormGeometry:
@@ -113,7 +119,7 @@ class GloboidWormGeometry:
         # Warn if throat is too aggressive (more than 20% reduction from nominal)
         throat_reduction = (self.nominal_pitch_radius - self.throat_pitch_radius) / self.nominal_pitch_radius
         if throat_reduction > 0.20:
-            print(f"  Note: Aggressive throat reduction ({throat_reduction*100:.1f}%). "
+            logger.info(f"Note: Aggressive throat reduction ({throat_reduction*100:.1f}%). "
                   f"Throat radius={self.throat_pitch_radius:.2f}mm vs nominal={self.nominal_pitch_radius:.2f}mm")
 
         # The curvature radius (how much the hourglass curves) matches wheel pitch
@@ -150,7 +156,7 @@ class GloboidWormGeometry:
             verbose: If True, also print to console. If False, only call callback.
         """
         if verbose:
-            print(message)
+            logger.info(message)
         if self.progress_callback:
             try:
                 self.progress_callback(message, percent)
@@ -303,7 +309,7 @@ class GloboidWormGeometry:
             if cut_top.IsDone():
                 worm_shape = cut_top.Shape()
             else:
-                print(f"    WARNING: Top cut failed, keeping extended geometry")
+                logger.warning(f"Top cut failed, keeping extended geometry")
 
             # Create bottom cutting box (remove everything below -half_length)
             bottom_cut_box = Box(
@@ -322,12 +328,12 @@ class GloboidWormGeometry:
             if cut_bottom.IsDone():
                 worm = Part(cut_bottom.Shape())
             else:
-                print(f"    WARNING: Bottom cut failed, using partial trim")
+                logger.warning(f"Bottom cut failed, using partial trim")
                 worm = Part(worm_shape)
 
         except Exception as e:
-            print(f"    ERROR during cutting: {e}")
-            print(f"    Keeping extended worm (no trim)")
+            logger.error(f"during cutting: {e}")
+            logger.info(f"Keeping extended worm (no trim)")
 
         return worm
 
@@ -502,8 +508,8 @@ class GloboidWormGeometry:
         root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
 
-        print(f"      Thread {start_index}: pitch_r={pitch_radius:.2f}, "
-              f"tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
+        logger.debug(f"Thread {start_index}: pitch_r={pitch_radius:.2f}, "
+                     f"tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
 
         # Thread profile dimensions (same as cylindrical worm)
         pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
@@ -525,12 +531,14 @@ class GloboidWormGeometry:
         # Use extended_length for section calculation
         num_turns = self.extended_length / lead
         num_sections = int(num_turns * self.sections_per_turn) + 1
+        # Ensure at least 2 sections for loft operations (division by num_sections - 1)
+        num_sections = max(2, num_sections)
         sections = []
 
         # Thread end taper: ramp down thread depth over ~1 lead at each end
         taper_length = lead  # Taper zone length at each end
 
-        print(f"      Creating {num_sections} profile sections with end tapering...")
+        logger.info(f"  Creating {num_sections} profile sections with end tapering...")
 
         for i in range(num_sections):
             t = i / (num_sections - 1)
@@ -579,17 +587,19 @@ class GloboidWormGeometry:
             local_tip_radius = local_pitch_radius + local_addendum
             local_root_radius = local_pitch_radius - local_dedendum
 
-            # IMPORTANT: Ensure thread root never goes above core radius
-            # Clamp the thread root to stay at or below the core radius to prevent gaps
-            local_root_radius = min(local_root_radius, root_radius)
+            # Validate profile is meaningful (avoid degenerate profiles)
+            profile_height = local_addendum + local_dedendum
+            if profile_height < 0.1:  # Less than 0.1mm - skip degenerate section
+                continue
 
             # Profile coordinates relative to local pitch radius
-            inner_r = local_root_radius - local_pitch_radius
-            outer_r = local_tip_radius - local_pitch_radius
+            # inner_r is negative (below pitch), outer_r is positive (above pitch)
+            inner_r = -local_dedendum
+            outer_r = local_addendum
 
-            # Apply taper factor to thread width as well
-            local_thread_half_width_root = thread_half_width_root * taper_factor
-            local_thread_half_width_tip = thread_half_width_tip * taper_factor
+            # Apply taper factor to thread width with minimum to avoid zero-width profiles
+            local_thread_half_width_root = max(0.05, thread_half_width_root * taper_factor)
+            local_thread_half_width_tip = max(0.05, thread_half_width_tip * taper_factor)
 
             # Create filled profile based on profile type
             with BuildSketch(profile_plane) as sk:
@@ -675,13 +685,13 @@ class GloboidWormGeometry:
             sections.append(sk.sketch.faces()[0])
 
         # Loft into solid thread (same as cylindrical worm)
-        print(f"      Lofting {len(sections)} sections...")
+        logger.info(f"  Lofting {len(sections)} sections...")
         try:
             thread = loft(sections, ruled=True)
-            print(f"      ✓ Thread lofted successfully")
+            logger.debug(f"Thread lofted successfully")
             return thread
         except Exception as e:
-            print(f"      ✗ Loft failed: {e}")
+            logger.warning(f"Loft failed: {e}")
             return None
 
     def export_step(self, filename: str):
@@ -694,11 +704,11 @@ class GloboidWormGeometry:
         if self._part is None:
             raise ValueError("Geometry not built yet. Call build() first.")
 
-        print(f"    Exporting globoid worm: volume={self._part.volume:.2f} mm³")
+        logger.info(f"Exporting globoid worm: volume={self._part.volume:.2f} mm³")
         if hasattr(self._part, 'export_step'):
             self._part.export_step(filename)
         else:
             from build123d import export_step as exp_step
             exp_step(self._part, filename)
 
-        print(f"Exported globoid worm to {filename}")
+        logger.info(f"Exported globoid worm to {filename}")

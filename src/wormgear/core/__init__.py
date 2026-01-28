@@ -26,41 +26,51 @@ Example:
     >>> part.export_step("worm.step")
 """
 
-# Geometry classes
-from .worm import WormGeometry
-from .wheel import WheelGeometry
-from .globoid_worm import GloboidWormGeometry
-from .virtual_hobbing import VirtualHobbingWheelGeometry, HOBBING_PRESETS, get_hobbing_preset, get_preset_steps
+# Bore sizing is always available (no build123d dependency)
+from .bore_sizing import calculate_default_bore
 
-# Features
-from .features import (
-    BoreFeature,
-    KeywayFeature,
-    DDCutFeature,
-    SetScrewFeature,
-    HubFeature,
-    calculate_default_bore,
-    calculate_default_ddcut,
-    get_din_6885_keyway,
-)
+# Geometry classes require build123d - make import conditional
+# This allows calculator (in Pyodide) to import core.bore_sizing without build123d
+try:
+    from .worm import WormGeometry
+    from .wheel import WheelGeometry
+    from .globoid_worm import GloboidWormGeometry
+    from .virtual_hobbing import VirtualHobbingWheelGeometry, HOBBING_PRESETS, get_hobbing_preset, get_preset_steps
 
-__all__ = [
-    # Geometry classes
-    "WormGeometry",
-    "WheelGeometry",
-    "GloboidWormGeometry",
-    "VirtualHobbingWheelGeometry",
-    "HOBBING_PRESETS",
-    "get_hobbing_preset",
-    "get_preset_steps",
+    # Features (also require build123d)
+    from .features import (
+        BoreFeature,
+        KeywayFeature,
+        DDCutFeature,
+        SetScrewFeature,
+        HubFeature,
+        calculate_default_ddcut,
+        get_din_6885_keyway,
+    )
 
-    # Features
-    "BoreFeature",
-    "KeywayFeature",
-    "DDCutFeature",
-    "SetScrewFeature",
-    "HubFeature",
-    "calculate_default_bore",
-    "calculate_default_ddcut",
-    "get_din_6885_keyway",
-]
+    __all__ = [
+        # Geometry classes
+        "WormGeometry",
+        "WheelGeometry",
+        "GloboidWormGeometry",
+        "VirtualHobbingWheelGeometry",
+        "HOBBING_PRESETS",
+        "get_hobbing_preset",
+        "get_preset_steps",
+
+        # Features
+        "BoreFeature",
+        "KeywayFeature",
+        "DDCutFeature",
+        "SetScrewFeature",
+        "HubFeature",
+        "calculate_default_bore",
+        "calculate_default_ddcut",
+        "get_din_6885_keyway",
+    ]
+except ImportError:
+    # build123d not available (e.g., in Pyodide calculator without geometry)
+    # Only expose bore_sizing functions
+    __all__ = [
+        "calculate_default_bore",
+    ]

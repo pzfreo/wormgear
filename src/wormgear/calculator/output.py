@@ -12,7 +12,7 @@ from typing import Optional, TYPE_CHECKING
 
 from ..io import WormGearDesign
 from ..io.schema import SCHEMA_VERSION
-from .bore_calculator import calculate_default_bore
+from ..core.bore_sizing import calculate_default_bore
 
 
 def _model_to_dict(model) -> dict:

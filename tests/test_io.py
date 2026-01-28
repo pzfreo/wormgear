@@ -382,3 +382,169 @@ class TestProfileJsonSerialization:
         assert loaded.features.wheel.bore_type.value == "custom"
         assert loaded.features.wheel.hub is not None
         assert loaded.features.wheel.hub.type == "extended"
+
+
+class TestSchemaMigration:
+    """Tests for schema version detection and migration."""
+
+    def test_detect_schema_version_explicit(self):
+        """Test detecting explicit schema version."""
+        from wormgear.io.schema import detect_schema_version
+
+        data = {"schema_version": "2.0", "worm": {}}
+        assert detect_schema_version(data) == "2.0"
+
+        data = {"schema_version": "1.0", "worm": {}}
+        assert detect_schema_version(data) == "1.0"
+
+    def test_detect_schema_version_heuristics(self):
+        """Test detecting schema version via heuristics."""
+        from wormgear.io.schema import detect_schema_version
+
+        # Has features section -> 2.0
+        data = {"worm": {}, "features": {"worm": {}}}
+        assert detect_schema_version(data) == "2.0"
+
+        # No features, no version -> 1.0
+        data = {"worm": {}}
+        assert detect_schema_version(data) == "1.0"
+
+    def test_upgrade_schema_no_change_needed(self):
+        """Test upgrade_schema when already at target version."""
+        from wormgear.io.schema import upgrade_schema
+
+        data = {
+            "schema_version": "2.0",
+            "worm": {},
+            "wheel": {},
+            "assembly": {},
+            "features": {"worm": {"bore_type": "auto"}}
+        }
+
+        result = upgrade_schema(data, "2.0")
+        assert result["schema_version"] == "2.0"
+        assert result["features"]["worm"]["bore_type"] == "auto"
+
+    def test_upgrade_schema_migrates_features(self):
+        """Test that features in manufacturing are migrated to features section."""
+        from wormgear.io.schema import upgrade_schema
+
+        old_data = {
+            "schema_version": "1.0",
+            "worm": {},
+            "wheel": {},
+            "assembly": {},
+            "manufacturing": {
+                "profile": "ZA",
+                "worm_features": {"bore_type": "custom", "bore_diameter_mm": 8.0},
+                "wheel_features": {"bore_type": "auto"}
+            }
+        }
+
+        migrated = upgrade_schema(old_data, "2.0")
+
+        # Features should be in features section
+        assert "features" in migrated
+        assert migrated["features"]["worm"]["bore_type"] == "custom"
+        assert migrated["features"]["worm"]["bore_diameter_mm"] == 8.0
+        assert migrated["features"]["wheel"]["bore_type"] == "auto"
+
+        # worm_features and wheel_features should be removed from manufacturing
+        assert "worm_features" not in migrated.get("manufacturing", {})
+        assert "wheel_features" not in migrated.get("manufacturing", {})
+
+        # profile should remain in manufacturing
+        assert migrated["manufacturing"]["profile"] == "ZA"
+
+    def test_upgrade_schema_normalizes_hand(self):
+        """Test that hand enum values are normalized to lowercase."""
+        from wormgear.io.schema import upgrade_schema
+
+        old_data = {
+            "schema_version": "1.0",
+            "worm": {"hand": "RIGHT"},
+            "wheel": {},
+            "assembly": {"hand": "LEFT"}
+        }
+
+        migrated = upgrade_schema(old_data, "2.0")
+
+        assert migrated["worm"]["hand"] == "right"
+        assert migrated["assembly"]["hand"] == "left"
+
+    def test_upgrade_schema_normalizes_profile(self):
+        """Test that profile enum values are normalized to uppercase."""
+        from wormgear.io.schema import upgrade_schema
+
+        old_data = {
+            "schema_version": "1.0",
+            "worm": {},
+            "wheel": {},
+            "assembly": {},
+            "manufacturing": {"profile": "za"}
+        }
+
+        migrated = upgrade_schema(old_data, "2.0")
+
+        assert migrated["manufacturing"]["profile"] == "ZA"
+
+    def test_upgrade_schema_preserves_existing_features(self):
+        """Test that existing features section is not overwritten."""
+        from wormgear.io.schema import upgrade_schema
+
+        old_data = {
+            "schema_version": "1.0",
+            "worm": {},
+            "wheel": {},
+            "assembly": {},
+            "features": {"worm": {"bore_type": "custom", "bore_diameter_mm": 10.0}},
+            "manufacturing": {
+                "worm_features": {"bore_type": "auto"}  # Should not overwrite
+            }
+        }
+
+        migrated = upgrade_schema(old_data, "2.0")
+
+        # Original features should be preserved (not overwritten)
+        assert migrated["features"]["worm"]["bore_type"] == "custom"
+        assert migrated["features"]["worm"]["bore_diameter_mm"] == 10.0
+
+    def test_upgrade_schema_rejects_downgrade(self):
+        """Test that downgrading schema raises an error."""
+        from wormgear.io.schema import upgrade_schema
+
+        data = {"schema_version": "3.0", "worm": {}}
+
+        with pytest.raises(ValueError, match="Cannot downgrade"):
+            upgrade_schema(data, "2.0")
+
+    def test_validate_schema_version_supported(self):
+        """Test that supported versions pass validation."""
+        from wormgear.io.schema import validate_schema_version
+
+        assert validate_schema_version({"schema_version": "1.0"}) is True
+        assert validate_schema_version({"schema_version": "2.0"}) is True
+
+    def test_validate_schema_version_unsupported(self):
+        """Test that unsupported versions fail validation."""
+        from wormgear.io.schema import validate_schema_version
+
+        # Version 0.5 (too old) - but actually our MIN_SUPPORTED is 1.0
+        # and detect_schema_version defaults to 1.0, so this will pass
+        # Let's test a version that would be detected as newer
+        # Actually validate_schema_version checks against max supported too
+        assert validate_schema_version({"schema_version": "99.0"}) is False
+
+    def test_manufacturing_params_ignores_old_feature_fields(self):
+        """Test that ManufacturingParams ignores worm_features/wheel_features."""
+        # This verifies that old JSON with these fields can still be loaded
+        # without errors (they're just ignored due to extra='ignore')
+        params = ManufacturingParams(
+            profile="ZA",
+            worm_features={"bore_type": "auto"},  # Should be ignored
+            wheel_features={"bore_type": "auto"}  # Should be ignored
+        )
+
+        # The fields should not exist on the model
+        assert not hasattr(params, 'worm_features') or params.worm_features is None
+        assert not hasattr(params, 'wheel_features') or params.wheel_features is None

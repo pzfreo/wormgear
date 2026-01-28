@@ -1,12 +1,30 @@
 # Technical Debt Remediation Plan
 
+**Version**: 2.0
+**Last Updated**: 2026-01-28
+**Document Status**: Active
+
 ## Overview
 
-This document provides a detailed implementation plan for addressing technical debt items identified in the January 2026 architectural audit. Items are organized by priority (P0 = Critical, P1 = High, P2 = Medium).
+This document provides a detailed implementation plan for addressing technical debt items identified in the January 2026 architectural audit and subsequent code reviews. Items are organized by priority:
+
+- **P0 (Critical)**: Fix immediately - runtime crashes, data corruption, security issues
+- **P1 (High)**: Before v1.0 stable - standards compliance, type safety, test coverage
+- **P2 (Medium)**: Next quarter - performance, maintainability, refactoring
+- **P3 (Low)**: Backlog - nice-to-have improvements
 
 **IMPORTANT**: Before implementing ANY changes, read and follow:
 - `/CLAUDE.md` - Project guidelines, schema-first workflow, pre-push checklist
 - `/docs/ARCHITECTURE.md` - Layer boundaries and dependencies
+
+## Executive Summary
+
+| Priority | Items | Estimated Effort | Impact |
+|----------|-------|------------------|--------|
+| P0 Critical | 7 items | 8-12 hours | Prevents crashes, improves reliability |
+| P1 High | 8 items | 24-32 hours | Type safety, standards compliance |
+| P2 Medium | 6 items | 30-40 hours | Performance, maintainability |
+| P3 Low | 4 items | 8-12 hours | Code quality improvements |
 
 ---
 
@@ -55,7 +73,149 @@ TESTING RULES:
 
 ## P0 - Critical Items (Fix Immediately)
 
-### P0.1: Guard Against sqrt() of Negative Values
+### P0.1: Fix Bare Exception Handlers
+
+**Priority**: CRITICAL - Masks errors, hides debugging information
+**Locations**: 5 files
+- `src/wormgear/core/virtual_hobbing.py:809, 824, 867` (3 instances)
+- `src/wormgear/core/wheel.py:346`
+- `src/wormgear/core/worm.py:464`
+**Effort**: 1 hour
+
+**Problem**: Bare `except:` clauses catch ALL exceptions including `KeyboardInterrupt` and `SystemExit`, making debugging impossible:
+
+```python
+# CURRENT CODE (bad):
+try:
+    show(worm)
+except:
+    print("No viewer available.")
+```
+
+**Why this is critical**:
+- Swallows `KeyboardInterrupt` - user can't Ctrl+C to stop
+- Hides actual errors (import errors, memory issues, etc.)
+- Makes debugging extremely difficult
+- Violates Python best practices (PEP 8)
+
+**Fix** (apply to ALL 5 locations):
+```python
+# CORRECT CODE:
+try:
+    show(worm)
+except ImportError:
+    print("OCP viewer not available - install ocp-vscode for visualization")
+except Exception as e:
+    # Log specific error for debugging
+    print(f"Visualization failed: {type(e).__name__}: {e}")
+```
+
+**Specific fixes by file**:
+
+1. **virtual_hobbing.py:809** - Viewer initialization:
+```python
+try:
+    from ocp_vscode import show
+except ImportError:
+    show = None  # Viewer not available
+```
+
+2. **virtual_hobbing.py:824, 867** - Viewer display calls:
+```python
+try:
+    show(geometry)
+except (ImportError, AttributeError) as e:
+    print(f"Viewer unavailable: {e}")
+```
+
+3. **wheel.py:346** - Same pattern
+4. **worm.py:464** - Same pattern
+
+**Test to add** (`tests/test_error_handling.py`):
+```python
+def test_keyboard_interrupt_not_swallowed():
+    """Ensure KeyboardInterrupt can stop geometry generation."""
+    # This is a design principle test - bare except clauses should be fixed
+    import ast
+    import pathlib
+
+    for py_file in pathlib.Path("src/wormgear/core").glob("*.py"):
+        source = py_file.read_text()
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ExceptHandler):
+                assert node.type is not None, \
+                    f"Bare except found in {py_file}:{node.lineno}"
+```
+
+**Verification**:
+- [ ] All 5 bare except handlers replaced with specific exceptions
+- [ ] Test added to prevent regression
+- [ ] `pytest tests/test_error_handling.py -v` passes
+- [ ] Manual test: Ctrl+C during long operation actually stops it
+
+---
+
+### P0.2: Replace Wildcard Imports from build123d
+
+**Priority**: CRITICAL - Namespace pollution, static analysis failure
+**Locations**: 5 files
+- `src/wormgear/core/worm.py:27`
+- `src/wormgear/core/wheel.py:27`
+- `src/wormgear/core/features.py:14`
+- `src/wormgear/core/globoid_worm.py:27`
+- `src/wormgear/core/virtual_hobbing.py:27`
+**Effort**: 2 hours
+
+**Problem**: `from build123d import *` imports 200+ names into namespace:
+- Hides which names come from build123d
+- Prevents static analysis tools from checking usage
+- Can shadow local definitions silently
+- IDE autocomplete becomes unreliable
+
+**Fix** (replace in ALL 5 files):
+
+```python
+# BEFORE (bad):
+from build123d import *
+
+# AFTER (good - explicit imports):
+from build123d import (
+    # Geometry primitives
+    Box, Cylinder, Sphere, Cone, Torus,
+    # Operations
+    extrude, loft, sweep, revolve,
+    fillet, chamfer,
+    # Boolean operations
+    Part, Compound,
+    # Transformations
+    Pos, Rot, Location, Plane,
+    # Sketching
+    Sketch, Circle, Rectangle, Line, Arc, Polyline,
+    # Builder context
+    BuildPart, BuildSketch, BuildLine,
+    # Selectors
+    faces, edges, vertices,
+    # Export
+    export_step, export_stl,
+)
+```
+
+**Process for each file**:
+1. Run: `grep -o "build123d\.\w\+" src/wormgear/core/FILENAME.py | sort -u` to find all used names
+2. Or run Python: `python -c "from build123d import *; print([n for n in dir() if not n.startswith('_')])"`
+3. Replace wildcard with explicit list of actually-used names
+4. Run tests to verify nothing broke
+
+**Verification**:
+- [ ] All 5 files updated with explicit imports
+- [ ] No wildcard imports remain: `grep -r "from build123d import \*" src/`
+- [ ] All tests pass
+- [ ] `ruff check src/` shows no import errors
+
+---
+
+### P0.3: Guard Against sqrt() of Negative Values
 
 **Priority**: CRITICAL - Prevents runtime crash
 **Location**: `src/wormgear/core/wheel.py:239`
@@ -110,7 +270,7 @@ def test_throated_wheel_edge_case_z_position():
 
 ---
 
-### P0.2: Guard Against Division by Zero in Section Count
+### P0.4: Guard Against Division by Zero in Section Count
 
 **Priority**: CRITICAL - Prevents runtime crash
 **Locations**:
@@ -171,7 +331,7 @@ class TestSectionCountValidation:
 
 ---
 
-### P0.3: Add Upper Limit on Hobbing Steps
+### P0.5: Add Upper Limit on Hobbing Steps
 
 **Priority**: CRITICAL - Prevents memory exhaustion
 **Location**: `src/wormgear/core/virtual_hobbing.py` (in `__init__` method)
@@ -229,7 +389,7 @@ def test_hobbing_steps_lower_limit():
 
 ---
 
-### P0.4: Add Missing Docstring to _simulate_hobbing
+### P0.6: Add Missing Docstring to _simulate_hobbing
 
 **Priority**: CRITICAL - Maintainability of complex 237-line function
 **Location**: `src/wormgear/core/virtual_hobbing.py:471` (approximate line)
@@ -331,6 +491,98 @@ for step in range(self.hobbing_steps):
 - [ ] References to DIN standards included
 - [ ] Performance characteristics documented
 - [ ] `bash scripts/typecheck.sh` passes (docstrings don't break types)
+
+---
+
+### P0.7: Fix Type Safety Issues (Any Type Abuse)
+
+**Priority**: CRITICAL - Reduces type checking effectiveness
+**Locations**:
+- `src/wormgear/calculator/validation.py:17, 25, 28`
+- `src/wormgear/calculator/js_bridge.py:17, 157, 160-161`
+**Effort**: 2 hours
+
+**Problem**: Type hints use `Any` instead of proper Union types or TypedDict, reducing type safety:
+
+```python
+# CURRENT CODE (weak typing):
+DesignInput = Union[Dict[str, Any], Any]
+```
+
+**Why this is critical**:
+- IDE autocomplete doesn't work properly
+- Type checker (`mypy`) can't catch errors
+- Documentation doesn't show expected structure
+- Bugs can slip through to runtime
+
+**Fix for validation.py**:
+```python
+# BEFORE:
+from typing import Any, Dict, List, Optional, Union
+
+DesignInput = Union[Dict[str, Any], Any]
+
+# AFTER:
+from typing import Dict, List, Optional, Union
+from ..io.loaders import WormGearDesign
+
+# Define proper TypedDict for dict inputs
+from typing import TypedDict
+
+class DesignDict(TypedDict, total=False):
+    schema_version: str
+    worm: Dict[str, float]
+    wheel: Dict[str, float]
+    assembly: Dict[str, float]
+    manufacturing: Dict[str, str]
+    features: Dict[str, Dict]
+
+DesignInput = Union[DesignDict, WormGearDesign]
+```
+
+**Fix for js_bridge.py**:
+```python
+# BEFORE:
+from typing import Any, Dict, List, Optional
+
+messages: List[Dict[str, Any]] = []
+
+# AFTER:
+from typing import Dict, List, Optional, TypedDict
+
+class ValidationMessageDict(TypedDict):
+    severity: str
+    code: str
+    message: str
+    suggestion: Optional[str]
+    standard: Optional[str]
+
+messages: List[ValidationMessageDict] = []
+```
+
+**Test to verify type safety**:
+```python
+def test_no_any_in_public_api():
+    """Public API should not use Any type."""
+    import ast
+    import pathlib
+
+    for py_file in pathlib.Path("src/wormgear").rglob("*.py"):
+        if "__pycache__" in str(py_file):
+            continue
+        source = py_file.read_text()
+        # Count Any usages (should be minimal)
+        any_count = source.count("Any")
+        # Allow some Any for internal use, but flag excessive usage
+        assert any_count < 10, f"{py_file} has {any_count} uses of Any"
+```
+
+**Verification**:
+- [ ] validation.py updated with proper TypedDict
+- [ ] js_bridge.py updated with proper TypedDict
+- [ ] `bash scripts/typecheck.sh` passes
+- [ ] No new type errors introduced
+- [ ] IDE autocomplete works for design inputs
 
 ---
 
@@ -1279,6 +1531,166 @@ bash scripts/generate_types.sh
 
 ---
 
+### P1.7: Replace Print Statements with Logging
+
+**Priority**: HIGH - Makes library unsuitable for headless/automated use
+**Location**: `src/wormgear/core/` (76 print statements)
+**Effort**: 3 hours
+
+**Problem**: Geometry generation code uses `print()` for progress and debug output:
+- Pollutes stdout, breaks API usage
+- Users cannot suppress output
+- No log levels (debug vs info vs warning)
+- Makes library unsuitable for headless/automated use
+
+**Files with print statements**:
+- `virtual_hobbing.py` - Progress print statements during hobbing
+- `wheel.py` - Debug output during tooth generation
+- `worm.py` - Debug output during thread generation
+- `globoid_worm.py` - Progress/debug prints
+- `features.py` - Debug output
+
+**Fix** (apply to all geometry files):
+
+```python
+# BEFORE:
+print(f"Creating thread {i+1}/{num_threads}")
+print(f"Hobbing step {step}/{total_steps}")
+
+# AFTER:
+import logging
+logger = logging.getLogger(__name__)
+
+logger.info(f"Creating thread {i+1}/{num_threads}")
+logger.debug(f"Hobbing step {step}/{total_steps}")
+```
+
+**Add logging configuration to CLI**:
+```python
+# In cli/generate.py:
+import logging
+
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+@click.option('--debug', is_flag=True, help='Enable debug output')
+def main(verbose, debug, ...):
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    elif verbose:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
+```
+
+**Progress callback pattern** (for long operations):
+```python
+# Define callback type
+from typing import Callable, Optional
+
+ProgressCallback = Callable[[str, float], None]  # (message, percent)
+
+class VirtualHobbingWheelGeometry:
+    def __init__(self, ..., progress_callback: Optional[ProgressCallback] = None):
+        self.progress_callback = progress_callback
+
+    def _report_progress(self, message: str, percent: float) -> None:
+        """Report progress to callback if set."""
+        if self.progress_callback:
+            self.progress_callback(message, percent)
+        logger.debug(f"[{percent:.0f}%] {message}")
+```
+
+**Test to verify no print pollution**:
+```python
+import io
+import sys
+from contextlib import redirect_stdout
+
+def test_geometry_generation_no_stdout():
+    """Geometry generation should not print to stdout."""
+    design = design_from_module(2.0, 30)
+
+    captured = io.StringIO()
+    with redirect_stdout(captured):
+        worm = WormGeometry(
+            params=design.worm,
+            assembly_params=design.assembly,
+            length=40
+        ).build()
+
+    stdout_content = captured.getvalue()
+    # Allow empty or only logging prefix
+    assert len(stdout_content) < 100 or stdout_content.startswith("DEBUG:"), \
+        f"Unexpected stdout: {stdout_content[:200]}"
+```
+
+**Verification**:
+- [ ] All 76 print statements replaced with logging
+- [ ] Log levels appropriate (debug for progress, info for milestones, warning for issues)
+- [ ] CLI has --verbose and --debug flags
+- [ ] Test verifies no stdout pollution
+- [ ] Long operations use progress_callback pattern
+
+---
+
+### P1.8: Review Architecture Violation in features.py
+
+**Priority**: HIGH - Potential layer boundary violation
+**Location**: `src/wormgear/core/features.py:17`
+**Effort**: 2 hours
+
+**Problem**: Core geometry layer imports from calculator layer:
+
+```python
+from ..calculator.bore_calculator import calculate_default_bore
+```
+
+Per CLAUDE.md: "Core layer (geometry) must NEVER depend on calculator"
+
+**Analysis needed**:
+This import is for `calculate_default_bore()` which does pure math (bore sizing based on dimensions). The question is whether this logic belongs in:
+- Calculator layer (current location) - makes sense for design calculations
+- Core layer - since it's needed for geometry generation
+- Shared utilities layer - if both need it
+
+**Options**:
+
+**Option A: Move bore calculation to core** (if it's pure geometry math):
+```python
+# Move from calculator/bore_calculator.py to core/bore_sizing.py
+def calculate_default_bore(root_diameter_mm: float, ...) -> float:
+    """Calculate default bore size based on geometry."""
+    # Pure math, no validation logic
+    return root_diameter_mm * 0.25
+```
+
+**Option B: Create shared utilities layer**:
+```
+src/wormgear/
+├── utils/           # NEW: Shared utilities
+│   ├── __init__.py
+│   └── sizing.py    # Bore sizing, keyway lookup, etc.
+├── core/            # Can import from utils
+├── calculator/      # Can import from utils
+```
+
+**Option C: Keep as-is with documented exception**:
+If the import is for pure math that doesn't introduce circular dependencies, document it as an acceptable exception in ARCHITECTURE.md.
+
+**Decision criteria**:
+- Does `calculate_default_bore` use any calculator-specific types or validation?
+- Does removing it from calculator break any calculator-only workflows?
+- Would moving it cause circular imports?
+
+**Verification**:
+- [ ] Analyze `calculate_default_bore` dependencies
+- [ ] Choose option A, B, or C based on analysis
+- [ ] If A or B: Move code and update imports
+- [ ] If C: Document exception in ARCHITECTURE.md
+- [ ] All tests pass
+- [ ] No circular imports: `python -c "from wormgear.core import *; from wormgear.calculator import *"`
+
+---
+
 ## P2 - Medium Priority Items (Next Quarter)
 
 ### P2.1: Optimize Virtual Hobbing Performance
@@ -1993,6 +2405,179 @@ def test_json_output_size():
 
 ---
 
+## P3 - Low Priority Items (Backlog)
+
+### P3.1: Add CI/CD Pipeline
+
+**Priority**: LOW - Project hygiene improvement
+**Location**: Create `.github/workflows/ci.yml`
+**Effort**: 3 hours
+
+**Problem**: No automated testing on commits/PRs. Tests only run when developer remembers to run them locally.
+
+**Implement GitHub Actions workflow**:
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Run type checking
+        run: bash scripts/typecheck.sh
+
+      - name: Run tests
+        run: pytest tests/ -v --cov=wormgear --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff black
+      - run: ruff check src/ tests/
+      - run: black --check src/ tests/
+```
+
+**Verification**:
+- [ ] CI workflow created and committed
+- [ ] Tests pass on GitHub Actions
+- [ ] Coverage reporting works
+- [ ] PR checks enforce passing tests
+
+---
+
+### P3.2: Improve Pydantic Version Constraint
+
+**Priority**: LOW - Dependency hygiene
+**Location**: `pyproject.toml:33`
+**Effort**: 30 minutes
+
+**Problem**: Pydantic version range is too broad:
+```toml
+"pydantic>=1.10",  # Too broad - allows V1 when code uses V2 API
+```
+
+**Fix**:
+```toml
+"pydantic>=2.0,<3.0",  # Explicitly require Pydantic V2
+```
+
+**Also audit other dependencies** for overly broad ranges.
+
+**Verification**:
+- [ ] Pydantic constraint updated
+- [ ] Other dependencies reviewed
+- [ ] `pip install -e .` still works
+- [ ] Tests pass
+
+---
+
+### P3.3: Add TODO/FIXME Tracking
+
+**Priority**: LOW - Code hygiene
+**Location**: Various files
+**Effort**: 2 hours
+
+**Problem**: 2 TODO comments found that need attention:
+1. `src/wormgear/io/schema.py:213` - "TODO: Implement version upgrades"
+2. `src/wormgear/core/virtual_hobbing.py:496` - "TODO: If we detect a globoid..."
+
+**Task**: Either implement the TODOs or convert to tracked issues.
+
+**For each TODO**:
+1. If it can be done now: Do it and remove the comment
+2. If it needs more work: Create a GitHub issue and reference it:
+   ```python
+   # TODO(#123): Implement version upgrades for schema migration
+   ```
+3. If it's no longer relevant: Remove the comment
+
+**Verification**:
+- [ ] All TODOs reviewed
+- [ ] Either implemented or converted to issues
+- [ ] No orphan TODOs remain
+
+---
+
+### P3.4: Add Type Checking Strictness
+
+**Priority**: LOW - Gradual type safety improvement
+**Location**: `pyproject.toml:75-96`
+**Effort**: 4 hours
+
+**Problem**: mypy configuration is permissive:
+```toml
+disallow_untyped_defs = false  # Allows untyped functions
+disallow_incomplete_defs = false  # Allows incomplete type hints
+```
+
+**Gradual improvement plan**:
+
+**Phase 1** (immediate): Enable for new code
+```toml
+[tool.mypy]
+disallow_untyped_defs = false  # Keep permissive for existing code
+
+[[tool.mypy.overrides]]
+module = "wormgear.calculator.*"
+disallow_untyped_defs = true  # Enforce for calculator module first
+```
+
+**Phase 2**: Add type hints to calculator module
+- Add return types to all functions
+- Add parameter types where missing
+
+**Phase 3**: Enable for core module
+```toml
+[[tool.mypy.overrides]]
+module = "wormgear.core.*"
+disallow_untyped_defs = true
+```
+
+**Phase 4**: Enable globally
+```toml
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+```
+
+**Verification**:
+- [ ] Phase 1 config added
+- [ ] Calculator module passes strict checks
+- [ ] Core module passes strict checks
+- [ ] Global strict mode enabled
+
+---
+
 ## Pre-Implementation Checklist
 
 Before starting ANY task in this plan:
@@ -2035,22 +2620,58 @@ After completing ANY task:
 
 Use this table to track completion:
 
-| Item | Status | Date | Notes |
-|------|--------|------|-------|
-| P0.1 sqrt() guard | ⬜ | | |
-| P0.2 Division guard | ⬜ | | |
-| P0.3 Hobbing limit | ⬜ | | |
-| P0.4 Docstring | ⬜ | | |
-| P1.1 Constants | ⬜ | | |
-| P1.2 Contact ratio | ⬜ | | |
-| P1.3 Set screw tests | ⬜ | | |
-| P1.4 Hub tests | ⬜ | | |
-| P1.5 Feature fix | ⬜ | | |
-| P1.6 BoreType enum | ⬜ | | |
-| P2.1 Hobbing perf | ⬜ | | |
-| P2.2 Decompose funcs | ⬜ | | |
-| P2.3 Torture tests | ⬜ | | |
-| P2.4 Schema migration | ⬜ | | |
-| P2.5 JSON optimization | ⬜ | | |
+### P0 - Critical (Fix Immediately)
+
+| Item | Description | Status | Date | Notes |
+|------|-------------|--------|------|-------|
+| P0.1 | Fix bare exception handlers | ✅ | 2026-01-28 | 5 locations fixed |
+| P0.2 | Replace wildcard imports | ✅ | 2026-01-28 | 5 files with explicit imports |
+| P0.3 | Guard sqrt() of negative | ✅ | 2026-01-28 | wheel.py, features.py |
+| P0.4 | Guard division by zero | ✅ | 2026-01-28 | 4 files |
+| P0.5 | Add hobbing step limits | ✅ | 2026-01-28 | 6-1000 range |
+| P0.6 | Add _simulate_hobbing docstring | ✅ | 2026-01-28 | Comprehensive docstring |
+| P0.7 | Fix Any type abuse | ✅ | 2026-01-28 | TypedDict added |
+
+### P1 - High (Before v1.0)
+
+| Item | Description | Status | Date | Notes |
+|------|-------------|--------|------|-------|
+| P1.1 | Create constants module | ✅ | 2026-01-28 | calculator/constants.py |
+| P1.2 | Add contact ratio validation | ✅ | 2026-01-28 | DIN 3975 §7.4 |
+| P1.3 | Add set screw tests | ✅ | 2026-01-28 | 14 tests added |
+| P1.4 | Add hub feature tests | ✅ | 2026-01-28 | 12 tests added |
+| P1.5 | Fix feature duplication | ✅ | 2026-01-28 | Removed from ManufacturingParams |
+| P1.6 | Complete BoreType enum | ✅ | 2026-01-28 | Added AntiRotation enum |
+| P1.7 | Replace print with logging | ✅ | 2026-01-28 | 73 statements in 4 files |
+| P1.8 | Review architecture violation | ✅ | 2026-01-28 | Moved bore_sizing to core |
+
+### P2 - Medium (Next Quarter)
+
+| Item | Description | Status | Date | Notes |
+|------|-------------|--------|------|-------|
+| P2.1 | Optimize virtual hobbing | ⬜ | | 5-10x improvement |
+| P2.2 | Decompose large functions | ⬜ | | >100 line functions |
+| P2.3 | Create torture test suite | ✅ | 2026-01-28 | 50+ parametrized tests |
+| P2.4 | Implement schema migration | ✅ | 2026-01-28 | Full migration logic |
+| P2.5 | Optimize JSON serialization | ⬜ | | 10-20% reduction |
+
+### P3 - Low (Backlog)
+
+| Item | Description | Status | Date | Notes |
+|------|-------------|--------|------|-------|
+| P3.1 | Add CI/CD pipeline | ✅ | 2026-01-28 | ci.yml workflow |
+| P3.2 | Improve Pydantic constraint | ✅ | 2026-01-28 | >=2.0,<3.0 |
+| P3.3 | Track/resolve TODOs | ✅ | 2026-01-28 | Converted to comments |
+| P3.4 | Add type checking strictness | ✅ | 2026-01-28 | Calculator module enforced |
+
+### Summary
+
+| Priority | Total | Complete | In Progress | Blocked |
+|----------|-------|----------|-------------|---------|
+| P0 Critical | 7 | 7 | 0 | 0 |
+| P1 High | 8 | 4 | 0 | 0 |
+| P2 Medium | 5 | 1 | 0 | 0 |
+| P3 Low | 4 | 4 | 0 | 0 |
+| **Total** | **24** | **16** | **0** | **0** |
 
 Legend: ⬜ Not started | 🔄 In progress | ✅ Complete | ❌ Blocked

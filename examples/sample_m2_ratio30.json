@@ -1,0 +1,47 @@
+{
+  "worm": {
+    "module_mm": 2.0,
+    "num_starts": 1,
+    "pitch_diameter_mm": 16.288692855949186,
+    "tip_diameter_mm": 20.288692855949186,
+    "root_diameter_mm": 11.288692855949186,
+    "lead_mm": 6.283185307179586,
+    "lead_angle_deg": 7.000000000000001,
+    "addendum_mm": 2.0,
+    "dedendum_mm": 2.5,
+    "thread_thickness_mm": 3.141592653589793,
+    "hand": "right",
+    "profile_shift": 0.0,
+    "type": "cylindrical",
+    "throat_reduction_mm": null,
+    "throat_curvature_radius_mm": null
+  },
+  "wheel": {
+    "module_mm": 2.0,
+    "num_teeth": 30,
+    "pitch_diameter_mm": 60.0,
+    "tip_diameter_mm": 64.0,
+    "root_diameter_mm": 55.0,
+    "addendum_mm": 2.0,
+    "dedendum_mm": 2.5,
+    "profile_shift": 0.0,
+    "helix_angle_deg": 83.0,
+    "throat_diameter_mm": 64.0
+  },
+  "assembly": {
+    "centre_distance_mm": 38.1443464279746,
+    "pressure_angle_deg": 20.0,
+    "backlash_mm": 0.0,
+    "hand": "right",
+    "ratio": 30
+  },
+  "features": null,
+  "manufacturing": {
+    "profile": "ZA",
+    "virtual_hobbing": false,
+    "hobbing_steps": 18,
+    "worm_length_mm": 34.74,
+    "wheel_width_mm": 21.18
+  },
+  "schema_version": "2.0"
+}

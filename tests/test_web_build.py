@@ -32,6 +32,7 @@ REQUIRED_WASM_FILES = [
     "wormgear/core/features.py",
     "wormgear/core/globoid_worm.py",
     "wormgear/core/virtual_hobbing.py",
+    "wormgear/core/bore_sizing.py",
     # IO
     "wormgear/io/__init__.py",
     "wormgear/io/loaders.py",
@@ -41,7 +42,7 @@ REQUIRED_WASM_FILES = [
     "wormgear/calculator/core.py",
     "wormgear/calculator/validation.py",
     "wormgear/calculator/output.py",
-    "wormgear/calculator/bore_calculator.py",
+    "wormgear/calculator/constants.py",
     "wormgear/calculator/js_bridge.py",
     "wormgear/calculator/json_schema.py",
 ]

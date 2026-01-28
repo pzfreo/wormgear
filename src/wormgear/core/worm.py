@@ -4,9 +4,23 @@ Worm geometry generation using build123d.
 Creates CNC-ready worm geometry with helical threads.
 """
 
+import logging
 import math
 from typing import Optional, Literal
-from build123d import *
+
+from OCP.ShapeFix import ShapeFix_Shape, ShapeFix_Solid
+from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
+from OCP.BRepBuilderAPI import BRepBuilderAPI_Sewing, BRepBuilderAPI_MakeSolid
+from OCP.TopExp import TopExp_Explorer
+from OCP.TopAbs import TopAbs_SHELL, TopAbs_FACE
+from OCP.TopoDS import TopoDS
+
+logger = logging.getLogger(__name__)
+from build123d import (
+    Part, Cylinder, Box, Align, Pos, Axis, Vector, Plane,
+    BuildSketch, BuildLine, Line, Spline, make_face, loft, Helix,
+    export_step, import_step,
+)
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
@@ -88,17 +102,17 @@ class WormGeometry:
         lead = self.params.lead_mm
 
         # Create thread(s) first to determine helix extent
-        print(f"    Creating {self.params.num_starts} thread(s)...")
+        logger.info(f"Creating {self.params.num_starts} thread(s)...")
         threads = self._create_threads()
         if threads is None:
-            print("    WARNING: No threads created!")
+            logger.warning("No threads created!")
         else:
-            print(f"    ✓ Threads created")
+            logger.debug("Threads created successfully")
 
         # Create core slightly longer than final worm to match extended threads
         # We'll trim to exact length after union
         extended_length = self.length + 2 * lead  # Add lead on each end
-        print(f"    Creating core cylinder (radius={root_radius:.2f}mm, height={extended_length:.2f}mm)...")
+        logger.info(f"Creating core cylinder (radius={root_radius:.2f}mm, height={extended_length:.2f}mm)...")
         core = Cylinder(
             radius=root_radius,
             height=extended_length,
@@ -106,7 +120,7 @@ class WormGeometry:
         )
 
         if threads is not None:
-            print(f"    Unioning core with threads...")
+            logger.info("Unioning core with threads...")
             # Use OCP fuse for reliable boolean union
             from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
 
@@ -119,24 +133,24 @@ class WormGeometry:
 
                 if fuse_op.IsDone():
                     worm = Part(fuse_op.Shape())
-                    print(f"    ✓ OCP union complete")
+                    logger.debug("OCP union complete")
                 else:
-                    print(f"    WARNING: OCP union failed, using build123d operator")
+                    logger.warning("OCP union failed, using build123d operator")
                     worm = core + threads
             except Exception as e:
-                print(f"    WARNING: OCP union error ({e}), using build123d operator")
+                logger.warning(f"OCP union error ({e}), using build123d operator")
                 worm = core + threads
         else:
-            print(f"    No threads to union - using core only")
+            logger.info("No threads to union - using core only")
             worm = core
 
         # Trim to exact length - removes fragile tapered thread ends
-        print(f"    Trimming to final length ({self.length:.2f}mm)...")
+        logger.info(f"Trimming to final length ({self.length:.2f}mm)...")
 
         # Prepare trim dimensions
         trim_diameter = tip_radius * 4  # Large enough for cutting boxes
         half_length = self.length / 2
-        print(f"    Cutting at Z = ±{half_length:.2f}mm...")
+        logger.info(f"Cutting at Z = ±{half_length:.2f}mm...")
 
         from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 
@@ -159,9 +173,9 @@ class WormGeometry:
 
             if cut_top.IsDone():
                 worm_shape = cut_top.Shape()
-                print(f"    ✓ Top cut successful")
+                logger.debug("Top cut successful")
             else:
-                print(f"    WARNING: Top cut failed")
+                logger.warning("Top cut failed")
 
             # Create bottom cutting box (remove everything below -half_length)
             bottom_cut_box = Box(
@@ -179,16 +193,19 @@ class WormGeometry:
 
             if cut_bottom.IsDone():
                 worm = Part(cut_bottom.Shape())
-                print(f"    ✓ Bottom cut successful")
+                logger.debug("Bottom cut successful")
             else:
-                print(f"    WARNING: Bottom cut failed")
+                logger.warning("Bottom cut failed")
                 worm = Part(worm_shape)
 
         except Exception as e:
-            print(f"    ERROR during cutting: {e}")
-            print(f"    Keeping extended worm (no trim)")
+            logger.error(f"Error during cutting: {e}")
+            logger.info("Keeping extended worm (no trim)")
 
-        print(f"    ✓ Worm trimmed to length")
+        logger.debug("Worm trimmed to length")
+
+        # Repair geometry after complex boolean operations
+        worm = self._repair_geometry(worm)
 
         # Ensure we have a single Solid for proper display in ocp_vscode
         if hasattr(worm, 'solids'):
@@ -211,10 +228,118 @@ class WormGeometry:
                 axis=Axis.Z
             )
 
-        print(f"    ✓ Final worm volume: {worm.volume:.2f} mm³")
+        logger.debug(f"Final worm volume: {worm.volume:.2f} mm³")
         # Cache the built geometry
         self._part = worm
         return worm
+
+    def _repair_geometry(self, part: Part) -> Part:
+        """
+        Repair topology after complex boolean operations.
+
+        Multi-start worms with lower sections_per_turn can produce geometry
+        where OCP boolean operations create multiple shells. This method
+        uses multiple repair strategies:
+        1. Unify coincident faces
+        2. Sew faces into a single shell
+        3. Build solid from sewn shell
+        4. Apply ShapeFix to fix remaining issues
+        5. STEP export/reimport as last resort
+
+        Args:
+            part: Part to repair
+
+        Returns:
+            Repaired Part (or original if repair fails/unnecessary)
+        """
+        # If already valid, no repair needed
+        if part.is_valid:
+            return part
+
+        try:
+            shape = part.wrapped if hasattr(part, 'wrapped') else part
+
+            # First try: Unify faces that share the same underlying surface
+            unifier = ShapeUpgrade_UnifySameDomain(shape, True, True, True)
+            unifier.Build()
+            unified = unifier.Shape()
+
+            # Check if repair was sufficient
+            result = Part(unified)
+            if result.is_valid:
+                logger.debug("Geometry repair successful (unify)")
+                return result
+
+            # Second try: Sew all faces together into a single shell
+            # This is more aggressive and can fix multiple-shell issues
+            sewer = BRepBuilderAPI_Sewing(1e-6)  # tolerance in mm
+
+            # Add all faces from the shape
+            explorer = TopExp_Explorer(unified, TopAbs_FACE)
+            face_count = 0
+            while explorer.More():
+                sewer.Add(explorer.Current())
+                face_count += 1
+                explorer.Next()
+
+            if face_count > 0:
+                sewer.Perform()
+                sewn = sewer.SewedShape()
+
+                # Try to make a solid from the sewn shell
+                shell_explorer = TopExp_Explorer(sewn, TopAbs_SHELL)
+                if shell_explorer.More():
+                    shell = TopoDS.Shell_s(shell_explorer.Current())
+                    solid_maker = BRepBuilderAPI_MakeSolid(shell)
+                    if solid_maker.IsDone():
+                        solid = solid_maker.Solid()
+
+                        # Apply ShapeFix_Solid for final cleanup
+                        solid_fixer = ShapeFix_Solid(solid)
+                        solid_fixer.Perform()
+                        fixed_solid = solid_fixer.Solid()
+
+                        result = Part(fixed_solid)
+                        if result.is_valid:
+                            logger.debug("Geometry repair successful (sew + solid)")
+                            return result
+
+            # Third try: Just use ShapeFix_Shape on original
+            fixer = ShapeFix_Shape(unified)
+            fixer.Perform()
+            fixed = fixer.Shape()
+
+            result = Part(fixed)
+            if result.is_valid:
+                logger.debug("Geometry repair successful (ShapeFix)")
+                return result
+
+            # Fourth try: STEP export/reimport roundtrip
+            # This is a reliable fallback that fixes most topology issues
+            # by letting the STEP writer/reader normalize the geometry
+            import tempfile
+            from pathlib import Path
+
+            with tempfile.NamedTemporaryFile(suffix='.step', delete=False) as f:
+                step_path = Path(f.name)
+
+            try:
+                export_step(part, str(step_path))
+                reimported = import_step(str(step_path))
+
+                if reimported.is_valid:
+                    logger.debug("Geometry repair successful (STEP roundtrip)")
+                    return reimported
+            finally:
+                step_path.unlink(missing_ok=True)
+
+            # If nothing worked, return the original
+            logger.debug("Geometry repair did not achieve valid solid, using original")
+            return part
+
+        except Exception as e:
+            logger.debug(f"Geometry repair skipped: {e}")
+            return part
 
     def _create_threads(self) -> Part:
         """Create helical thread(s) to add to the core."""
@@ -250,7 +375,7 @@ class WormGeometry:
         root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
         is_right_hand = self.params.hand == Hand.RIGHT
-        print(f"      Thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
+        logger.debug(f"Thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
 
         # Thread profile dimensions
         pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
@@ -294,6 +419,8 @@ class WormGeometry:
         # Create profiles along the helix for lofting
         # Use extended length for sections calculation
         num_sections = int((extended_length / lead) * self.sections_per_turn) + 1
+        # Ensure at least 2 sections for loft operations (division by num_sections - 1)
+        num_sections = max(2, num_sections)
         sections = []
 
         # Thread end taper: ramp down thread depth over ~1 lead at each end
@@ -329,7 +456,7 @@ class WormGeometry:
             # Ensure minimum taper factor to avoid degenerate profiles
             taper_factor = max(0.05, taper_factor)
 
-            # Apply taper to addendum/dedendum (matching globoid approach)
+            # Apply taper to addendum/dedendum
             local_addendum = addendum * taper_factor
             local_dedendum = dedendum * taper_factor
 
@@ -337,18 +464,19 @@ class WormGeometry:
             local_tip_radius = pitch_radius + local_addendum
             local_root_radius = pitch_radius - local_dedendum
 
-            # IMPORTANT: Ensure thread root never goes above core radius
-            # The core is constant at root_radius, but tapered thread root approaches pitch_radius
-            # Clamp the thread root to stay at or below the core radius
-            local_root_radius = min(local_root_radius, root_radius)
+            # Validate profile is meaningful (avoid degenerate profiles)
+            profile_height = local_addendum + local_dedendum
+            if profile_height < 0.1:  # Less than 0.1mm - skip degenerate section
+                continue
 
             # Profile coordinates relative to pitch radius
-            inner_r = local_root_radius - pitch_radius
-            outer_r = local_tip_radius - pitch_radius
+            # inner_r is negative (below pitch), outer_r is positive (above pitch)
+            inner_r = -local_dedendum
+            outer_r = local_addendum
 
-            # Apply taper to thread width
-            local_thread_half_width_root = thread_half_width_root * taper_factor
-            local_thread_half_width_tip = thread_half_width_tip * taper_factor
+            # Apply taper to thread width with minimum to avoid zero-width profiles
+            local_thread_half_width_root = max(0.05, thread_half_width_root * taper_factor)
+            local_thread_half_width_tip = max(0.05, thread_half_width_tip * taper_factor)
 
             # Radial direction at this point
             angle = math.atan2(point.Y, point.X)
@@ -446,23 +574,20 @@ class WormGeometry:
             sections.append(sk.sketch.faces()[0])
 
         # Loft with ruled=True for consistent geometry
-        print(f"      Lofting {len(sections)} sections...")
+        logger.debug(f"Lofting {len(sections)} sections...")
         thread = loft(sections, ruled=True)
-        print(f"      ✓ Thread lofted successfully")
+        logger.debug("Thread lofted successfully")
 
         return thread
 
     def show(self):
-        """Display the worm in OCP viewer."""
+        """Display the worm in OCP viewer (requires ocp_vscode)."""
         worm = self.build()
         try:
             from ocp_vscode import show as ocp_show
             ocp_show(worm)
         except ImportError:
-            try:
-                show(worm)
-            except:
-                print("No viewer available.")
+            pass  # No viewer available - silent fallback
         return worm
 
     def export_step(self, filepath: str):
@@ -470,11 +595,11 @@ class WormGeometry:
         if self._part is None:
             self.build()
 
-        print(f"    Exporting worm: volume={self._part.volume:.2f} mm³")
+        logger.info(f"Exporting worm: volume={self._part.volume:.2f} mm³")
         if hasattr(self._part, 'export_step'):
             self._part.export_step(filepath)
         else:
             from build123d import export_step as exp_step
             exp_step(self._part, filepath)
 
-        print(f"Exported worm to {filepath}")
+        logger.info(f"Exported worm to {filepath}")

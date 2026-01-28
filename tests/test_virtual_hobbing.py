@@ -407,7 +407,7 @@ class TestVirtualHobbingWithFeatures:
 
     def test_virtual_hobbing_with_bore(self, wheel_params, worm_params, assembly_params):
         """Test virtual hobbing wheel with bore feature."""
-        from wormgear_geometry.features import BoreFeature
+        from wormgear.core.features import BoreFeature
 
         wheel_geo = VirtualHobbingWheelGeometry(
             params=wheel_params,
@@ -433,7 +433,7 @@ class TestVirtualHobbingWithFeatures:
 
     def test_virtual_hobbing_with_keyway(self, wheel_params, worm_params, assembly_params):
         """Test virtual hobbing wheel with bore and keyway."""
-        from wormgear_geometry.features import BoreFeature, KeywayFeature
+        from wormgear.core.features import BoreFeature, KeywayFeature
 
         wheel_geo = VirtualHobbingWheelGeometry(
             params=wheel_params,

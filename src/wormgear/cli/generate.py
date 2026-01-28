@@ -383,14 +383,14 @@ Examples:
                 # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
                 json_anti_rotation = json_worm_features.anti_rotation if json_worm_features else None
 
-                if args.dd_cut or json_anti_rotation == 'ddcut':
+                if args.dd_cut or (json_anti_rotation and json_anti_rotation.value == 'ddcut'):
                     # DD-cut requested
                     if args.worm_ddcut_depth:
                         worm_ddcut = DDCutFeature(depth=args.worm_ddcut_depth)
                     else:
                         depth_pct = json_worm_features.ddcut_depth_percent if json_worm_features else args.ddcut_depth_percent
                         worm_ddcut = calculate_default_ddcut(worm_bore_diameter, depth_pct)
-                elif args.no_keyway or json_anti_rotation == 'none':
+                elif args.no_keyway or (json_anti_rotation and json_anti_rotation.value == 'none'):
                     # No keyway explicitly requested
                     pass
                 elif worm_bore_diameter >= 6.0:
@@ -536,14 +536,14 @@ Examples:
                 # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
                 json_anti_rotation = json_wheel_features.anti_rotation if json_wheel_features else None
 
-                if args.dd_cut or json_anti_rotation == 'ddcut':
+                if args.dd_cut or (json_anti_rotation and json_anti_rotation.value == 'ddcut'):
                     # DD-cut requested
                     if args.wheel_ddcut_depth:
                         wheel_ddcut = DDCutFeature(depth=args.wheel_ddcut_depth)
                     else:
                         depth_pct = json_wheel_features.ddcut_depth_percent if json_wheel_features else args.ddcut_depth_percent
                         wheel_ddcut = calculate_default_ddcut(wheel_bore_diameter, depth_pct)
-                elif args.no_keyway or json_anti_rotation == 'none':
+                elif args.no_keyway or (json_anti_rotation and json_anti_rotation.value == 'none'):
                     # No keyway explicitly requested
                     pass
                 elif wheel_bore_diameter >= 6.0:

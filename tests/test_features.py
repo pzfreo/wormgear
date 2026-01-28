@@ -11,6 +11,7 @@ from wormgear import (
     BoreFeature, KeywayFeature, DDCutFeature,
     get_din_6885_keyway, calculate_default_bore, calculate_default_ddcut,
 )
+from wormgear.core.features import SetScrewFeature, HubFeature, get_set_screw_size
 from wormgear.core.features import (
     create_bore, create_keyway, create_ddcut,
     add_bore_and_keyway, DIN_6885_KEYWAYS,
@@ -623,7 +624,7 @@ class TestWheelWithBore:
         # Handle nested "design" key if present
         design_data = raw_data.get("design", raw_data)
 
-        from wormgear_geometry.io import WheelParams, WormParams, AssemblyParams
+        from wormgear.io import WheelParams, WormParams, AssemblyParams
 
         large_wheel = WheelParams(
             module_mm=design_data["wheel"]["module_mm"],
@@ -978,3 +979,196 @@ class TestWheelWithDDCut:
 
         assert wheel.volume > 0
         assert wheel.is_valid
+
+
+class TestSetScrewFeature:
+    """Tests for SetScrewFeature dataclass (P1.3)."""
+
+    def test_set_screw_creation_default(self):
+        """Test creating a set screw feature with defaults."""
+        ss = SetScrewFeature()
+        assert ss.size is None  # Auto-size
+        assert ss.diameter is None  # Auto-size
+        assert ss.count == 1
+        assert ss.angular_offset == 90.0  # Default 90° from keyway
+
+    def test_set_screw_with_explicit_size(self):
+        """Test creating set screw with explicit M3 size."""
+        ss = SetScrewFeature(size="M3", diameter=3.0)
+        assert ss.size == "M3"
+        assert ss.diameter == 3.0
+
+    def test_set_screw_multiple_count(self):
+        """Test creating multiple set screws."""
+        ss = SetScrewFeature(count=2)
+        assert ss.count == 2
+
+        ss3 = SetScrewFeature(count=3)
+        assert ss3.count == 3
+
+    def test_set_screw_angular_offset(self):
+        """Test set screw with custom angular offset."""
+        ss = SetScrewFeature(angular_offset=45.0)
+        assert ss.angular_offset == 45.0
+
+    def test_set_screw_invalid_count_low(self):
+        """Test that count < 1 raises error."""
+        with pytest.raises(ValueError, match="must be 1-3"):
+            SetScrewFeature(count=0)
+
+    def test_set_screw_invalid_count_high(self):
+        """Test that count > 3 raises error."""
+        with pytest.raises(ValueError, match="must be 1-3"):
+            SetScrewFeature(count=4)
+
+    def test_set_screw_invalid_diameter(self):
+        """Test that negative diameter raises error."""
+        with pytest.raises(ValueError, match="must be positive"):
+            SetScrewFeature(diameter=-1.0)
+
+        with pytest.raises(ValueError, match="must be positive"):
+            SetScrewFeature(diameter=0)
+
+    def test_set_screw_auto_size_small_bore(self):
+        """Test auto-sizing for small bore returns small screw."""
+        ss = SetScrewFeature()
+        size, diameter = ss.get_screw_specs(bore_diameter=4.0)
+        # 4mm bore should get M2 or similar small screw
+        assert diameter <= 2.5
+        assert size is not None
+
+    def test_set_screw_auto_size_medium_bore(self):
+        """Test auto-sizing for medium bore."""
+        ss = SetScrewFeature()
+        size, diameter = ss.get_screw_specs(bore_diameter=10.0)
+        # 10mm bore should get M3 or M4
+        assert 2.5 <= diameter <= 4.5
+        assert size in ["M3", "M4"]
+
+    def test_set_screw_auto_size_large_bore(self):
+        """Test auto-sizing for large bore."""
+        ss = SetScrewFeature()
+        size, diameter = ss.get_screw_specs(bore_diameter=20.0)
+        # 20mm bore should get M4 or M5
+        assert 4.0 <= diameter <= 6.0
+
+    def test_set_screw_explicit_overrides_auto(self):
+        """Test that explicit size/diameter override auto-sizing."""
+        ss = SetScrewFeature(size="M6", diameter=6.0)
+        size, diameter = ss.get_screw_specs(bore_diameter=5.0)  # Small bore
+        # Should still use explicit values
+        assert size == "M6"
+        assert diameter == 6.0
+
+
+class TestHubFeature:
+    """Tests for HubFeature dataclass (P1.4)."""
+
+    def test_hub_flush_default(self):
+        """Test creating flush hub (default)."""
+        hub = HubFeature()
+        assert hub.hub_type == "flush"
+        assert hub.length is None  # No extension for flush
+
+    def test_hub_extended(self):
+        """Test creating extended hub."""
+        hub = HubFeature(hub_type="extended")
+        assert hub.hub_type == "extended"
+        assert hub.length == 10.0  # Default 10mm extension
+
+    def test_hub_extended_custom_length(self):
+        """Test extended hub with custom length."""
+        hub = HubFeature(hub_type="extended", length=15.0)
+        assert hub.hub_type == "extended"
+        assert hub.length == 15.0
+
+    def test_hub_flanged(self):
+        """Test creating flanged hub."""
+        hub = HubFeature(hub_type="flanged", flange_diameter=30.0)
+        assert hub.hub_type == "flanged"
+        assert hub.length == 10.0  # Default
+        assert hub.flange_thickness == 5.0  # Default
+        assert hub.flange_diameter == 30.0
+        assert hub.bolt_holes == 4  # Default
+
+    def test_hub_flanged_custom(self):
+        """Test flanged hub with custom dimensions."""
+        hub = HubFeature(
+            hub_type="flanged",
+            length=20.0,
+            flange_diameter=40.0,
+            flange_thickness=8.0,
+            bolt_holes=6,
+            bolt_diameter=5.0
+        )
+        assert hub.length == 20.0
+        assert hub.flange_diameter == 40.0
+        assert hub.flange_thickness == 8.0
+        assert hub.bolt_holes == 6
+        assert hub.bolt_diameter == 5.0
+
+    def test_hub_invalid_type(self):
+        """Test that invalid hub type raises error."""
+        with pytest.raises(ValueError, match="must be one of"):
+            HubFeature(hub_type="invalid")
+
+    def test_hub_extended_invalid_length(self):
+        """Test that invalid length raises error."""
+        with pytest.raises(ValueError, match="must be positive"):
+            HubFeature(hub_type="extended", length=0)
+
+        with pytest.raises(ValueError, match="must be positive"):
+            HubFeature(hub_type="extended", length=-5.0)
+
+    def test_hub_flanged_invalid_thickness(self):
+        """Test that invalid flange thickness raises error."""
+        with pytest.raises(ValueError, match="must be positive"):
+            HubFeature(hub_type="flanged", flange_thickness=0)
+
+    def test_hub_flanged_invalid_bolt_holes(self):
+        """Test that invalid bolt hole count raises error."""
+        with pytest.raises(ValueError, match="Bolt holes must be"):
+            HubFeature(hub_type="flanged", bolt_holes=-1)
+
+        with pytest.raises(ValueError, match="Bolt holes must be"):
+            HubFeature(hub_type="flanged", bolt_holes=9)
+
+    def test_hub_flush_ignores_length(self):
+        """Test that flush hub ignores length parameter."""
+        hub = HubFeature(hub_type="flush", length=20.0)
+        # Length is set but not used for flush hub
+        assert hub.hub_type == "flush"
+
+
+class TestGetSetScrewSize:
+    """Tests for get_set_screw_size function."""
+
+    def test_very_small_bore(self):
+        """Test set screw sizing for very small bores."""
+        size, diameter = get_set_screw_size(3.0)
+        assert size == "M2"
+        assert diameter == 2.0
+
+    def test_small_bore(self):
+        """Test set screw sizing for small bores."""
+        size, diameter = get_set_screw_size(6.0)
+        assert size in ["M2", "M2.5", "M3"]
+        assert diameter <= 3.0
+
+    def test_medium_bore(self):
+        """Test set screw sizing for medium bores."""
+        size, diameter = get_set_screw_size(12.0)
+        assert size in ["M3", "M4"]
+        assert 3.0 <= diameter <= 4.0
+
+    def test_large_bore(self):
+        """Test set screw sizing for large bores."""
+        size, diameter = get_set_screw_size(25.0)
+        assert size in ["M4", "M5", "M6"]
+        assert 4.0 <= diameter <= 6.0
+
+    def test_very_large_bore(self):
+        """Test set screw sizing for very large bores."""
+        size, diameter = get_set_screw_size(50.0)
+        assert size in ["M6", "M8"]
+        assert 6.0 <= diameter <= 8.0

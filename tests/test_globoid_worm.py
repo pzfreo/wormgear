@@ -180,10 +180,11 @@ class TestGloboidWormGeometry:
         # Should have points
         assert len(points) > 0
 
-        # Points should span the length
+        # Points should span the extended_length (length + 2*lead for tapering)
         z_values = [p.Z for p in points]
         z_range = max(z_values) - min(z_values)
-        assert z_range == pytest.approx(12.0, rel=0.01)
+        expected_extended_length = 12.0 + 2 * worm_params.lead_mm
+        assert z_range == pytest.approx(expected_extended_length, rel=0.01)
 
         # Radii should vary (hourglass shape)
         radii = [math.sqrt(p.X**2 + p.Y**2) for p in points]
