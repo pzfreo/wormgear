@@ -158,6 +158,7 @@ if '/home/pyodide' not in sys.path:
         { path: 'wormgear/core/features.py', pyPath: '/home/pyodide/wormgear/core/features.py' },
         { path: 'wormgear/core/globoid_worm.py', pyPath: '/home/pyodide/wormgear/core/globoid_worm.py' },
         { path: 'wormgear/core/virtual_hobbing.py', pyPath: '/home/pyodide/wormgear/core/virtual_hobbing.py' },
+        { path: 'wormgear/core/bore_sizing.py', pyPath: '/home/pyodide/wormgear/core/bore_sizing.py' },
         { path: 'wormgear/io/__init__.py', pyPath: '/home/pyodide/wormgear/io/__init__.py' },
         { path: 'wormgear/io/loaders.py', pyPath: '/home/pyodide/wormgear/io/loaders.py' },
         { path: 'wormgear/io/schema.py', pyPath: '/home/pyodide/wormgear/io/schema.py' },
@@ -165,7 +166,7 @@ if '/home/pyodide' not in sys.path:
         { path: 'wormgear/calculator/core.py', pyPath: '/home/pyodide/wormgear/calculator/core.py' },
         { path: 'wormgear/calculator/validation.py', pyPath: '/home/pyodide/wormgear/calculator/validation.py' },
         { path: 'wormgear/calculator/output.py', pyPath: '/home/pyodide/wormgear/calculator/output.py' },
-        { path: 'wormgear/calculator/bore_calculator.py', pyPath: '/home/pyodide/wormgear/calculator/bore_calculator.py' },
+        { path: 'wormgear/calculator/constants.py', pyPath: '/home/pyodide/wormgear/calculator/constants.py' },
         { path: 'wormgear/calculator/js_bridge.py', pyPath: '/home/pyodide/wormgear/calculator/js_bridge.py' },
         { path: 'wormgear/calculator/json_schema.py', pyPath: '/home/pyodide/wormgear/calculator/json_schema.py' },
     ];
