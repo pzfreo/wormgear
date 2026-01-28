@@ -211,11 +211,11 @@ def calculate(input_json: str) -> str:
             design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
             design.manufacturing.hobbing_steps = inputs.manufacturing.hobbing_steps
 
-        # Validate the design
-        validation = validate_design(design)
-
-        # Convert bore settings to dict for output
+        # Convert bore settings to dict for validation and output
         bore_dict = inputs.bore.model_dump() if inputs.bore else None
+
+        # Validate the design (pass bore_dict for bore validation before features are added)
+        validation = validate_design(design, bore_settings=bore_dict)
         mfg_dict = inputs.manufacturing.model_dump() if inputs.manufacturing else None
 
         # Handle recommended dimensions - remove from mfg_dict so calculator values aren't overwritten
