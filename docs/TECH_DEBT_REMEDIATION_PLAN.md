@@ -2638,8 +2638,8 @@ Use this table to track completion:
 |------|-------------|--------|------|-------|
 | P1.1 | Create constants module | ✅ | 2026-01-28 | calculator/constants.py |
 | P1.2 | Add contact ratio validation | ✅ | 2026-01-28 | DIN 3975 §7.4 |
-| P1.3 | Add set screw tests | ⬜ | | Currently only 2 tests |
-| P1.4 | Add hub feature tests | ⬜ | | Currently 0 tests |
+| P1.3 | Add set screw tests | ✅ | 2026-01-28 | 14 tests added |
+| P1.4 | Add hub feature tests | ✅ | 2026-01-28 | 12 tests added |
 | P1.5 | Fix feature duplication | ⬜ | | Schema migration |
 | P1.6 | Complete BoreType enum | ⬜ | | Add anti-rotation options |
 | P1.7 | Replace print with logging | ⬜ | | 76 print statements |
@@ -2662,16 +2662,16 @@ Use this table to track completion:
 | P3.1 | Add CI/CD pipeline | ✅ | 2026-01-28 | ci.yml workflow |
 | P3.2 | Improve Pydantic constraint | ✅ | 2026-01-28 | >=2.0,<3.0 |
 | P3.3 | Track/resolve TODOs | ✅ | 2026-01-28 | Converted to comments |
-| P3.4 | Add type checking strictness | ⬜ | | Gradual enforcement |
+| P3.4 | Add type checking strictness | ✅ | 2026-01-28 | Calculator module enforced |
 
 ### Summary
 
 | Priority | Total | Complete | In Progress | Blocked |
 |----------|-------|----------|-------------|---------|
 | P0 Critical | 7 | 7 | 0 | 0 |
-| P1 High | 8 | 2 | 0 | 0 |
+| P1 High | 8 | 4 | 0 | 0 |
 | P2 Medium | 5 | 1 | 0 | 0 |
-| P3 Low | 4 | 3 | 0 | 0 |
-| **Total** | **24** | **13** | **0** | **0** |
+| P3 Low | 4 | 4 | 0 | 0 |
+| **Total** | **24** | **16** | **0** | **0** |
 
 Legend: ⬜ Not started | 🔄 In progress | ✅ Complete | ❌ Blocked
