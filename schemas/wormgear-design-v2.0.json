@@ -177,7 +177,7 @@
       "type": "object"
     },
     "ManufacturingParams": {
-      "description": "Manufacturing/generation parameters.",
+      "description": "Manufacturing/generation parameters.\n\nNote: worm_features and wheel_features are NOT stored here.\nUse WormGearDesign.features instead. Old schemas with features\nin manufacturing are migrated by upgrade_schema() in schema.py.",
       "properties": {
         "profile": {
           "$ref": "#/$defs/WormProfile",
@@ -237,28 +237,6 @@
           ],
           "default": null,
           "title": "Wheel Width Mm"
-        },
-        "worm_features": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/WormFeatures"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "wheel_features": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/WheelFeatures"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         }
       },
       "title": "ManufacturingParams",

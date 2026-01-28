@@ -127,7 +127,12 @@ class Features(BaseModel):
 
 
 class ManufacturingParams(BaseModel):
-    """Manufacturing/generation parameters."""
+    """Manufacturing/generation parameters.
+
+    Note: worm_features and wheel_features are NOT stored here.
+    Use WormGearDesign.features instead. Old schemas with features
+    in manufacturing are migrated by upgrade_schema() in schema.py.
+    """
     model_config = ConfigDict(extra='ignore', populate_by_name=True)
 
     profile: WormProfile = WormProfile.ZA
@@ -138,8 +143,6 @@ class ManufacturingParams(BaseModel):
     sections_per_turn: int = 36
     worm_length_mm: Optional[float] = Field(default=None, alias='worm_length')
     wheel_width_mm: Optional[float] = Field(default=None, alias='wheel_width')
-    worm_features: Optional[WormFeatures] = None
-    wheel_features: Optional[WheelFeatures] = None
 
     @field_validator('profile', mode='before')
     @classmethod

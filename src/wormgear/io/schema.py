@@ -293,11 +293,18 @@ def _migrate_1x_to_2x(data: Dict) -> Dict:
         if 'features' not in data:
             data['features'] = {}
 
+        # Only migrate if target doesn't already exist (preserve existing features)
         if 'worm_features' in manufacturing:
-            data['features']['worm'] = manufacturing.pop('worm_features')
+            if 'worm' not in data['features']:
+                data['features']['worm'] = manufacturing.pop('worm_features')
+            else:
+                manufacturing.pop('worm_features')  # Just remove, don't overwrite
 
         if 'wheel_features' in manufacturing:
-            data['features']['wheel'] = manufacturing.pop('wheel_features')
+            if 'wheel' not in data['features']:
+                data['features']['wheel'] = manufacturing.pop('wheel_features')
+            else:
+                manufacturing.pop('wheel_features')  # Just remove, don't overwrite
 
     # 2. Normalize hand enum (was uppercase in some 1.x versions)
     for section in ['worm', 'assembly']:

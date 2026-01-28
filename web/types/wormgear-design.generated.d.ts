@@ -206,6 +206,10 @@ export interface HubSpec {
 }
 /**
  * Manufacturing/generation parameters.
+ *
+ * Note: worm_features and wheel_features are NOT stored here.
+ * Use WormGearDesign.features instead. Old schemas with features
+ * in manufacturing are migrated by upgrade_schema() in schema.py.
  */
 export interface ManufacturingParams {
   profile?: WormProfile;
@@ -216,6 +220,4 @@ export interface ManufacturingParams {
   sections_per_turn?: SectionsPerTurn;
   worm_length_mm?: WormLengthMm;
   wheel_width_mm?: WheelWidthMm;
-  worm_features?: WormFeatures | null;
-  wheel_features?: WheelFeatures | null;
 }
