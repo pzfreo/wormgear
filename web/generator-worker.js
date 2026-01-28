@@ -251,6 +251,13 @@ import json
 import base64
 import tempfile
 import os
+import logging
+
+# Enable debug logging for wormgear modules
+logging.basicConfig(level=logging.DEBUG, format='[%(name)s] %(levelname)s: %(message)s')
+for logger_name in ['wormgear.core.worm', 'wormgear.core.wheel', 'wormgear.core.globoid_worm', 'wormgear.core.virtual_hobbing', 'wormgear.core.features']:
+    logging.getLogger(logger_name).setLevel(logging.DEBUG)
+
 from wormgear.core import WormGeometry, WheelGeometry, GloboidWormGeometry, VirtualHobbingWheelGeometry, BoreFeature, KeywayFeature, DDCutFeature, calculate_default_bore
 from wormgear.io import WormParams, WheelParams, AssemblyParams
 
