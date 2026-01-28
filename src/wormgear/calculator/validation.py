@@ -133,7 +133,7 @@ class ValidationResult:
         return [m for m in self.messages if m.severity == Severity.INFO]
 
 
-def validate_design(design: DesignInput) -> ValidationResult:
+def validate_design(design: DesignInput, bore_settings: Optional[Dict[str, Any]] = None) -> ValidationResult:
     """
     Validate a worm gear design against engineering rules.
 
@@ -142,6 +142,8 @@ def validate_design(design: DesignInput) -> ValidationResult:
 
     Args:
         design: Design dict or WormGearDesign dataclass
+        bore_settings: Optional bore configuration from UI (for calculator flow)
+                      If provided, validates bore against gear dimensions
 
     Returns:
         ValidationResult with all findings
@@ -149,6 +151,7 @@ def validate_design(design: DesignInput) -> ValidationResult:
     messages: List[ValidationMessage] = []
 
     # Run all validation checks
+    messages.extend(_validate_geometry_possible(design))  # Check impossible geometry first
     messages.extend(_validate_lead_angle(design))
     messages.extend(_validate_module(design))
     messages.extend(_validate_teeth_count(design))
@@ -161,7 +164,7 @@ def validate_design(design: DesignInput) -> ValidationResult:
     messages.extend(_validate_worm_type(design))
     messages.extend(_validate_wheel_throated(design))
     messages.extend(_validate_manufacturing_compatibility(design))
-    messages.extend(_validate_bore(design))
+    messages.extend(_validate_bore(design, bore_settings))
 
     # Design is valid if no errors
     has_errors = any(m.severity == Severity.ERROR for m in messages)
@@ -170,6 +173,66 @@ def validate_design(design: DesignInput) -> ValidationResult:
         valid=not has_errors,
         messages=messages
     )
+
+
+def _validate_geometry_possible(design: DesignInput) -> List[ValidationMessage]:
+    """Check for impossible geometry (negative root diameters, etc.)"""
+    messages = []
+
+    worm_root = _get(design, 'worm', 'root_diameter_mm', default=0)
+    wheel_root = _get(design, 'wheel', 'root_diameter_mm', default=0)
+    worm_tip = _get(design, 'worm', 'tip_diameter_mm', default=0)
+    wheel_tip = _get(design, 'wheel', 'tip_diameter_mm', default=0)
+
+    # Check for negative root diameters (impossible geometry)
+    if worm_root < 0:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WORM_IMPOSSIBLE_GEOMETRY",
+            message=f"Worm has impossible geometry: root diameter ({worm_root:.2f}mm) is negative",
+            suggestion="The worm is too small for the module. Increase worm OD or reduce module."
+        ))
+    elif worm_root == 0:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WORM_ZERO_ROOT",
+            message="Worm root diameter is zero",
+            suggestion="Check worm dimensions - this indicates a calculation error"
+        ))
+
+    if wheel_root < 0:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WHEEL_IMPOSSIBLE_GEOMETRY",
+            message=f"Wheel has impossible geometry: root diameter ({wheel_root:.2f}mm) is negative",
+            suggestion="The wheel is too small for the module. Increase wheel OD or reduce module."
+        ))
+    elif wheel_root == 0:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WHEEL_ZERO_ROOT",
+            message="Wheel root diameter is zero",
+            suggestion="Check wheel dimensions - this indicates a calculation error"
+        ))
+
+    # Check that root < tip (sanity check)
+    if worm_root > 0 and worm_tip > 0 and worm_root >= worm_tip:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WORM_ROOT_EXCEEDS_TIP",
+            message=f"Worm root diameter ({worm_root:.2f}mm) >= tip diameter ({worm_tip:.2f}mm)",
+            suggestion="This indicates a calculation error - check worm dimensions"
+        ))
+
+    if wheel_root > 0 and wheel_tip > 0 and wheel_root >= wheel_tip:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WHEEL_ROOT_EXCEEDS_TIP",
+            message=f"Wheel root diameter ({wheel_root:.2f}mm) >= tip diameter ({wheel_tip:.2f}mm)",
+            suggestion="This indicates a calculation error - check wheel dimensions"
+        ))
+
+    return messages
 
 
 def _validate_lead_angle(design: DesignInput) -> List[ValidationMessage]:
@@ -666,23 +729,280 @@ def _normalize_bore_type(bore_type) -> Optional[str]:
     return str(bore_type).lower()
 
 
-def _validate_bore(design: DesignInput) -> List[ValidationMessage]:
+# DIN 6885 keyway depths (subset for validation)
+# Format: bore_range: (shaft_depth, hub_depth) in mm
+_KEYWAY_DEPTHS = {
+    (6, 8): (1.2, 1.0),
+    (8, 10): (1.8, 1.4),
+    (10, 12): (2.5, 1.8),
+    (12, 17): (3.0, 2.3),
+    (17, 22): (3.5, 2.8),
+    (22, 30): (4.0, 3.3),
+    (30, 38): (5.0, 3.3),
+    (38, 44): (5.0, 3.3),
+    (44, 50): (5.5, 3.8),
+    (50, 58): (6.0, 4.3),
+    (58, 65): (7.0, 4.4),
+    (65, 75): (7.5, 4.9),
+    (75, 85): (9.0, 5.4),
+    (85, 95): (9.0, 5.4),
+}
+
+
+def _get_keyway_depth(bore_diameter: float, is_shaft: bool) -> float:
+    """Get keyway depth for a bore diameter. Returns 0 if bore is below DIN 6885 range."""
+    for (min_d, max_d), (shaft_depth, hub_depth) in _KEYWAY_DEPTHS.items():
+        if min_d <= bore_diameter < max_d:
+            return shaft_depth if is_shaft else hub_depth
+    return 0.0  # No keyway for bores outside standard range
+
+
+# Minimum rim thicknesses for safety
+MIN_RIM_WORM = 0.5   # 0.5mm absolute minimum rim for worm (small gears)
+MIN_RIM_WHEEL = 0.5  # 0.5mm absolute minimum rim for wheel (small gears)
+WARN_RIM_WORM = 1.5  # Warning threshold for worm (practical)
+WARN_RIM_WHEEL = 2.0  # Warning threshold for wheel (practical)
+
+# Small bore threshold - below this, machining becomes impractical
+SMALL_BORE_THRESHOLD = 2.0
+
+
+def _validate_bore_from_settings(design: DesignInput, bore_settings: Dict[str, Any]) -> List[ValidationMessage]:
+    """Validate bore from UI settings (calculator flow).
+
+    This is called when design.features isn't populated yet but we have
+    bore_settings from the UI.
+    """
+    from .bore_calculator import calculate_default_bore
+
+    messages = []
+
+    # Extract worm dimensions
+    worm_pitch = _get(design, 'worm', 'pitch_diameter_mm', default=0)
+    worm_root = _get(design, 'worm', 'root_diameter_mm', default=0)
+
+    # Extract wheel dimensions
+    wheel_pitch = _get(design, 'wheel', 'pitch_diameter_mm', default=0)
+    wheel_root = _get(design, 'wheel', 'root_diameter_mm', default=0)
+
+    # Note: Impossible geometry (negative root diameters) is already checked
+    # by _validate_geometry_possible() which runs first
+
+    # Extract bore settings
+    worm_bore_type = bore_settings.get('worm_bore_type', 'none')
+    worm_bore_diameter = bore_settings.get('worm_bore_diameter')
+    worm_keyway = bore_settings.get('worm_keyway', 'none')
+
+    wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
+    wheel_bore_diameter = bore_settings.get('wheel_bore_diameter')
+    wheel_keyway = bore_settings.get('wheel_keyway', 'none')
+
+    # Validate worm bore
+    if worm_bore_type == 'custom' and worm_root > 0:
+        # Get actual bore diameter (auto-calculate if null)
+        if worm_bore_diameter is None:
+            worm_bore, has_warning = calculate_default_bore(worm_pitch, worm_root)
+            if worm_bore is None:
+                messages.append(ValidationMessage(
+                    severity=Severity.INFO,
+                    code="WORM_TOO_SMALL_FOR_BORE",
+                    message=f"Worm is too small for a bore (root: {worm_root:.1f}mm, min bore: 0.5mm)",
+                    suggestion="Consider a larger worm design if a bore is required"
+                ))
+            else:
+                worm_bore_diameter = worm_bore
+        else:
+            has_warning = False
+
+        if worm_bore_diameter is not None and worm_bore_diameter > 0:
+            # Calculate rim thickness
+            rim_base = (worm_root - worm_bore_diameter) / 2
+            keyway_depth = 0.0
+
+            # Account for keyway if specified
+            if worm_keyway and worm_keyway.upper() == 'DIN6885':
+                keyway_depth = _get_keyway_depth(worm_bore_diameter, is_shaft=True)
+
+            effective_rim = rim_base - keyway_depth
+
+            # Validate
+            if worm_bore_diameter >= worm_root:
+                messages.append(ValidationMessage(
+                    severity=Severity.ERROR,
+                    code="WORM_BORE_TOO_LARGE",
+                    message=f"Worm bore ({worm_bore_diameter:.1f}mm) exceeds root diameter ({worm_root:.1f}mm)",
+                    suggestion=f"Maximum bore is less than {worm_root:.1f}mm"
+                ))
+            elif effective_rim < MIN_RIM_WORM:
+                if keyway_depth > 0:
+                    messages.append(ValidationMessage(
+                        severity=Severity.ERROR,
+                        code="WORM_BORE_KEYWAY_INTERFERENCE",
+                        message=f"Worm bore {worm_bore_diameter:.1f}mm with keyway (depth {keyway_depth:.1f}mm) leaves only {effective_rim:.2f}mm rim",
+                        suggestion=f"Reduce bore to allow at least {MIN_RIM_WORM}mm rim after keyway, or use DD-cut instead"
+                    ))
+                else:
+                    messages.append(ValidationMessage(
+                        severity=Severity.ERROR,
+                        code="WORM_BORE_TOO_LARGE",
+                        message=f"Worm bore ({worm_bore_diameter:.1f}mm) leaves insufficient rim ({rim_base:.2f}mm)",
+                        suggestion=f"Reduce bore to allow at least {MIN_RIM_WORM}mm rim"
+                    ))
+            elif effective_rim < WARN_RIM_WORM:
+                if keyway_depth > 0:
+                    messages.append(ValidationMessage(
+                        severity=Severity.WARNING,
+                        code="WORM_BORE_THIN_RIM_KEYWAY",
+                        message=f"Worm rim is thin ({effective_rim:.2f}mm after {keyway_depth:.1f}mm keyway)",
+                        suggestion=f"Consider smaller bore or DD-cut for better strength"
+                    ))
+                else:
+                    messages.append(ValidationMessage(
+                        severity=Severity.WARNING,
+                        code="WORM_BORE_THIN_RIM",
+                        message=f"Worm rim is thin ({rim_base:.2f}mm) with bore {worm_bore_diameter:.1f}mm",
+                        suggestion=f"Consider reducing bore for adequate strength"
+                    ))
+
+            # Additional warnings for small bores
+            if worm_bore_diameter < SMALL_BORE_THRESHOLD:
+                messages.append(ValidationMessage(
+                    severity=Severity.WARNING,
+                    code="WORM_BORE_VERY_SMALL",
+                    message=f"Worm bore ({worm_bore_diameter:.1f}mm) is below {SMALL_BORE_THRESHOLD}mm",
+                    suggestion="Very small bores may be difficult to machine. Consider reaming or EDM."
+                ))
+                # Check for DD-cut with small bore
+                if worm_keyway and worm_keyway.upper() == 'DDCUT':
+                    messages.append(ValidationMessage(
+                        severity=Severity.WARNING,
+                        code="WORM_DDCUT_SMALL_BORE",
+                        message=f"DD-cut on small bore ({worm_bore_diameter:.1f}mm) may be impractical",
+                        suggestion="Consider no anti-rotation feature or a custom keyway design"
+                    ))
+
+    # Validate wheel bore
+    if wheel_bore_type == 'custom' and wheel_root > 0:
+        # Get actual bore diameter (auto-calculate if null)
+        if wheel_bore_diameter is None:
+            wheel_bore, has_warning = calculate_default_bore(wheel_pitch, wheel_root)
+            if wheel_bore is None:
+                messages.append(ValidationMessage(
+                    severity=Severity.INFO,
+                    code="WHEEL_TOO_SMALL_FOR_BORE",
+                    message=f"Wheel is too small for a bore (root: {wheel_root:.1f}mm, min bore: 0.5mm)",
+                    suggestion="Consider a larger wheel design if a bore is required"
+                ))
+            else:
+                wheel_bore_diameter = wheel_bore
+        else:
+            has_warning = False
+
+        if wheel_bore_diameter is not None and wheel_bore_diameter > 0:
+            # Calculate rim thickness
+            rim_base = (wheel_root - wheel_bore_diameter) / 2
+            keyway_depth = 0.0
+
+            # Account for keyway if specified
+            if wheel_keyway and wheel_keyway.upper() == 'DIN6885':
+                keyway_depth = _get_keyway_depth(wheel_bore_diameter, is_shaft=False)
+
+            effective_rim = rim_base - keyway_depth
+
+            # Validate
+            if wheel_bore_diameter >= wheel_root:
+                messages.append(ValidationMessage(
+                    severity=Severity.ERROR,
+                    code="WHEEL_BORE_TOO_LARGE",
+                    message=f"Wheel bore ({wheel_bore_diameter:.1f}mm) exceeds root diameter ({wheel_root:.1f}mm)",
+                    suggestion=f"Maximum bore is less than {wheel_root:.1f}mm"
+                ))
+            elif effective_rim < MIN_RIM_WHEEL:
+                if keyway_depth > 0:
+                    messages.append(ValidationMessage(
+                        severity=Severity.ERROR,
+                        code="WHEEL_BORE_KEYWAY_INTERFERENCE",
+                        message=f"Wheel bore {wheel_bore_diameter:.1f}mm with keyway (depth {keyway_depth:.1f}mm) leaves only {effective_rim:.2f}mm rim",
+                        suggestion=f"Reduce bore to allow at least {MIN_RIM_WHEEL}mm rim after keyway, or use DD-cut instead"
+                    ))
+                else:
+                    messages.append(ValidationMessage(
+                        severity=Severity.ERROR,
+                        code="WHEEL_BORE_TOO_LARGE",
+                        message=f"Wheel bore ({wheel_bore_diameter:.1f}mm) leaves insufficient rim ({rim_base:.2f}mm)",
+                        suggestion=f"Reduce bore to allow at least {MIN_RIM_WHEEL}mm rim"
+                    ))
+            elif effective_rim < WARN_RIM_WHEEL:
+                if keyway_depth > 0:
+                    messages.append(ValidationMessage(
+                        severity=Severity.WARNING,
+                        code="WHEEL_BORE_THIN_RIM_KEYWAY",
+                        message=f"Wheel rim is thin ({effective_rim:.2f}mm after {keyway_depth:.1f}mm keyway)",
+                        suggestion=f"Consider smaller bore or DD-cut for better strength"
+                    ))
+                else:
+                    messages.append(ValidationMessage(
+                        severity=Severity.WARNING,
+                        code="WHEEL_BORE_THIN_RIM",
+                        message=f"Wheel rim is thin ({rim_base:.2f}mm) with bore {wheel_bore_diameter:.1f}mm",
+                        suggestion=f"Consider reducing bore for adequate strength"
+                    ))
+
+            # Additional warnings for small bores
+            if wheel_bore_diameter < SMALL_BORE_THRESHOLD:
+                messages.append(ValidationMessage(
+                    severity=Severity.WARNING,
+                    code="WHEEL_BORE_VERY_SMALL",
+                    message=f"Wheel bore ({wheel_bore_diameter:.1f}mm) is below {SMALL_BORE_THRESHOLD}mm",
+                    suggestion="Very small bores may be difficult to machine. Consider reaming or EDM."
+                ))
+                # Check for DD-cut with small bore
+                if wheel_keyway and wheel_keyway.upper() == 'DDCUT':
+                    messages.append(ValidationMessage(
+                        severity=Severity.WARNING,
+                        code="WHEEL_DDCUT_SMALL_BORE",
+                        message=f"DD-cut on small bore ({wheel_bore_diameter:.1f}mm) may be impractical",
+                        suggestion="Consider no anti-rotation feature or a custom keyway design"
+                    ))
+
+    return messages
+
+
+def _validate_bore(design: DesignInput, bore_settings: Optional[Dict[str, Any]] = None) -> List[ValidationMessage]:
     """Validate bore configuration for worm and wheel.
 
     Checks:
     - bore_type is present when features section exists
     - bore_diameter_mm is present when bore_type is 'custom'
     - Bore doesn't exceed root diameter (impossible geometry)
-    - Warns if rim is thin (less than 1.5mm)
+    - Warns if rim is thin (accounting for keyway depth)
+    - Warns if gear is too small for auto-calculated bore
+
+    Args:
+        design: Design dict or WormGearDesign dataclass
+        bore_settings: Optional bore configuration from UI. If provided, used when
+                      design.features is not yet populated (calculator flow).
+                      Expected keys: worm_bore_type, worm_bore_diameter, worm_keyway,
+                                    wheel_bore_type, wheel_bore_diameter, wheel_keyway
     """
     messages = []
 
-    # Validate worm bore
+    # Get bore info from design.features OR from bore_settings
+    # In calculator flow, features aren't populated yet, so use bore_settings
     worm_features = _get(design, 'features', 'worm')
+    wheel_features = _get(design, 'features', 'wheel')
+
+    # If no features in design but we have bore_settings, use those
+    if bore_settings and worm_features is None and wheel_features is None:
+        messages.extend(_validate_bore_from_settings(design, bore_settings))
+        return messages
+
+    # Otherwise validate from design.features (loaded JSON flow)
     if worm_features is not None:
         worm_bore_type = _normalize_bore_type(_get(design, 'features', 'worm', 'bore_type'))
         worm_bore = _get(design, 'features', 'worm', 'bore_diameter_mm')
         worm_root = _get(design, 'worm', 'root_diameter_mm', default=0)
+        worm_anti_rot = _get(design, 'features', 'worm', 'anti_rotation')
 
         # Check bore_type is specified
         if worm_bore_type is None:
@@ -692,6 +1012,21 @@ def _validate_bore(design: DesignInput) -> List[ValidationMessage]:
                 message="Worm features section exists but bore_type is not specified",
                 suggestion="Set bore_type to 'none' for solid part or 'custom' with bore_diameter_mm"
             ))
+        elif worm_bore_type == 'none':
+            # Check if this is a fallback from auto-calculation
+            # (gear too small for any bore)
+            worm_pitch = _get(design, 'worm', 'pitch_diameter_mm', default=0)
+            if worm_pitch > 0 and worm_root > 0:
+                # Calculate if auto-bore would have been possible
+                from .bore_calculator import calculate_default_bore
+                auto_bore, _ = calculate_default_bore(worm_pitch, worm_root)
+                if auto_bore is None:
+                    messages.append(ValidationMessage(
+                        severity=Severity.INFO,
+                        code="WORM_TOO_SMALL_FOR_BORE",
+                        message=f"Worm is too small for a bore (root: {worm_root:.1f}mm, min bore: 0.5mm)",
+                        suggestion="Consider a larger worm design if a bore is required"
+                    ))
         elif worm_bore_type == 'custom':
             # Check bore_diameter_mm is present for custom
             if worm_bore is None:
@@ -702,30 +1037,72 @@ def _validate_bore(design: DesignInput) -> List[ValidationMessage]:
                     suggestion="Specify bore_diameter_mm or set bore_type to 'none'"
                 ))
             elif worm_bore > 0 and worm_root > 0:
-                # Validate bore size against root diameter
-                max_bore = worm_root - 2.0  # Minimum 1mm wall on each side
+                # Calculate rim thickness accounting for keyway
+                rim_base = (worm_root - worm_bore) / 2
+                keyway_depth = 0.0
+
+                # Account for keyway depth if DIN6885 keyway is specified
+                if worm_anti_rot and worm_anti_rot.upper() == 'DIN6885':
+                    keyway_depth = _get_keyway_depth(worm_bore, is_shaft=True)
+
+                effective_rim = rim_base - keyway_depth
+
+                # Error if bore exceeds root
                 if worm_bore >= worm_root:
                     messages.append(ValidationMessage(
                         severity=Severity.ERROR,
                         code="WORM_BORE_TOO_LARGE",
                         message=f"Worm bore ({worm_bore:.1f}mm) exceeds root diameter ({worm_root:.1f}mm)",
-                        suggestion=f"Maximum bore for this worm is {max_bore:.1f}mm"
+                        suggestion=f"Maximum bore is less than {worm_root:.1f}mm"
                     ))
-                elif worm_bore > max_bore:
-                    rim_thickness = (worm_root - worm_bore) / 2
-                    messages.append(ValidationMessage(
-                        severity=Severity.WARNING,
-                        code="WORM_BORE_THIN_RIM",
-                        message=f"Worm rim is thin ({rim_thickness:.2f}mm) with bore {worm_bore:.1f}mm",
-                        suggestion=f"Consider reducing bore to {max_bore:.1f}mm or less for adequate strength"
-                    ))
+                # Error if effective rim is negative or too thin
+                elif effective_rim < MIN_RIM_WORM:
+                    if keyway_depth > 0:
+                        messages.append(ValidationMessage(
+                            severity=Severity.ERROR,
+                            code="WORM_BORE_KEYWAY_INTERFERENCE",
+                            message=f"Worm bore {worm_bore:.1f}mm with keyway (depth {keyway_depth:.1f}mm) leaves only {effective_rim:.2f}mm rim",
+                            suggestion=f"Reduce bore to allow at least {MIN_RIM_WORM}mm rim after keyway, or use DD-cut instead"
+                        ))
+                    else:
+                        messages.append(ValidationMessage(
+                            severity=Severity.ERROR,
+                            code="WORM_BORE_TOO_LARGE",
+                            message=f"Worm bore ({worm_bore:.1f}mm) leaves insufficient rim ({rim_base:.2f}mm)",
+                            suggestion=f"Reduce bore to allow at least {MIN_RIM_WORM}mm rim"
+                        ))
+                # Warning if rim is thin
+                elif effective_rim < WARN_RIM_WORM:
+                    if keyway_depth > 0:
+                        messages.append(ValidationMessage(
+                            severity=Severity.WARNING,
+                            code="WORM_BORE_THIN_RIM_KEYWAY",
+                            message=f"Worm rim is thin ({effective_rim:.2f}mm after {keyway_depth:.1f}mm keyway)",
+                            suggestion=f"Consider smaller bore or DD-cut for better strength"
+                        ))
+                    else:
+                        messages.append(ValidationMessage(
+                            severity=Severity.WARNING,
+                            code="WORM_BORE_THIN_RIM",
+                            message=f"Worm rim is thin ({rim_base:.2f}mm) with bore {worm_bore:.1f}mm",
+                            suggestion=f"Consider reducing bore for adequate strength"
+                        ))
+                else:
+                    # Info about bore configuration
+                    if keyway_depth > 0:
+                        messages.append(ValidationMessage(
+                            severity=Severity.INFO,
+                            code="WORM_BORE_OK",
+                            message=f"Worm bore {worm_bore:.1f}mm with DIN6885 keyway: {effective_rim:.2f}mm effective rim",
+                            suggestion=None
+                        ))
 
-    # Validate wheel bore
-    wheel_features = _get(design, 'features', 'wheel')
+    # Validate wheel bore (wheel_features already extracted above)
     if wheel_features is not None:
         wheel_bore_type = _normalize_bore_type(_get(design, 'features', 'wheel', 'bore_type'))
         wheel_bore = _get(design, 'features', 'wheel', 'bore_diameter_mm')
         wheel_root = _get(design, 'wheel', 'root_diameter_mm', default=0)
+        wheel_anti_rot = _get(design, 'features', 'wheel', 'anti_rotation')
 
         # Check bore_type is specified
         if wheel_bore_type is None:
@@ -735,6 +1112,19 @@ def _validate_bore(design: DesignInput) -> List[ValidationMessage]:
                 message="Wheel features section exists but bore_type is not specified",
                 suggestion="Set bore_type to 'none' for solid part or 'custom' with bore_diameter_mm"
             ))
+        elif wheel_bore_type == 'none':
+            # Check if this is a fallback from auto-calculation
+            wheel_pitch = _get(design, 'wheel', 'pitch_diameter_mm', default=0)
+            if wheel_pitch > 0 and wheel_root > 0:
+                from .bore_calculator import calculate_default_bore
+                auto_bore, _ = calculate_default_bore(wheel_pitch, wheel_root)
+                if auto_bore is None:
+                    messages.append(ValidationMessage(
+                        severity=Severity.INFO,
+                        code="WHEEL_TOO_SMALL_FOR_BORE",
+                        message=f"Wheel is too small for a bore (root: {wheel_root:.1f}mm, min bore: 0.5mm)",
+                        suggestion="Consider a larger wheel design if a bore is required"
+                    ))
         elif wheel_bore_type == 'custom':
             # Check bore_diameter_mm is present for custom
             if wheel_bore is None:
@@ -745,22 +1135,64 @@ def _validate_bore(design: DesignInput) -> List[ValidationMessage]:
                     suggestion="Specify bore_diameter_mm or set bore_type to 'none'"
                 ))
             elif wheel_bore > 0 and wheel_root > 0:
-                # Validate bore size against root diameter
-                max_bore = wheel_root - 3.0  # Minimum 1.5mm wall on each side for wheel
+                # Calculate rim thickness accounting for keyway
+                rim_base = (wheel_root - wheel_bore) / 2
+                keyway_depth = 0.0
+
+                # Account for keyway depth if DIN6885 keyway is specified
+                if wheel_anti_rot and wheel_anti_rot.upper() == 'DIN6885':
+                    keyway_depth = _get_keyway_depth(wheel_bore, is_shaft=False)
+
+                effective_rim = rim_base - keyway_depth
+
+                # Error if bore exceeds root
                 if wheel_bore >= wheel_root:
                     messages.append(ValidationMessage(
                         severity=Severity.ERROR,
                         code="WHEEL_BORE_TOO_LARGE",
                         message=f"Wheel bore ({wheel_bore:.1f}mm) exceeds root diameter ({wheel_root:.1f}mm)",
-                        suggestion=f"Maximum bore for this wheel is {max_bore:.1f}mm"
+                        suggestion=f"Maximum bore is less than {wheel_root:.1f}mm"
                     ))
-                elif wheel_bore > max_bore:
-                    rim_thickness = (wheel_root - wheel_bore) / 2
-                    messages.append(ValidationMessage(
-                        severity=Severity.WARNING,
-                        code="WHEEL_BORE_THIN_RIM",
-                        message=f"Wheel rim is thin ({rim_thickness:.2f}mm) with bore {wheel_bore:.1f}mm",
-                        suggestion=f"Consider reducing bore to {max_bore:.1f}mm or less for adequate strength"
-                    ))
+                # Error if effective rim is negative or too thin
+                elif effective_rim < MIN_RIM_WHEEL:
+                    if keyway_depth > 0:
+                        messages.append(ValidationMessage(
+                            severity=Severity.ERROR,
+                            code="WHEEL_BORE_KEYWAY_INTERFERENCE",
+                            message=f"Wheel bore {wheel_bore:.1f}mm with keyway (depth {keyway_depth:.1f}mm) leaves only {effective_rim:.2f}mm rim",
+                            suggestion=f"Reduce bore to allow at least {MIN_RIM_WHEEL}mm rim after keyway, or use DD-cut instead"
+                        ))
+                    else:
+                        messages.append(ValidationMessage(
+                            severity=Severity.ERROR,
+                            code="WHEEL_BORE_TOO_LARGE",
+                            message=f"Wheel bore ({wheel_bore:.1f}mm) leaves insufficient rim ({rim_base:.2f}mm)",
+                            suggestion=f"Reduce bore to allow at least {MIN_RIM_WHEEL}mm rim"
+                        ))
+                # Warning if rim is thin
+                elif effective_rim < WARN_RIM_WHEEL:
+                    if keyway_depth > 0:
+                        messages.append(ValidationMessage(
+                            severity=Severity.WARNING,
+                            code="WHEEL_BORE_THIN_RIM_KEYWAY",
+                            message=f"Wheel rim is thin ({effective_rim:.2f}mm after {keyway_depth:.1f}mm keyway)",
+                            suggestion=f"Consider smaller bore or DD-cut for better strength"
+                        ))
+                    else:
+                        messages.append(ValidationMessage(
+                            severity=Severity.WARNING,
+                            code="WHEEL_BORE_THIN_RIM",
+                            message=f"Wheel rim is thin ({rim_base:.2f}mm) with bore {wheel_bore:.1f}mm",
+                            suggestion=f"Consider reducing bore for adequate strength"
+                        ))
+                else:
+                    # Info about bore configuration
+                    if keyway_depth > 0:
+                        messages.append(ValidationMessage(
+                            severity=Severity.INFO,
+                            code="WHEEL_BORE_OK",
+                            message=f"Wheel bore {wheel_bore:.1f}mm with DIN6885 keyway: {effective_rim:.2f}mm effective rim",
+                            suggestion=None
+                        ))
 
     return messages

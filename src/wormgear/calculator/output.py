@@ -110,12 +110,15 @@ def to_json(
                     'bore_type': 'custom',
                     'bore_diameter_mm': worm_bore_diameter
                 }
+            else:
+                # Auto-calculation failed (gear too small) - fall back to solid
+                features['worm'] = {'bore_type': 'none'}
         elif worm_bore_type == 'none':
-            # Explicit none - include bore_type in features if we need other features
+            # Explicit none - solid part
             features['worm'] = {'bore_type': 'none'}
 
-        # Add worm anti-rotation if bore exists
-        if 'worm' in features:
+        # Add worm anti-rotation only if there's actually a bore
+        if 'worm' in features and features['worm'].get('bore_type') == 'custom':
             worm_keyway = bore_settings.get('worm_keyway', 'none')
             anti_rot = normalize_anti_rotation(worm_keyway)
             if anti_rot != 'none':
@@ -139,12 +142,15 @@ def to_json(
                     'bore_type': 'custom',
                     'bore_diameter_mm': wheel_bore_diameter
                 }
+            else:
+                # Auto-calculation failed (gear too small) - fall back to solid
+                features['wheel'] = {'bore_type': 'none'}
         elif wheel_bore_type == 'none':
-            # Explicit none - include bore_type in features if we need other features
+            # Explicit none - solid part
             features['wheel'] = {'bore_type': 'none'}
 
-        # Add wheel anti-rotation if bore exists
-        if 'wheel' in features:
+        # Add wheel anti-rotation only if there's actually a bore
+        if 'wheel' in features and features['wheel'].get('bore_type') == 'custom':
             wheel_keyway = bore_settings.get('wheel_keyway', 'none')
             anti_rot = normalize_anti_rotation(wheel_keyway)
             if anti_rot != 'none':

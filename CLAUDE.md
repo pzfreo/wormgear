@@ -11,6 +11,36 @@
 - 3D printing of functional gears (FDM, SLA, SLS)
 - Educational and research applications
 
+## 🛑 STOP - READ BEFORE EDITING DATA MODELS
+
+**Before modifying ANY of these files, STOP and plan the full workflow:**
+
+| File | Contains |
+|------|----------|
+| `src/wormgear/io/loaders.py` | Pydantic models (WormParams, WheelParams, Features, etc.) |
+| `src/wormgear/enums.py` | Enums (Hand, WormType, WormProfile, BoreType) |
+| `src/wormgear/calculator/js_bridge.py` | Bridge models (CalculatorInputs, CalculatorOutput, BoreSettings) |
+
+**MANDATORY workflow for ANY change to these files:**
+
+```bash
+# 1. Edit the Pydantic model
+# 2. Regenerate JSON schemas
+python scripts/generate_schemas.py
+# 3. Regenerate TypeScript types
+bash scripts/generate_types.sh
+# 4. Update JS code to use the new types (if structural change)
+# 5. Run type checking
+bash scripts/typecheck.sh
+# 6. Run tests
+pytest tests/
+# 7. Commit ALL together: models + schemas/*.json + web/types/*.generated.d.ts
+```
+
+**If you skip steps 2-3, the JS code will be out of sync with Python and bugs WILL occur.**
+
+---
+
 ## ⚠️ CRITICAL: Schema-First Architecture (MANDATORY)
 
 **Rule**: ALL data structures crossing Python↔JavaScript boundaries MUST use the schema-first workflow.

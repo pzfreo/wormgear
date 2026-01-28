@@ -11,6 +11,7 @@ import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndic
 // Global state
 let currentDesign = null;
 let currentValidation = null;
+let currentMarkdown = null;
 let generatorTabVisited = false;
 
 // ============================================================================
@@ -141,9 +142,10 @@ calculate(input_json)
         // Update global state
         currentDesign = design;
         currentValidation = output.valid;
+        currentMarkdown = output.markdown;
 
-        // Update UI
-        updateBoreDisplaysAndDefaults(currentDesign);
+        // Update UI - pass Python's bore recommendations
+        updateBoreDisplaysAndDefaults(currentDesign, output.recommended_worm_bore, output.recommended_wheel_bore);
         updateThroatReductionAutoHint();
         document.getElementById('results-text').textContent = output.summary;
         updateValidationUI(output.valid, output.messages);
@@ -236,10 +238,11 @@ function downloadJSON() {
 }
 
 function downloadMarkdown() {
-    const calculatorPyodide = getCalculatorPyodide();
-    if (!calculatorPyodide) return;
-    const markdown = calculatorPyodide.runPython(`to_markdown(current_design, current_validation)`);
-    const blob = new Blob([markdown], { type: 'text/markdown' });
+    if (!currentMarkdown) {
+        alert('No design calculated yet');
+        return;
+    }
+    const blob = new Blob([currentMarkdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

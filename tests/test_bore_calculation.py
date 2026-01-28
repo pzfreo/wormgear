@@ -167,13 +167,12 @@ class TestBoreAutoCalculation:
         if worm_bore < 6.0:
             # This is expected for small gears
             # UI should default to DD-cut, not DIN 6885
-            assert worm_bore >= 2.0  # Still valid bore, just small
+            assert worm_bore >= 0.5  # Minimum bore is now 0.5mm for small gears
 
 
 class TestBoreEdgeCases:
     """Test edge cases in bore calculation."""
 
-    @pytest.mark.skip(reason="calculate_default_bore needs verification - may have implementation issues")
     def test_very_small_gear_bore(self):
         """Test bore calculation for very small gears."""
         design = calculate_design_from_module(module=0.5, ratio=10)
@@ -183,9 +182,10 @@ class TestBoreEdgeCases:
             design.worm.root_diameter_mm
         )
 
-        # Should still be valid
-        assert worm_bore >= 2.0
-        assert worm_bore < design.worm.root_diameter_mm
+        # For very small gears, bore may be small or None if physically impossible
+        if worm_bore is not None:
+            assert worm_bore >= 0.5  # Minimum bore is 0.5mm
+            assert worm_bore < design.worm.root_diameter_mm
 
         # Rim should be positive
         rim = (design.worm.root_diameter_mm - worm_bore) / 2.0

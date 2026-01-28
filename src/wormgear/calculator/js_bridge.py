@@ -27,6 +27,7 @@ from .core import (
 )
 from .validation import validate_design
 from .output import to_json, to_markdown, to_summary
+from .bore_calculator import calculate_default_bore
 
 
 # ============================================================================
@@ -128,6 +129,15 @@ class CalculatorInputs(BaseModel):
 # Output Models
 # ============================================================================
 
+class RecommendedBore(BaseModel):
+    """Recommended bore calculation result."""
+    model_config = ConfigDict(extra='ignore')
+
+    diameter_mm: Optional[float] = None  # None if gear too small
+    has_warning: bool = False  # True if rim is thin
+    too_small_for_keyway: bool = False  # True if bore < 6mm (DIN 6885 minimum)
+
+
 class CalculatorOutput(BaseModel):
     """Output from calculate() - matches what JS expects."""
     model_config = ConfigDict(extra='ignore')
@@ -145,6 +155,10 @@ class CalculatorOutput(BaseModel):
     # Validation
     valid: bool = True
     messages: List[Dict[str, Any]] = Field(default_factory=list)
+
+    # Recommended bore values (calculated by Python, displayed by JS)
+    recommended_worm_bore: Optional[RecommendedBore] = None
+    recommended_wheel_bore: Optional[RecommendedBore] = None
 
 
 # ============================================================================
@@ -197,11 +211,11 @@ def calculate(input_json: str) -> str:
             design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
             design.manufacturing.hobbing_steps = inputs.manufacturing.hobbing_steps
 
-        # Validate the design
-        validation = validate_design(design)
-
-        # Convert bore settings to dict for output
+        # Convert bore settings to dict for validation and output
         bore_dict = inputs.bore.model_dump() if inputs.bore else None
+
+        # Validate the design (pass bore_dict for bore validation before features are added)
+        validation = validate_design(design, bore_settings=bore_dict)
         mfg_dict = inputs.manufacturing.model_dump() if inputs.manufacturing else None
 
         # Handle recommended dimensions - remove from mfg_dict so calculator values aren't overwritten
@@ -212,6 +226,36 @@ def calculate(input_json: str) -> str:
 
         # Remove UI-only fields that shouldn't be in the output JSON
         mfg_dict.pop('use_recommended_dims', None)  # UI toggle, not a manufacturing param
+
+        # Calculate recommended bore values (Python is single source of truth)
+        worm_bore_diameter, worm_bore_warning = calculate_default_bore(
+            design.worm.pitch_diameter_mm,
+            design.worm.root_diameter_mm
+        )
+        wheel_bore_diameter, wheel_bore_warning = calculate_default_bore(
+            design.wheel.pitch_diameter_mm,
+            design.wheel.root_diameter_mm
+        )
+
+        recommended_worm_bore = RecommendedBore(
+            diameter_mm=worm_bore_diameter,
+            has_warning=worm_bore_warning,
+            too_small_for_keyway=(worm_bore_diameter is not None and worm_bore_diameter < 6.0)
+        ) if worm_bore_diameter is not None else RecommendedBore(
+            diameter_mm=None,
+            has_warning=False,
+            too_small_for_keyway=False
+        )
+
+        recommended_wheel_bore = RecommendedBore(
+            diameter_mm=wheel_bore_diameter,
+            has_warning=wheel_bore_warning,
+            too_small_for_keyway=(wheel_bore_diameter is not None and wheel_bore_diameter < 6.0)
+        ) if wheel_bore_diameter is not None else RecommendedBore(
+            diameter_mm=None,
+            has_warning=False,
+            too_small_for_keyway=False
+        )
 
         # Build output
         output = CalculatorOutput(
@@ -228,7 +272,9 @@ def calculate(input_json: str) -> str:
                     'suggestion': m.suggestion
                 }
                 for m in validation.messages
-            ]
+            ],
+            recommended_worm_bore=recommended_worm_bore,
+            recommended_wheel_bore=recommended_wheel_bore
         )
 
         return output.model_dump_json()
