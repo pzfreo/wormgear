@@ -239,7 +239,10 @@ export function validateCalculatorOutput(output) {
         summary: output.summary || '',
         markdown: output.markdown || '',
         valid: typeof output.valid === 'boolean' ? output.valid : true,
-        messages: Array.isArray(output.messages) ? output.messages : []
+        messages: Array.isArray(output.messages) ? output.messages : [],
+        // Python-calculated bore recommendations
+        recommended_worm_bore: output.recommended_worm_bore || null,
+        recommended_wheel_bore: output.recommended_wheel_bore || null
     };
 }
 

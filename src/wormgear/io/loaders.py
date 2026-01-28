@@ -67,9 +67,13 @@ class WormFeatures(BaseModel):
         return v
 
     @model_validator(mode='after')
-    def validate_bore_diameter(self):
+    def validate_bore_settings(self):
+        # bore_diameter_mm is required when bore_type is 'custom'
         if self.bore_type == BoreType.CUSTOM and self.bore_diameter_mm is None:
             raise ValueError("bore_diameter_mm is required when bore_type is 'custom'")
+        # anti_rotation makes no sense without a bore - clear it
+        if self.bore_type == BoreType.NONE and self.anti_rotation and self.anti_rotation != 'none':
+            self.anti_rotation = None
         return self
 
 
@@ -104,9 +108,13 @@ class WheelFeatures(BaseModel):
         return v
 
     @model_validator(mode='after')
-    def validate_bore_diameter(self):
+    def validate_bore_settings(self):
+        # bore_diameter_mm is required when bore_type is 'custom'
         if self.bore_type == BoreType.CUSTOM and self.bore_diameter_mm is None:
             raise ValueError("bore_diameter_mm is required when bore_type is 'custom'")
+        # anti_rotation makes no sense without a bore - clear it
+        if self.bore_type == BoreType.NONE and self.anti_rotation and self.anti_rotation != 'none':
+            self.anti_rotation = None
         return self
 
 

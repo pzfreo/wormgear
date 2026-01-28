@@ -117,8 +117,8 @@ def to_json(
             # Explicit none - solid part
             features['worm'] = {'bore_type': 'none'}
 
-        # Add worm anti-rotation if bore exists
-        if 'worm' in features:
+        # Add worm anti-rotation only if there's actually a bore
+        if 'worm' in features and features['worm'].get('bore_type') == 'custom':
             worm_keyway = bore_settings.get('worm_keyway', 'none')
             anti_rot = normalize_anti_rotation(worm_keyway)
             if anti_rot != 'none':
@@ -149,8 +149,8 @@ def to_json(
             # Explicit none - solid part
             features['wheel'] = {'bore_type': 'none'}
 
-        # Add wheel anti-rotation if bore exists
-        if 'wheel' in features:
+        # Add wheel anti-rotation only if there's actually a bore
+        if 'wheel' in features and features['wheel'].get('bore_type') == 'custom':
             wheel_keyway = bore_settings.get('wheel_keyway', 'none')
             anti_rot = normalize_anti_rotation(wheel_keyway)
             if anti_rot != 'none':

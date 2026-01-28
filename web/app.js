@@ -144,8 +144,8 @@ calculate(input_json)
         currentValidation = output.valid;
         currentMarkdown = output.markdown;
 
-        // Update UI
-        updateBoreDisplaysAndDefaults(currentDesign);
+        // Update UI - pass Python's bore recommendations
+        updateBoreDisplaysAndDefaults(currentDesign, output.recommended_worm_bore, output.recommended_wheel_bore);
         updateThroatReductionAutoHint();
         document.getElementById('results-text').textContent = output.summary;
         updateValidationUI(output.valid, output.messages);
