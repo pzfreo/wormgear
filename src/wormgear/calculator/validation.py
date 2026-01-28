@@ -14,7 +14,7 @@ loaded JSON files (dataclasses).
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Union, Dict, TYPE_CHECKING
+from typing import List, Optional, Union, Dict, Any, TYPE_CHECKING
 from enum import Enum
 from math import sin, radians
 

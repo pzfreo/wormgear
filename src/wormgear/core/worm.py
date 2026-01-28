@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from build123d import (
     Part, Cylinder, Box, Align, Pos, Axis, Vector, Plane,
     BuildSketch, BuildLine, Line, Spline, make_face, loft, Helix,
-    show, export_step,
+    export_step,
 )
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
@@ -462,16 +462,13 @@ class WormGeometry:
         return thread
 
     def show(self):
-        """Display the worm in OCP viewer."""
+        """Display the worm in OCP viewer (requires ocp_vscode)."""
         worm = self.build()
         try:
             from ocp_vscode import show as ocp_show
             ocp_show(worm)
         except ImportError:
-            try:
-                show(worm)
-            except (ImportError, NameError, AttributeError):
-                pass  # No viewer available - silent fallback
+            pass  # No viewer available - silent fallback
         return worm
 
     def export_step(self, filepath: str):

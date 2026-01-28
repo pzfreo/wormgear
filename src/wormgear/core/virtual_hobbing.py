@@ -27,7 +27,7 @@ import time
 from typing import Optional, Literal, Callable
 from build123d import (
     Part, Cylinder, Align, BuildSketch, BuildLine, Line, make_face, Spline,
-    loft, Helix, Vector, Plane, Axis, Pos, Rot, show, export_step,
+    loft, Helix, Vector, Plane, Axis, Pos, Rot, export_step,
 )
 from OCP.ShapeFix import ShapeFix_Shape
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
@@ -926,16 +926,13 @@ class VirtualHobbingWheelGeometry:
         return wheel
 
     def show(self):
-        """Display the wheel in OCP viewer."""
+        """Display the wheel in OCP viewer (requires ocp_vscode)."""
         wheel = self.build()
         try:
             from ocp_vscode import show as ocp_show
             ocp_show(wheel)
         except ImportError:
-            try:
-                show(wheel)
-            except (ImportError, NameError, AttributeError):
-                pass  # No viewer available - silent fallback
+            pass  # No viewer available - silent fallback
         return wheel
 
     def export_step(self, filepath: str):

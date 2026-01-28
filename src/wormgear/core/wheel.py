@@ -12,7 +12,7 @@ from typing import Optional, Literal
 from build123d import (
     Part, Cylinder, Align, Vector, Plane,
     BuildSketch, BuildLine, Line, Spline, make_face, loft, Axis,
-    show, export_step,
+    export_step,
 )
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from ..enums import WormProfile
@@ -348,16 +348,13 @@ class WheelGeometry:
         return gear
 
     def show(self):
-        """Display the wheel in OCP viewer."""
+        """Display the wheel in OCP viewer (requires ocp_vscode)."""
         wheel = self.build()
         try:
             from ocp_vscode import show as ocp_show
             ocp_show(wheel)
         except ImportError:
-            try:
-                show(wheel)
-            except (ImportError, NameError, AttributeError):
-                pass  # No viewer available - silent fallback
+            pass  # No viewer available - silent fallback
         return wheel
 
     def export_step(self, filepath: str):
