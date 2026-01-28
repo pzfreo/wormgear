@@ -37,7 +37,7 @@ REQUIRED=(
     "dist/app.js"
     "dist/wormgear/__init__.py"
     "dist/wormgear/calculator/core.py"
-    "dist/wormgear/calculator/bore_calculator.py"
+    "dist/wormgear/core/bore_sizing.py"
     "dist/wormgear/calculator/js_bridge.py"
     "dist/wormgear/enums.py"
     "dist/wormgear/io/loaders.py"
