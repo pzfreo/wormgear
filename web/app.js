@@ -5,7 +5,7 @@ import { calculateBoreSize, getCalculatedBores, updateBoreDisplaysAndDefaults, u
 import { updateValidationUI } from './modules/validation-ui.js';
 import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
-import { getCalculatorPyodide, getGeneratorWorker, resetGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
+import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete } from './modules/generator-ui.js';
 
 // Global state
@@ -13,6 +13,8 @@ let currentDesign = null;
 let currentValidation = null;
 let currentMarkdown = null;
 let generatorTabVisited = false;
+let currentGenerationId = 0;  // Track generation to ignore cancelled results
+let isGenerating = false;  // Track if generation is in progress
 
 // ============================================================================
 // UTILITIES
@@ -354,19 +356,36 @@ function setupWorkerMessageHandler(worker) {
                 }
                 break;
             case 'LOG':
-                // Process LOG messages through progress indicator too
-                handleProgress(message, null);
+                // Only show LOG messages if generation is active
+                if (isGenerating) {
+                    handleProgress(message, null);
+                }
                 break;
             case 'PROGRESS':
-                handleProgress(message, percent);
+                // Only show PROGRESS messages if generation is active
+                if (isGenerating) {
+                    handleProgress(message, percent);
+                }
                 break;
             case 'GENERATE_COMPLETE':
-                handleGenerateComplete(e.data);
+                // Only process completion if generation is still active (not cancelled)
+                if (isGenerating) {
+                    isGenerating = false;
+                    handleGenerateComplete(e.data);
+                } else {
+                    console.log('[Generator] Ignoring completion from cancelled generation');
+                }
                 break;
             case 'GENERATE_ERROR':
-                appendToConsole(`✗ Generation error: ${error}`);
-                if (stack) console.error('Worker error stack:', stack);
-                hideProgressIndicator();
+                // Only show error if generation is still active (not cancelled)
+                if (isGenerating) {
+                    isGenerating = false;
+                    appendToConsole(`✗ Generation error: ${error}`);
+                    if (stack) console.error('Worker error stack:', stack);
+                    hideProgressIndicator();
+                } else {
+                    console.log('[Generator] Ignoring error from cancelled generation');
+                }
                 break;
         }
     };
@@ -423,50 +442,27 @@ function handleFileUpload(event) {
 
 /**
  * Cancel ongoing generation
+ *
+ * Note: We don't terminate the worker because that would require reloading
+ * Pyodide from scratch (several minutes). Instead, we just:
+ * 1. Increment the generation ID so we ignore results from the cancelled generation
+ * 2. Reset the UI
+ * 3. The worker continues running in the background but results are ignored
  */
 async function cancelGeneration() {
-    const generatorWorker = getGeneratorWorker();
-    if (!generatorWorker) {
+    if (!isGenerating) {
         return;
     }
 
-    // Terminate the worker and clear the reference
-    generatorWorker.terminate();
-    resetGeneratorWorker();
+    // Increment generation ID - results from previous generation will be ignored
+    currentGenerationId++;
+    isGenerating = false;
 
-    // Append to console
-    const { appendToConsole, hideProgressIndicator } = await import('./modules/generator-ui.js');
     appendToConsole('⚠️ Generation cancelled by user');
+    appendToConsole('(Background process may continue - results will be ignored)');
 
     // Hide progress and reset UI
     hideProgressIndicator();
-
-    // Reinitialize the worker for future generations
-    const { initGenerator } = await import('./modules/pyodide-init.js');
-    const setupGeneratorMessageHandler = (worker) => {
-        worker.addEventListener('message', async (e) => {
-            const { type, message, percent } = e.data;
-
-            switch (type) {
-                case 'LOG':
-                    // Process LOG messages through progress indicator too
-                    handleProgress(message, null);
-                    break;
-                case 'PROGRESS':
-                    handleProgress(message, percent);
-                    break;
-                case 'GENERATE_COMPLETE':
-                    handleGenerateComplete(e.data);
-                    break;
-                case 'GENERATE_ERROR':
-                    handleGenerateError(message);
-                    break;
-            }
-        });
-    };
-
-    await initGenerator(false, setupGeneratorMessageHandler);
-    appendToConsole('Ready for new generation');
 }
 
 async function generateGeometry(type) {
@@ -508,6 +504,10 @@ async function generateGeometry(type) {
         // Use canonical field names from schema v2.0 - no legacy fallbacks
         let wormLength = manufacturing.worm_length_mm || 40;
         let wheelWidth = manufacturing.wheel_width_mm || null;
+
+        // Start new generation - increment ID and set flag
+        currentGenerationId++;
+        isGenerating = true;
 
         appendToConsole('Starting geometry generation...');
         appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
