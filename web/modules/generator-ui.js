@@ -442,6 +442,9 @@ to_markdown(design)
     }
 
     appendToConsole('Complete package ready for download');
+
+    // Hide cancel button, show generate button for next generation
+    hideCancelButton();
 }
 
 /**

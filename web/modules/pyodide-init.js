@@ -24,6 +24,13 @@ export function getGeneratorWorker() {
 }
 
 /**
+ * Reset generator worker reference (used after terminating worker)
+ */
+export function resetGeneratorWorker() {
+    generatorWorker = null;
+}
+
+/**
  * Enable generate button when generator is ready
  */
 function enableGenerateButtons() {

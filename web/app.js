@@ -5,7 +5,7 @@ import { calculateBoreSize, getCalculatedBores, updateBoreDisplaysAndDefaults, u
 import { updateValidationUI } from './modules/validation-ui.js';
 import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
-import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
+import { getCalculatorPyodide, getGeneratorWorker, resetGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete } from './modules/generator-ui.js';
 
 // Global state
@@ -430,8 +430,9 @@ async function cancelGeneration() {
         return;
     }
 
-    // Terminate the worker
+    // Terminate the worker and clear the reference
     generatorWorker.terminate();
+    resetGeneratorWorker();
 
     // Append to console
     const { appendToConsole, hideProgressIndicator } = await import('./modules/generator-ui.js');
