@@ -397,12 +397,14 @@ class WormGeometry:
         num_turns = extended_length / lead  # Exact number of turns for extended length
 
         # Create helix path at pitch radius
+        # For left-hand worms, use negative pitch to reverse rotation direction
+        # (not negative Z direction, which would shift the helix out of range)
         helix = Helix(
-            pitch=lead,
+            pitch=lead if is_right_hand else -lead,
             height=helix_height,
             radius=pitch_radius,
             center=(0, 0, -helix_height / 2),
-            direction=(0, 0, 1) if is_right_hand else (0, 0, -1)
+            direction=(0, 0, 1)
         )
 
         if start_angle != 0:
@@ -434,11 +436,11 @@ class WormGeometry:
 
             # Calculate taper factor for smooth thread ends
             # Ramps from 0 to 1 over taper_length at each end
-            # Use extended length for taper calculation
-            half_width = extended_length / 2.0
-            z_position = point.Z
-            dist_from_start = z_position + half_width
-            dist_from_end = half_width - z_position
+            # Use parameter t along helix (0 to 1) instead of z_position
+            # This works correctly for both left and right hand worms
+            dist_along_helix = t * extended_length
+            dist_from_start = dist_along_helix
+            dist_from_end = extended_length - dist_along_helix
 
             if dist_from_start < taper_length:
                 # Taper at start end
@@ -549,23 +551,49 @@ class WormGeometry:
 
                     elif self.profile == WormProfile.ZI or self.profile == "ZI":
                         # ZI profile: Involute helicoid per DIN 3975 Type I
-                        # In axial section, appears as straight flanks (generatrix of involute helicoid)
-                        # The involute shape is in normal section (perpendicular to thread)
-                        # Manufactured by hobbing
+                        # True involute flanks in normal section for proper conjugate action
 
-                        # Note: For worm gears in axial section, ZI looks identical to ZA
-                        # The difference is in the normal section where true involute exists
-                        # Since we're modeling in axial section for build123d, use straight flanks
+                        # Calculate base radius for involute
+                        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
+                        base_radius = pitch_radius * math.cos(pressure_angle_rad)
 
-                        root_left = (inner_r, -local_thread_half_width_root)
-                        root_right = (inner_r, local_thread_half_width_root)
-                        tip_left = (outer_r, -local_thread_half_width_tip)
-                        tip_right = (outer_r, local_thread_half_width_tip)
+                        # Generate involute flank points
+                        num_points = 11
+                        left_flank = []
+                        right_flank = []
 
-                        Line(root_left, tip_left)      # Left flank (straight generatrix)
-                        Line(tip_left, tip_right)      # Tip
-                        Line(tip_right, root_right)    # Right flank (straight generatrix)
-                        Line(root_right, root_left)    # Root (closes)
+                        # Involute function: inv(α) = tan(α) - α
+                        def involute(alpha):
+                            return math.tan(alpha) - alpha
+
+                        inv_pitch = involute(pressure_angle_rad)
+
+                        for j in range(num_points):
+                            t = j / (num_points - 1)
+                            r_pos = inner_r + t * (outer_r - inner_r)
+
+                            # Actual radius from worm center
+                            r_actual = pitch_radius + r_pos
+
+                            if r_actual > base_radius:
+                                cos_alpha_r = base_radius / r_actual
+                                cos_alpha_r = max(-1.0, min(1.0, cos_alpha_r))
+                                alpha_r = math.acos(cos_alpha_r)
+                                inv_r = involute(alpha_r)
+                                delta_angle = inv_pitch - inv_r
+                                half_width_straight = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
+                                involute_offset = r_actual * delta_angle
+                                half_width = half_width_straight - involute_offset
+                            else:
+                                half_width = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
+
+                            left_flank.append((r_pos, -half_width))
+                            right_flank.append((r_pos, half_width))
+
+                        Spline(left_flank)
+                        Line(left_flank[-1], right_flank[-1])  # Tip
+                        Spline(list(reversed(right_flank)))
+                        Line(right_flank[0], left_flank[0])    # Root (closes)
 
                     else:
                         raise ValueError(f"Unknown profile type: {self.profile}")

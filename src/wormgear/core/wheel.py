@@ -318,19 +318,68 @@ class WheelGeometry:
 
                         elif self.profile == WormProfile.ZI or self.profile == "ZI":
                             # ZI profile: Involute helicoid per DIN 3975 Type I
-                            # In axial section, appears as straight flanks (generatrix of involute helicoid)
-                            # The involute shape is in normal section (perpendicular to thread)
-                            # Manufactured by hobbing
+                            # True involute tooth flanks for proper conjugate action
 
-                            root_left = (actual_inner, -half_root)
-                            root_right = (actual_inner, half_root)
-                            tip_left = (outer, -half_tip)
-                            tip_right = (outer, half_tip)
+                            # Calculate base circle radius
+                            pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
+                            base_radius = pitch_radius * math.cos(pressure_angle_rad)
 
-                            Line(root_left, tip_left)      # Left flank (straight generatrix)
-                            Line(tip_left, tip_right)      # Tip
-                            Line(tip_right, root_right)    # Right flank (straight generatrix)
-                            Line(root_right, root_left)    # Root (closes)
+                            # Generate involute flank points
+                            num_points = 11  # Points per flank for smooth curve
+                            left_flank = []
+                            right_flank = []
+
+                            # Involute function: inv(α) = tan(α) - α
+                            def involute(alpha):
+                                return math.tan(alpha) - alpha
+
+                            # Pressure angle at pitch circle
+                            inv_pitch = involute(pressure_angle_rad)
+
+                            # Half tooth thickness at pitch (in radians around the gear)
+                            tooth_thickness_rad = (half_root + half_tip) / pitch_radius
+
+                            for j in range(num_points):
+                                t = j / (num_points - 1)
+                                r_pos = actual_inner + t * (outer - actual_inner)
+
+                                # Actual radius from gear center
+                                r_actual = pitch_radius + r_pos
+
+                                # Check if we're above base circle
+                                if r_actual > base_radius:
+                                    # Pressure angle at this radius
+                                    cos_alpha_r = base_radius / r_actual
+                                    # Clamp to valid range for acos
+                                    cos_alpha_r = max(-1.0, min(1.0, cos_alpha_r))
+                                    alpha_r = math.acos(cos_alpha_r)
+
+                                    # Involute deviation from radial line
+                                    inv_r = involute(alpha_r)
+
+                                    # Angular position of involute at this radius relative to pitch
+                                    # The involute curves away from the tooth centerline
+                                    delta_angle = inv_pitch - inv_r
+
+                                    # Convert to linear width at this radius
+                                    # Tooth space width = pitch - tooth width
+                                    half_width_straight = half_root + t * (half_tip - half_root)
+                                    involute_offset = r_actual * delta_angle
+
+                                    # Apply involute curvature (flanks curve inward toward root)
+                                    half_width = half_width_straight - involute_offset
+                                else:
+                                    # Below base circle - use straight line (trochoid region)
+                                    half_width = half_root + t * (half_tip - half_root)
+
+                                left_flank.append((r_pos, -half_width))
+                                right_flank.append((r_pos, half_width))
+
+                            # Build profile with involute flanks
+                            Spline(left_flank)
+                            Line(left_flank[-1], right_flank[-1])  # Tip
+                            Spline(list(reversed(right_flank)))
+                            Line(right_flank[0], left_flank[0])    # Root (closes)
 
                         else:
                             raise ValueError(f"Unknown profile type: {self.profile}")

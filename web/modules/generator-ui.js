@@ -15,6 +15,9 @@ let lastHobbingTime = null;  // Track last update time
 const RATE_HISTORY_SIZE = 5;  // Keep last 5 observations (recent only)
 const EMA_ALPHA = 0.3;  // Smoothing factor for EMA
 
+// Track which part we're currently generating (for export step detection)
+let currentGenerationPhase = 'worm';  // 'worm' or 'wheel'
+
 /**
  * Append message to console output
  * @param {string} message - Message to append
@@ -67,7 +70,7 @@ function setMainStep(step, message) {
     }
 
     // Update step indicators
-    const steps = ['parse', 'worm', 'wheel', 'export'];
+    const steps = ['parse', 'worm', 'worm-export', 'wheel', 'wheel-export', 'package'];
     steps.forEach(s => {
         const indicator = document.querySelector(`.step-indicator[data-step="${s}"]`);
         if (!indicator) return;
@@ -228,6 +231,7 @@ export function resetHobbingTimer() {
     hobbingRateHistory = [];  // Clear history
     lastHobbingPercent = 0;
     lastHobbingTime = null;
+    currentGenerationPhase = 'worm';  // Reset phase
     console.log('[Time Tracking] Timer reset');
 }
 
@@ -293,22 +297,34 @@ export function handleProgress(message, percent) {
     }
     // Parsing/setup step
     else if (msgLower.includes('parsing') || msgLower.includes('parameters') || msgLower.includes('📋') || msgLower.includes('starting geometry')) {
+        currentGenerationPhase = 'worm';  // Reset phase at start
         setMainStep('parse', 'Parsing parameters...');
         updateSubProgress(null);
     }
     // Worm generation step (🔩 emoji or "generating worm" but NOT "generating wheel")
     else if (msgLower.includes('🔩') || (msgLower.includes('generating worm') && !msgLower.includes('wheel'))) {
+        currentGenerationPhase = 'worm';
         setMainStep('worm', 'Generating worm gear...');
         updateSubProgress(null);
     }
     // Wheel generation step (⚙️ emoji or "generating wheel")
     else if (msgLower.includes('⚙️') || msgLower.includes('generating wheel')) {
+        currentGenerationPhase = 'wheel';
         setMainStep('wheel', 'Generating wheel gear...');
         updateSubProgress(null);
     }
-    // Export step (STEP or STL or 3MF format)
-    else if (msgLower.includes('exporting to step') || msgLower.includes('exporting to stl') || msgLower.includes('exporting to 3mf')) {
-        setMainStep('export', 'Exporting files...');
+    // Export step (STEP or STL or 3MF format) - check which phase we're in
+    else if (msgLower.includes('exporting') && (msgLower.includes('step') || msgLower.includes('stl') || msgLower.includes('3mf'))) {
+        if (currentGenerationPhase === 'worm') {
+            setMainStep('worm-export', 'Exporting worm...');
+        } else {
+            setMainStep('wheel-export', 'Exporting wheel...');
+        }
+        updateSubProgress(null);
+    }
+    // Package step (creating ZIP)
+    else if (msgLower.includes('creating zip') || msgLower.includes('package ready') || msgLower.includes('complete package')) {
+        setMainStep('package', 'Creating package...');
         updateSubProgress(null);
     }
 
@@ -361,7 +377,7 @@ export async function handleGenerateComplete(data) {
     }
 
     // Set final step
-    setMainStep('export', 'Generation complete');
+    setMainStep('package', 'Generation complete');
     updateSubProgress(null);
 
     // Mark all steps as complete
@@ -442,6 +458,9 @@ to_markdown(design)
     }
 
     appendToConsole('Complete package ready for download');
+
+    // Hide cancel button, show generate button for next generation
+    hideCancelButton();
 }
 
 /**

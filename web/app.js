@@ -13,6 +13,26 @@ let currentDesign = null;
 let currentValidation = null;
 let currentMarkdown = null;
 let generatorTabVisited = false;
+let currentGenerationId = 0;  // Track generation to ignore cancelled results
+let isGenerating = false;  // Track if generation is in progress
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+/**
+ * Debounce function to limit how often a function can fire.
+ * @param {Function} func - The function to debounce
+ * @param {number} wait - Milliseconds to wait before calling
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
 
 // ============================================================================
 // UI HELPERS
@@ -336,19 +356,36 @@ function setupWorkerMessageHandler(worker) {
                 }
                 break;
             case 'LOG':
-                // Process LOG messages through progress indicator too
-                handleProgress(message, null);
+                // Only show LOG messages if generation is active
+                if (isGenerating) {
+                    handleProgress(message, null);
+                }
                 break;
             case 'PROGRESS':
-                handleProgress(message, percent);
+                // Only show PROGRESS messages if generation is active
+                if (isGenerating) {
+                    handleProgress(message, percent);
+                }
                 break;
             case 'GENERATE_COMPLETE':
-                handleGenerateComplete(e.data);
+                // Only process completion if generation is still active (not cancelled)
+                if (isGenerating) {
+                    isGenerating = false;
+                    handleGenerateComplete(e.data);
+                } else {
+                    console.log('[Generator] Ignoring completion from cancelled generation');
+                }
                 break;
             case 'GENERATE_ERROR':
-                appendToConsole(`✗ Generation error: ${error}`);
-                if (stack) console.error('Worker error stack:', stack);
-                hideProgressIndicator();
+                // Only show error if generation is still active (not cancelled)
+                if (isGenerating) {
+                    isGenerating = false;
+                    appendToConsole(`✗ Generation error: ${error}`);
+                    if (stack) console.error('Worker error stack:', stack);
+                    hideProgressIndicator();
+                } else {
+                    console.log('[Generator] Ignoring error from cancelled generation');
+                }
                 break;
         }
     };
@@ -405,49 +442,27 @@ function handleFileUpload(event) {
 
 /**
  * Cancel ongoing generation
+ *
+ * Note: We don't terminate the worker because that would require reloading
+ * Pyodide from scratch (several minutes). Instead, we just:
+ * 1. Increment the generation ID so we ignore results from the cancelled generation
+ * 2. Reset the UI
+ * 3. The worker continues running in the background but results are ignored
  */
 async function cancelGeneration() {
-    const generatorWorker = getGeneratorWorker();
-    if (!generatorWorker) {
+    if (!isGenerating) {
         return;
     }
 
-    // Terminate the worker
-    generatorWorker.terminate();
+    // Increment generation ID - results from previous generation will be ignored
+    currentGenerationId++;
+    isGenerating = false;
 
-    // Append to console
-    const { appendToConsole, hideProgressIndicator } = await import('./modules/generator-ui.js');
     appendToConsole('⚠️ Generation cancelled by user');
+    appendToConsole('(Background process may continue - results will be ignored)');
 
     // Hide progress and reset UI
     hideProgressIndicator();
-
-    // Reinitialize the worker for future generations
-    const { initGenerator } = await import('./modules/pyodide-init.js');
-    const setupGeneratorMessageHandler = (worker) => {
-        worker.addEventListener('message', async (e) => {
-            const { type, message, percent } = e.data;
-
-            switch (type) {
-                case 'LOG':
-                    // Process LOG messages through progress indicator too
-                    handleProgress(message, null);
-                    break;
-                case 'PROGRESS':
-                    handleProgress(message, percent);
-                    break;
-                case 'GENERATE_COMPLETE':
-                    handleGenerateComplete(e.data);
-                    break;
-                case 'GENERATE_ERROR':
-                    handleGenerateError(message);
-                    break;
-            }
-        });
-    };
-
-    await initGenerator(false, setupGeneratorMessageHandler);
-    appendToConsole('Ready for new generation');
 }
 
 async function generateGeometry(type) {
@@ -489,6 +504,10 @@ async function generateGeometry(type) {
         // Use canonical field names from schema v2.0 - no legacy fallbacks
         let wormLength = manufacturing.worm_length_mm || 40;
         let wheelWidth = manufacturing.wheel_width_mm || null;
+
+        // Start new generation - increment ID and set flag
+        currentGenerationId++;
+        isGenerating = true;
 
         appendToConsole('Starting geometry generation...');
         appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
@@ -551,6 +570,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
     document.getElementById('generate-btn').addEventListener('click', () => generateGeometry('both'));
     document.getElementById('cancel-generate-btn').addEventListener('click', cancelGeneration);
+
+    // Update design summary when JSON is pasted or edited
+    const jsonInput = document.getElementById('json-input');
+    jsonInput.addEventListener('input', debounce(() => {
+        try {
+            const design = JSON.parse(jsonInput.value);
+            if (design.worm && design.wheel && design.assembly) {
+                updateDesignSummary(design);
+                window.currentGeneratedDesign = design;
+            }
+        } catch (e) {
+            // Invalid JSON - don't update summary
+        }
+    }, 500));
 
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {
