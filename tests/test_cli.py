@@ -9,6 +9,27 @@ import pytest
 from pathlib import Path
 
 
+class TestCLIEntryPoints:
+    """Test that CLI entry points defined in pyproject.toml are importable."""
+
+    def test_entry_point_importable(self):
+        """Test that the CLI entry point module and function exist.
+
+        This catches issues like pyproject.toml referencing non-existent modules.
+        """
+        from wormgear.cli.generate import main
+        assert callable(main)
+
+    def test_entry_point_via_subprocess(self):
+        """Test entry point works when invoked as module."""
+        result = subprocess.run(
+            [sys.executable, "-m", "wormgear.cli.generate", "--help"],
+            capture_output=True,
+            text=True
+        )
+        assert result.returncode == 0
+
+
 class TestCLIBasic:
     """Basic CLI tests."""
 

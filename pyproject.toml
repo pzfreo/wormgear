@@ -41,10 +41,8 @@ dev = [
 ]
 
 [project.scripts]
-# New unified CLI (to be implemented)
-wormgear = "wormgear.cli.main:main"
-# Backwards compatible generator CLI
-wormgear-geometry = "wormgear.cli.generate:main"
+wormgear = "wormgear.cli.generate:main"
+wormgear-geometry = "wormgear.cli.generate:main"  # Alias for backwards compatibility
 
 [project.urls]
 Homepage = "https://wormgear.studio"
