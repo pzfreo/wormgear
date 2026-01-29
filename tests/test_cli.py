@@ -484,3 +484,52 @@ class TestCLIGloboid:
         assert result.returncode == 0
         step_files = list(output_dir.glob("*.step"))
         assert len(step_files) == 2
+
+
+class TestCLIInterferenceCheck:
+    """Tests for the --check-interference option."""
+
+    def test_cli_interference_check_passes(self, temp_json_file):
+        """Test that interference check passes for well-formed gears."""
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "wormgear.cli.generate",
+                str(temp_json_file),
+                "--no-save",
+                "--check-interference",
+                "--interference-steps", "12",
+                "--worm-length", "10",
+                "--sections", "12"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180
+        )
+
+        assert result.returncode == 0
+        assert "Checking interference" in result.stdout
+        assert "No interference detected" in result.stdout
+
+    def test_cli_interference_check_with_virtual_hobbing(self, temp_json_file):
+        """Test interference check with virtual hobbing wheel."""
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "wormgear.cli.generate",
+                str(temp_json_file),
+                "--no-save",
+                "--check-interference",
+                "--interference-steps", "8",
+                "--virtual-hobbing",
+                "--hobbing-steps", "18",
+                "--worm-length", "10",
+                "--sections", "12"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+
+        assert result.returncode == 0
+        assert "Checking interference" in result.stdout
+        # Virtual hobbing should also pass (better mesh)
+        assert "No interference detected" in result.stdout

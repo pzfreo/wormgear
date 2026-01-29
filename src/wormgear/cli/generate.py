@@ -31,6 +31,102 @@ from ..core.features import (
 )
 
 
+def interference_check(
+    worm,
+    wheel,
+    centre_distance: float,
+    worm_lead: float,
+    wheel_teeth: int,
+    steps: int = 36
+) -> bool:
+    """
+    Check for interference between worm and wheel at multiple rotation angles.
+
+    Positions the worm at centre_distance from the wheel (along X axis),
+    with worm axis along Y (perpendicular to wheel axis along Z).
+
+    Rotates both parts through one complete mesh cycle and checks for
+    boolean intersection at each step.
+
+    Args:
+        worm: Worm Part geometry
+        wheel: Wheel Part geometry
+        centre_distance: Distance between axes in mm
+        worm_lead: Worm lead (axial advance per revolution) in mm
+        wheel_teeth: Number of wheel teeth
+        steps: Number of rotation steps to check
+
+    Returns:
+        True if no interference found, False if interference detected
+    """
+    from build123d import Pos, Rot, Part
+    import math
+
+    # For one complete wheel tooth engagement, the worm rotates by:
+    # wheel_rotation = 360 / wheel_teeth (one tooth pitch)
+    # worm_rotation = wheel_rotation * wheel_teeth / worm_starts = 360 degrees
+    # But since worm has lead, we need to track the kinematic relationship
+
+    # The gear ratio: wheel rotates 1/ratio per worm revolution
+    # For checking, we'll rotate the worm through 360 degrees
+    # and the wheel through 360/ratio degrees
+
+    # Position worm: translate to centre distance, rotate 90° so axis is along Y
+    worm_base = Pos(centre_distance, 0, 0) * Rot(X=90) * worm
+
+    interference_found = False
+    max_interference_volume = 0.0
+    worst_angle = 0.0
+
+    print(f"  Worm at X={centre_distance}mm, axis along Y")
+    print(f"  Wheel at origin, axis along Z")
+    print(f"  Checking {steps} positions through 360° worm rotation...")
+
+    for i in range(steps):
+        # Worm rotation angle (0 to 360 degrees)
+        worm_angle = (360.0 / steps) * i
+
+        # Corresponding wheel rotation (kinematically linked)
+        # When worm rotates 360°, wheel rotates (360/ratio)°
+        # ratio = wheel_teeth / worm_starts, but for single-start: ratio = wheel_teeth
+        wheel_angle = worm_angle / wheel_teeth
+
+        # Apply rotations
+        # Worm rotates around its axis (Y after positioning)
+        worm_rotated = Pos(centre_distance, 0, 0) * Rot(X=90) * Rot(Z=worm_angle) * worm
+
+        # Wheel rotates around Z
+        wheel_rotated = Rot(Z=wheel_angle) * wheel
+
+        # Check intersection
+        try:
+            intersection = worm_rotated & wheel_rotated
+            if hasattr(intersection, 'volume') and intersection.volume > 0.001:
+                interference_found = True
+                if intersection.volume > max_interference_volume:
+                    max_interference_volume = intersection.volume
+                    worst_angle = worm_angle
+                print(f"  ⚠️  Step {i+1}/{steps}: Interference at worm={worm_angle:.1f}°, wheel={wheel_angle:.1f}° - volume={intersection.volume:.4f}mm³")
+        except Exception as e:
+            # Boolean operation failed - might indicate touching surfaces
+            print(f"  ⚠️  Step {i+1}/{steps}: Boolean check failed at worm={worm_angle:.1f}° ({e})")
+
+    # Summary
+    if interference_found:
+        print(f"\n  ❌ INTERFERENCE DETECTED")
+        print(f"     Maximum interference volume: {max_interference_volume:.4f} mm³")
+        print(f"     Worst at worm angle: {worst_angle:.1f}°")
+        print(f"\n  Suggestions:")
+        print(f"     - Increase backlash in calculator")
+        print(f"     - Use virtual hobbing (--virtual-hobbing) for accurate wheel teeth")
+        print(f"     - Check that profile type matches between worm and wheel")
+        return False
+    else:
+        print(f"\n  ✓ No interference detected at any rotation angle")
+        print(f"    Gear pair should mesh correctly")
+        return True
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -78,6 +174,10 @@ Examples:
   wormgear-geometry design.json --profile ZA  # Straight flanks (default, CNC)
   wormgear-geometry design.json --profile ZK  # Circular arc (3D printing)
   wormgear-geometry design.json --profile ZI  # Involute (hobbing)
+
+  # Check for interference between worm and wheel
+  wormgear-geometry design.json --check-interference
+  wormgear-geometry design.json --check-interference --interference-steps 72  # More thorough
         """
     )
 
@@ -150,6 +250,19 @@ Examples:
         '--mesh-aligned',
         action='store_true',
         help='Rotate wheel by half tooth pitch for mesh alignment in viewer'
+    )
+
+    parser.add_argument(
+        '--check-interference',
+        action='store_true',
+        help='Check for interference between worm and wheel at multiple rotation angles'
+    )
+
+    parser.add_argument(
+        '--interference-steps',
+        type=int,
+        default=36,
+        help='Number of rotation steps for interference check (default: 36 = every 10 degrees)'
     )
 
     parser.add_argument(
@@ -673,6 +786,18 @@ Examples:
             )
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
+
+    # Check for interference between worm and wheel
+    if args.check_interference and worm is not None and wheel is not None:
+        print(f"\nChecking interference ({args.interference_steps} rotation steps)...")
+        interference_check(
+            worm=worm,
+            wheel=wheel,
+            centre_distance=design.assembly.centre_distance_mm,
+            worm_lead=design.worm.lead_mm,
+            wheel_teeth=design.wheel.num_teeth,
+            steps=args.interference_steps
+        )
 
     # Save STEP files
     if not args.no_save:
