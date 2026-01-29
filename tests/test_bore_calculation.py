@@ -187,9 +187,9 @@ class TestBoreEdgeCases:
             assert worm_bore >= 0.5  # Minimum bore is 0.5mm
             assert worm_bore < design.worm.root_diameter_mm
 
-        # Rim should be positive
-        rim = (design.worm.root_diameter_mm - worm_bore) / 2.0
-        assert rim > 0
+            # Rim should be positive (only check when bore is not None)
+            rim = (design.worm.root_diameter_mm - worm_bore) / 2.0
+            assert rim > 0
 
     def test_very_large_gear_bore(self):
         """Test bore calculation for very large gears."""
