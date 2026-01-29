@@ -339,6 +339,12 @@ class WheelGeometry:
                             # Half tooth thickness at pitch (in radians around the gear)
                             tooth_thickness_rad = (half_root + half_tip) / pitch_radius
 
+                            # Minimum half width to prevent degenerate geometry
+                            min_half_width = 0.02 * m  # 2% of module
+
+                            # Track if involute is valid (no self-intersection)
+                            involute_valid = True
+
                             for j in range(num_points):
                                 t = j / (num_points - 1)
                                 r_pos = actual_inner + t * (outer - actual_inner)
@@ -346,8 +352,11 @@ class WheelGeometry:
                                 # Actual radius from gear center
                                 r_actual = pitch_radius + r_pos
 
+                                # Straight flank width (fallback)
+                                half_width_straight = half_root + t * (half_tip - half_root)
+
                                 # Check if we're above base circle
-                                if r_actual > base_radius:
+                                if r_actual > base_radius and involute_valid:
                                     # Pressure angle at this radius
                                     cos_alpha_r = base_radius / r_actual
                                     # Clamp to valid range for acos
@@ -362,24 +371,38 @@ class WheelGeometry:
                                     delta_angle = inv_pitch - inv_r
 
                                     # Convert to linear width at this radius
-                                    # Tooth space width = pitch - tooth width
-                                    half_width_straight = half_root + t * (half_tip - half_root)
                                     involute_offset = r_actual * delta_angle
 
                                     # Apply involute curvature (flanks curve inward toward root)
                                     half_width = half_width_straight - involute_offset
+
+                                    # Check for invalid geometry (negative or too small width)
+                                    if half_width < min_half_width:
+                                        # Involute causes self-intersection at small modules
+                                        # Fall back to straight flanks for remaining points
+                                        involute_valid = False
+                                        half_width = max(min_half_width, half_width_straight)
                                 else:
-                                    # Below base circle - use straight line (trochoid region)
-                                    half_width = half_root + t * (half_tip - half_root)
+                                    # Below base circle or invalid involute - use straight line
+                                    half_width = max(min_half_width, half_width_straight)
 
                                 left_flank.append((r_pos, -half_width))
                                 right_flank.append((r_pos, half_width))
 
-                            # Build profile with involute flanks
-                            Spline(left_flank)
-                            Line(left_flank[-1], right_flank[-1])  # Tip
-                            Spline(list(reversed(right_flank)))
-                            Line(right_flank[0], left_flank[0])    # Root (closes)
+                            # Use Line instead of Spline if profile is nearly straight (small module)
+                            profile_height = outer - actual_inner
+                            if profile_height < 0.5 or not involute_valid:
+                                # Small profile or invalid involute - use lines for robustness
+                                Line(left_flank[0], left_flank[-1])
+                                Line(left_flank[-1], right_flank[-1])  # Tip
+                                Line(right_flank[-1], right_flank[0])
+                                Line(right_flank[0], left_flank[0])    # Root (closes)
+                            else:
+                                # Build profile with involute flanks
+                                Spline(left_flank)
+                                Line(left_flank[-1], right_flank[-1])  # Tip
+                                Spline(list(reversed(right_flank)))
+                                Line(right_flank[0], left_flank[0])    # Root (closes)
 
                         else:
                             raise ValueError(f"Unknown profile type: {self.profile}")

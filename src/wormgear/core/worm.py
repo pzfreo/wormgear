@@ -568,6 +568,12 @@ class WormGeometry:
 
                         inv_pitch = involute(pressure_angle_rad)
 
+                        # Minimum half width to prevent degenerate geometry
+                        min_half_width = 0.02 * self.params.module_mm  # 2% of module
+
+                        # Track if involute is valid (no self-intersection)
+                        involute_valid = True
+
                         for j in range(num_points):
                             t = j / (num_points - 1)
                             r_pos = inner_r + t * (outer_r - inner_r)
@@ -575,25 +581,43 @@ class WormGeometry:
                             # Actual radius from worm center
                             r_actual = pitch_radius + r_pos
 
-                            if r_actual > base_radius:
+                            # Straight flank width (fallback)
+                            half_width_straight = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
+
+                            if r_actual > base_radius and involute_valid:
                                 cos_alpha_r = base_radius / r_actual
                                 cos_alpha_r = max(-1.0, min(1.0, cos_alpha_r))
                                 alpha_r = math.acos(cos_alpha_r)
                                 inv_r = involute(alpha_r)
                                 delta_angle = inv_pitch - inv_r
-                                half_width_straight = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
                                 involute_offset = r_actual * delta_angle
                                 half_width = half_width_straight - involute_offset
+
+                                # Check for invalid geometry (negative or too small width)
+                                if half_width < min_half_width:
+                                    # Involute causes self-intersection at small modules
+                                    # Fall back to straight flanks for remaining points
+                                    involute_valid = False
+                                    half_width = max(min_half_width, half_width_straight)
                             else:
-                                half_width = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
+                                half_width = max(min_half_width, half_width_straight)
 
                             left_flank.append((r_pos, -half_width))
                             right_flank.append((r_pos, half_width))
 
-                        Spline(left_flank)
-                        Line(left_flank[-1], right_flank[-1])  # Tip
-                        Spline(list(reversed(right_flank)))
-                        Line(right_flank[0], left_flank[0])    # Root (closes)
+                        # Use Line instead of Spline if profile is nearly straight (small module)
+                        profile_height = outer_r - inner_r
+                        if profile_height < 0.5 or not involute_valid:
+                            # Small profile or invalid involute - use lines for robustness
+                            Line(left_flank[0], left_flank[-1])
+                            Line(left_flank[-1], right_flank[-1])  # Tip
+                            Line(right_flank[-1], right_flank[0])
+                            Line(right_flank[0], left_flank[0])    # Root (closes)
+                        else:
+                            Spline(left_flank)
+                            Line(left_flank[-1], right_flank[-1])  # Tip
+                            Spline(list(reversed(right_flank)))
+                            Line(right_flank[0], left_flank[0])    # Root (closes)
 
                     else:
                         raise ValueError(f"Unknown profile type: {self.profile}")
