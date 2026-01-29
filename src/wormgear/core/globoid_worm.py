@@ -664,49 +664,25 @@ class GloboidWormGeometry:
 
                     elif self.profile == WormProfile.ZI or self.profile == "ZI":
                         # ZI profile: Involute helicoid per DIN 3975 Type I
-                        # True involute flanks in normal section for proper conjugate action
+                        #
+                        # IMPORTANT: For worms, ZI does NOT mean curved flanks in the
+                        # axial cross-section! A worm acts like a helical rack, and a
+                        # rack's "involute" profile is a STRAIGHT LINE at the pressure angle.
+                        #
+                        # The difference between ZA and ZI for worms is in the 3D helicoid
+                        # surface geometry, not the 2D cross-section shape.
+                        #
+                        # Therefore, ZI for worms = ZA (straight trapezoidal profile)
 
-                        # Calculate base radius for involute
-                        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
-                        base_radius = local_pitch_radius * math.cos(pressure_angle_rad)
+                        root_left = (inner_r, -local_thread_half_width_root)
+                        root_right = (inner_r, local_thread_half_width_root)
+                        tip_left = (outer_r, -local_thread_half_width_tip)
+                        tip_right = (outer_r, local_thread_half_width_tip)
 
-                        # Generate involute flank points
-                        num_points = 11
-                        left_flank = []
-                        right_flank = []
-
-                        # Involute function: inv(α) = tan(α) - α
-                        def involute(alpha):
-                            return math.tan(alpha) - alpha
-
-                        inv_pitch = involute(pressure_angle_rad)
-
-                        for j in range(num_points):
-                            t = j / (num_points - 1)
-                            r_pos = inner_r + t * (outer_r - inner_r)
-
-                            # Actual radius from worm center
-                            r_actual = local_pitch_radius + r_pos
-
-                            if r_actual > base_radius:
-                                cos_alpha_r = base_radius / r_actual
-                                cos_alpha_r = max(-1.0, min(1.0, cos_alpha_r))
-                                alpha_r = math.acos(cos_alpha_r)
-                                inv_r = involute(alpha_r)
-                                delta_angle = inv_pitch - inv_r
-                                half_width_straight = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
-                                involute_offset = r_actual * delta_angle
-                                half_width = half_width_straight - involute_offset
-                            else:
-                                half_width = local_thread_half_width_root + t * (local_thread_half_width_tip - local_thread_half_width_root)
-
-                            left_flank.append((r_pos, -half_width))
-                            right_flank.append((r_pos, half_width))
-
-                        Spline(left_flank)
-                        Line(left_flank[-1], right_flank[-1])  # Tip
-                        Spline(list(reversed(right_flank)))
-                        Line(right_flank[0], left_flank[0])    # Root (closes)
+                        Line(root_left, tip_left)      # Left flank (straight)
+                        Line(tip_left, tip_right)      # Tip
+                        Line(tip_right, root_right)    # Right flank (straight)
+                        Line(root_right, root_left)    # Root (closes)
 
                     else:
                         raise ValueError(f"Unknown profile type: {self.profile}")
