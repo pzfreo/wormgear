@@ -1174,6 +1174,22 @@ pip install -e .                   # Editable install
 pip install -e ".[dev]"           # With dev dependencies
 ```
 
+### Releasing
+
+**ALWAYS use the publish script to cut releases. NEVER create tags or releases manually.**
+
+```bash
+./scripts/publish.sh              # Auto-increment patch version (0.0.15 -> 0.0.16)
+./scripts/publish.sh 0.1.0        # Specify version explicitly
+```
+
+The script handles the full release workflow:
+1. Creates a version bump PR
+2. Auto-merges the PR
+3. Creates and pushes the git tag
+4. Creates GitHub Release with auto-generated notes
+5. Triggers PyPI publish via GitHub Actions
+
 ## Key Challenges to Watch
 
 1. **Helix orientation** - Ensuring profile perpendicular to helix path
