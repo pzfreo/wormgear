@@ -15,6 +15,24 @@ let currentMarkdown = null;
 let generatorTabVisited = false;
 
 // ============================================================================
+// UTILITIES
+// ============================================================================
+
+/**
+ * Debounce function to limit how often a function can fire.
+ * @param {Function} func - The function to debounce
+ * @param {number} wait - Milliseconds to wait before calling
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// ============================================================================
 // UI HELPERS
 // ============================================================================
 
@@ -551,6 +569,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
     document.getElementById('generate-btn').addEventListener('click', () => generateGeometry('both'));
     document.getElementById('cancel-generate-btn').addEventListener('click', cancelGeneration);
+
+    // Update design summary when JSON is pasted or edited
+    const jsonInput = document.getElementById('json-input');
+    jsonInput.addEventListener('input', debounce(() => {
+        try {
+            const design = JSON.parse(jsonInput.value);
+            if (design.worm && design.wheel && design.assembly) {
+                updateDesignSummary(design);
+                window.currentGeneratedDesign = design;
+            }
+        } catch (e) {
+            // Invalid JSON - don't update summary
+        }
+    }, 500));
 
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {
