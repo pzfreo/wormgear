@@ -356,8 +356,10 @@ class TestGloboidWormGeometry:
 
     def test_globoid_with_keyway(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test globoid worm with bore and keyway features."""
-        bore = BoreFeature(diameter=8.0)  # Larger bore for clearer keyway effect
-        keyway = KeywayFeature()
+        # Use a bore that fits within the root diameter (4.75mm for this fixture)
+        # DIN 6885 doesn't cover bores below 6mm, so specify custom dimensions
+        bore = BoreFeature(diameter=2.0)
+        keyway = KeywayFeature(width=1.0, depth=0.5)  # Custom dimensions for small bore
 
         globoid_geo = GloboidWormGeometry(
             params=worm_params,
@@ -379,7 +381,8 @@ class TestGloboidWormGeometry:
 
     def test_globoid_with_set_screw(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test globoid worm with set screw feature."""
-        bore = BoreFeature(diameter=8.0)
+        # Use a bore that fits within the root diameter (4.75mm for this fixture)
+        bore = BoreFeature(diameter=2.0)
         set_screw = SetScrewFeature(count=2)
 
         globoid_geo = GloboidWormGeometry(
