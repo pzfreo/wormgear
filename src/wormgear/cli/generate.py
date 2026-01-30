@@ -34,7 +34,13 @@ from ..core.mesh_alignment import (
     position_for_mesh,
     mesh_alignment_to_dict,
 )
-from ..io.loaders import MeshAlignment, WormPosition
+from ..core.rim_thickness import (
+    measure_rim_thickness,
+    rim_thickness_to_dict,
+    WHEEL_RIM_WARNING_THRESHOLD_MM,
+    WORM_RIM_WARNING_THRESHOLD_MM,
+)
+from ..io.loaders import MeshAlignment, WormPosition, MeasuredGeometry, MeasurementPoint
 
 
 def interference_check(
@@ -435,6 +441,8 @@ Examples:
 
     worm = None
     wheel = None
+    worm_rim_result = None
+    wheel_rim_result = None
 
     # Get features from JSON if present (source of truth)
     json_worm_features = design.features.worm if design.features else None
@@ -608,6 +616,19 @@ Examples:
 
         worm = worm_geo.build()
         print(f"  Volume: {worm.volume:.2f} mm³")
+
+        # Measure rim thickness if bore is present
+        worm_rim_result = None
+        if worm_bore_diameter is not None:
+            worm_rim_result = measure_rim_thickness(
+                part=worm,
+                bore_diameter_mm=worm_bore_diameter,
+                is_worm=True
+            )
+            if worm_rim_result is not None:
+                print(f"  Rim thickness: {worm_rim_result.minimum_thickness_mm:.2f} mm")
+                if worm_rim_result.has_warning:
+                    print(f"  WARNING: Rim thickness below {WORM_RIM_WARNING_THRESHOLD_MM}mm threshold")
 
     # Generate wheel
     if generate_wheel:
@@ -793,6 +814,19 @@ Examples:
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
 
+        # Measure rim thickness if bore is present
+        wheel_rim_result = None
+        if wheel_bore_diameter is not None:
+            wheel_rim_result = measure_rim_thickness(
+                part=wheel,
+                bore_diameter_mm=wheel_bore_diameter,
+                is_worm=False
+            )
+            if wheel_rim_result is not None:
+                print(f"  Rim thickness: {wheel_rim_result.minimum_thickness_mm:.2f} mm")
+                if wheel_rim_result.has_warning:
+                    print(f"  WARNING: Rim thickness below {WHEEL_RIM_WARNING_THRESHOLD_MM}mm threshold")
+
     # Check for interference between worm and wheel
     if args.check_interference and worm is not None and wheel is not None:
         print(f"\nChecking interference ({args.interference_steps} rotation steps)...")
@@ -837,20 +871,37 @@ Examples:
             export_step(wheel, str(output_file))
             print(f"  Saved: {output_file}")
 
-        # Save mesh alignment JSON
-        if mesh_alignment_result is not None:
-            alignment_file = output_dir / f"mesh_alignment_m{design.worm.module_mm}.json"
-            alignment_data = mesh_alignment_to_dict(mesh_alignment_result)
-            alignment_data["design_info"] = {
-                "module_mm": design.worm.module_mm,
-                "ratio": design.assembly.ratio,
-                "centre_distance_mm": design.assembly.centre_distance_mm,
-                "worm_starts": design.worm.num_starts,
-                "wheel_teeth": design.wheel.num_teeth,
+        # Save combined geometry analysis JSON (mesh alignment + rim measurements)
+        if mesh_alignment_result is not None or worm_rim_result is not None or wheel_rim_result is not None:
+            from datetime import datetime
+            analysis_file = output_dir / f"geometry_analysis_m{design.worm.module_mm}.json"
+
+            analysis_data = {
+                "design_info": {
+                    "module_mm": design.worm.module_mm,
+                    "ratio": design.assembly.ratio,
+                    "centre_distance_mm": design.assembly.centre_distance_mm,
+                    "worm_starts": design.worm.num_starts,
+                    "wheel_teeth": design.wheel.num_teeth,
+                },
+                "analysis_timestamp": datetime.now().isoformat(),
             }
-            with open(alignment_file, 'w') as f:
-                json.dump(alignment_data, f, indent=2)
-            print(f"  Saved: {alignment_file}")
+
+            # Add mesh alignment data
+            if mesh_alignment_result is not None:
+                analysis_data["mesh_alignment"] = mesh_alignment_to_dict(mesh_alignment_result)
+
+            # Add rim thickness data
+            if worm_rim_result is not None or wheel_rim_result is not None:
+                analysis_data["rim_thickness"] = {}
+                if worm_rim_result is not None:
+                    analysis_data["rim_thickness"]["worm"] = rim_thickness_to_dict(worm_rim_result)
+                if wheel_rim_result is not None:
+                    analysis_data["rim_thickness"]["wheel"] = rim_thickness_to_dict(wheel_rim_result)
+
+            with open(analysis_file, 'w') as f:
+                json.dump(analysis_data, f, indent=2)
+            print(f"  Saved: {analysis_file}")
 
     # View in OCP viewer
     if args.view:
@@ -981,12 +1032,35 @@ Examples:
             wheel_features=wheel_features
         )
 
+        # Create measured geometry from rim thickness results
+        measured_geometry = None
+        if worm_rim_result is not None or wheel_rim_result is not None:
+            from datetime import datetime
+            measured_geometry = MeasuredGeometry(
+                wheel_rim_thickness_mm=wheel_rim_result.minimum_thickness_mm if wheel_rim_result else None,
+                wheel_measurement_point=MeasurementPoint(
+                    x_mm=wheel_rim_result.measurement_point_bore[0],
+                    y_mm=wheel_rim_result.measurement_point_bore[1],
+                    z_mm=wheel_rim_result.measurement_point_bore[2]
+                ) if wheel_rim_result and wheel_rim_result.measurement_point_bore else None,
+                wheel_rim_warning=wheel_rim_result.has_warning if wheel_rim_result else None,
+                worm_rim_thickness_mm=worm_rim_result.minimum_thickness_mm if worm_rim_result else None,
+                worm_measurement_point=MeasurementPoint(
+                    x_mm=worm_rim_result.measurement_point_bore[0],
+                    y_mm=worm_rim_result.measurement_point_bore[1],
+                    z_mm=worm_rim_result.measurement_point_bore[2]
+                ) if worm_rim_result and worm_rim_result.measurement_point_bore else None,
+                worm_rim_warning=worm_rim_result.has_warning if worm_rim_result else None,
+                measurement_timestamp=datetime.now().isoformat()
+            )
+
         # Create complete design with manufacturing parameters
         complete_design = WormGearDesign(
             worm=design.worm,
             wheel=design.wheel,
             assembly=design.assembly,
-            manufacturing=manufacturing
+            manufacturing=manufacturing,
+            measured_geometry=measured_geometry
         )
 
         # Save to file

@@ -1,0 +1,87 @@
+{
+  "description": "Wheel dimensional parameters from calculator.",
+  "properties": {
+    "module_mm": {
+      "title": "Module Mm",
+      "type": "number"
+    },
+    "num_teeth": {
+      "title": "Num Teeth",
+      "type": "integer"
+    },
+    "pitch_diameter_mm": {
+      "title": "Pitch Diameter Mm",
+      "type": "number"
+    },
+    "tip_diameter_mm": {
+      "title": "Tip Diameter Mm",
+      "type": "number"
+    },
+    "root_diameter_mm": {
+      "title": "Root Diameter Mm",
+      "type": "number"
+    },
+    "addendum_mm": {
+      "title": "Addendum Mm",
+      "type": "number"
+    },
+    "dedendum_mm": {
+      "title": "Dedendum Mm",
+      "type": "number"
+    },
+    "profile_shift": {
+      "default": 0.0,
+      "title": "Profile Shift",
+      "type": "number"
+    },
+    "throat_diameter_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Throat Diameter Mm"
+    },
+    "helix_angle_deg": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Helix Angle Deg"
+    },
+    "width_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Width Mm"
+    }
+  },
+  "required": [
+    "module_mm",
+    "num_teeth",
+    "pitch_diameter_mm",
+    "tip_diameter_mm",
+    "root_diameter_mm",
+    "addendum_mm",
+    "dedendum_mm"
+  ],
+  "title": "WheelParams",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/wheel-params-v2.1.json"
+}

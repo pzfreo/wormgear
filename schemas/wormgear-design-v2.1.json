@@ -797,5 +797,5 @@
   "title": "WormGearDesign",
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wormgear.studio/schemas/wormgear-design-v2.0.json"
+  "$id": "https://wormgear.studio/schemas/wormgear-design-v2.1.json"
 }

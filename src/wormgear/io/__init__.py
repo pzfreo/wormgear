@@ -35,6 +35,9 @@ from .loaders import (
     # Mesh alignment
     MeshAlignment,
     WormPosition,
+    # Measured geometry
+    MeasuredGeometry,
+    MeasurementPoint,
 )
 
 # Import from schema module
@@ -66,6 +69,10 @@ __all__ = [
     # Mesh alignment
     "MeshAlignment",
     "WormPosition",
+
+    # Measured geometry
+    "MeasuredGeometry",
+    "MeasurementPoint",
 
     # Schema
     "SCHEMA_VERSION",

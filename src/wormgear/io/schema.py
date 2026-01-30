@@ -14,7 +14,7 @@ scripts/generate_schemas.py. This module provides runtime validation helpers.
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
 
 
 def get_schema_v1() -> Dict:

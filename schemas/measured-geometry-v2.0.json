@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "MeasurementPoint": {
+      "description": "3D point where measurement was taken.",
+      "properties": {
+        "x_mm": {
+          "description": "X coordinate in mm",
+          "title": "X Mm",
+          "type": "number"
+        },
+        "y_mm": {
+          "description": "Y coordinate in mm",
+          "title": "Y Mm",
+          "type": "number"
+        },
+        "z_mm": {
+          "description": "Z coordinate in mm",
+          "title": "Z Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_mm",
+        "y_mm",
+        "z_mm"
+      ],
+      "title": "MeasurementPoint",
+      "type": "object"
+    }
+  },
+  "description": "Post-build geometry measurements from actual 3D solids.\n\nThese values are measured from the built geometry after all features\n(bore, keyway, DD-cut, hobbing) have been applied. They may differ\nfrom theoretical calculations, especially for virtual-hobbed wheels.",
+  "properties": {
+    "wheel_rim_thickness_mm": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Minimum rim thickness from wheel bore surface to tooth root (mm)",
+      "title": "Wheel Rim Thickness Mm"
+    },
+    "wheel_measurement_point": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MeasurementPoint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Location on bore surface where minimum rim was measured"
+    },
+    "wheel_rim_warning": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "True if wheel rim thickness is below recommended minimum",
+      "title": "Wheel Rim Warning"
+    },
+    "worm_rim_thickness_mm": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Minimum rim thickness from worm bore surface to thread root (mm)",
+      "title": "Worm Rim Thickness Mm"
+    },
+    "worm_measurement_point": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MeasurementPoint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Location on bore surface where minimum rim was measured"
+    },
+    "worm_rim_warning": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "True if worm rim thickness is below recommended minimum",
+      "title": "Worm Rim Warning"
+    },
+    "measurement_timestamp": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ISO 8601 timestamp when measurements were taken",
+      "title": "Measurement Timestamp"
+    }
+  },
+  "title": "MeasuredGeometry",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/measured-geometry-v2.0.json"
+}

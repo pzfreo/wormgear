@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "WormPosition": {
+      "description": "Worm position in mesh configuration.",
+      "properties": {
+        "x_mm": {
+          "description": "X position in mm (centre distance)",
+          "title": "X Mm",
+          "type": "number"
+        },
+        "y_mm": {
+          "default": 0.0,
+          "description": "Y position in mm",
+          "title": "Y Mm",
+          "type": "number"
+        },
+        "z_mm": {
+          "default": 0.0,
+          "description": "Z position in mm",
+          "title": "Z Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_mm"
+      ],
+      "title": "WormPosition",
+      "type": "object"
+    }
+  },
+  "description": "Mesh alignment analysis results.\n\nDescribes the optimal wheel rotation to achieve proper mesh with the worm,\nand reports on interference between the parts.\n\nThe worm is positioned with its axis along Y, offset from the wheel\n(whose axis is along Z) by the centre distance along X.",
+  "properties": {
+    "optimal_rotation_deg": {
+      "description": "Wheel rotation angle in degrees for optimal mesh alignment",
+      "title": "Optimal Rotation Deg",
+      "type": "number"
+    },
+    "interference_volume_mm3": {
+      "description": "Residual interference volume at optimal rotation (mm\u00b3)",
+      "minimum": 0,
+      "title": "Interference Volume Mm3",
+      "type": "number"
+    },
+    "within_tolerance": {
+      "description": "Whether interference is below acceptable threshold",
+      "title": "Within Tolerance",
+      "type": "boolean"
+    },
+    "tooth_pitch_deg": {
+      "description": "Angular pitch between wheel teeth (360/num_teeth)",
+      "exclusiveMinimum": 0,
+      "title": "Tooth Pitch Deg",
+      "type": "number"
+    },
+    "worm_position": {
+      "$ref": "#/$defs/WormPosition",
+      "description": "Worm centre position for mesh configuration"
+    },
+    "message": {
+      "description": "Human-readable status message",
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "optimal_rotation_deg",
+    "interference_volume_mm3",
+    "within_tolerance",
+    "tooth_pitch_deg",
+    "worm_position",
+    "message"
+  ],
+  "title": "MeshAlignment",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/mesh-alignment-v2.1.json"
+}

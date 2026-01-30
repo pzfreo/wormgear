@@ -59,6 +59,15 @@ try:
         mesh_alignment_to_dict,
     )
 
+    # Rim thickness measurement
+    from .rim_thickness import (
+        RimThicknessResult,
+        measure_rim_thickness,
+        rim_thickness_to_dict,
+        WHEEL_RIM_WARNING_THRESHOLD_MM,
+        WORM_RIM_WARNING_THRESHOLD_MM,
+    )
+
     __all__ = [
         # Geometry classes
         "WormGeometry",
@@ -87,6 +96,13 @@ try:
         "position_for_mesh",
         "create_axis_markers",
         "mesh_alignment_to_dict",
+
+        # Rim thickness measurement
+        "RimThicknessResult",
+        "measure_rim_thickness",
+        "rim_thickness_to_dict",
+        "WHEEL_RIM_WARNING_THRESHOLD_MM",
+        "WORM_RIM_WARNING_THRESHOLD_MM",
     ]
 except ImportError:
     # build123d not available (e.g., in Pyodide calculator without geometry)

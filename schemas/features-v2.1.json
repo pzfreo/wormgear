@@ -1,0 +1,258 @@
+{
+  "$defs": {
+    "AntiRotation": {
+      "description": "Anti-rotation feature type for bores.\n\nDefines shaft locking features per DIN 6885 and other standards.\nUsed in conjunction with BoreType.CUSTOM to specify how the\nbore prevents rotation on the shaft.",
+      "enum": [
+        "none",
+        "DIN6885",
+        "ddcut"
+      ],
+      "title": "AntiRotation",
+      "type": "string"
+    },
+    "BoreType": {
+      "description": "Bore configuration type",
+      "enum": [
+        "none",
+        "custom"
+      ],
+      "title": "BoreType",
+      "type": "string"
+    },
+    "HubSpec": {
+      "description": "Hub specification (wheel only).",
+      "properties": {
+        "type": {
+          "default": "flush",
+          "title": "Type",
+          "type": "string"
+        },
+        "length_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Length Mm"
+        },
+        "flange_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange Diameter Mm"
+        },
+        "flange_thickness_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange Thickness Mm"
+        },
+        "bolt_holes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bolt Holes"
+        },
+        "bolt_diameter_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bolt Diameter Mm"
+        }
+      },
+      "title": "HubSpec",
+      "type": "object"
+    },
+    "SetScrewSpec": {
+      "description": "Set screw specification.",
+      "properties": {
+        "size": {
+          "title": "Size",
+          "type": "string"
+        },
+        "count": {
+          "default": 1,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "title": "SetScrewSpec",
+      "type": "object"
+    },
+    "WheelFeatures": {
+      "description": "Manufacturing features for wheel.\n\nbore_type is REQUIRED and must be explicitly specified:\n- \"none\": Solid part, no bore (bore_diameter_mm ignored)\n- \"custom\": Bore with specified diameter (bore_diameter_mm required)\n\nanti_rotation specifies shaft locking feature:\n- \"none\": Smooth bore (no anti-rotation)\n- \"DIN6885\": Standard keyway per DIN 6885\n- \"ddcut\": DD-cut (double-D flat) for small shafts",
+      "properties": {
+        "bore_type": {
+          "$ref": "#/$defs/BoreType",
+          "description": "Bore type: 'none' for solid, 'custom' for specified diameter"
+        },
+        "bore_diameter_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bore diameter in mm. Required when bore_type is 'custom'.",
+          "title": "Bore Diameter Mm"
+        },
+        "anti_rotation": {
+          "$ref": "#/$defs/AntiRotation",
+          "default": "none",
+          "description": "Anti-rotation feature: 'none', 'DIN6885' (keyway), or 'ddcut'"
+        },
+        "ddcut_depth_percent": {
+          "default": 15.0,
+          "description": "DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'.",
+          "maximum": 40.0,
+          "minimum": 5.0,
+          "title": "Ddcut Depth Percent",
+          "type": "number"
+        },
+        "set_screw": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hub": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HubSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "bore_type"
+      ],
+      "title": "WheelFeatures",
+      "type": "object"
+    },
+    "WormFeatures": {
+      "description": "Manufacturing features for worm.\n\nbore_type is REQUIRED and must be explicitly specified:\n- \"none\": Solid part, no bore (bore_diameter_mm ignored)\n- \"custom\": Bore with specified diameter (bore_diameter_mm required)\n\nanti_rotation specifies shaft locking feature:\n- \"none\": Smooth bore (no anti-rotation)\n- \"DIN6885\": Standard keyway per DIN 6885\n- \"ddcut\": DD-cut (double-D flat) for small shafts",
+      "properties": {
+        "bore_type": {
+          "$ref": "#/$defs/BoreType",
+          "description": "Bore type: 'none' for solid, 'custom' for specified diameter"
+        },
+        "bore_diameter_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bore diameter in mm. Required when bore_type is 'custom'.",
+          "title": "Bore Diameter Mm"
+        },
+        "anti_rotation": {
+          "$ref": "#/$defs/AntiRotation",
+          "default": "none",
+          "description": "Anti-rotation feature: 'none', 'DIN6885' (keyway), or 'ddcut'"
+        },
+        "ddcut_depth_percent": {
+          "default": 15.0,
+          "description": "DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'.",
+          "maximum": 40.0,
+          "minimum": 5.0,
+          "title": "Ddcut Depth Percent",
+          "type": "number"
+        },
+        "set_screw": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "bore_type"
+      ],
+      "title": "WormFeatures",
+      "type": "object"
+    }
+  },
+  "description": "Manufacturing features for worm and wheel.",
+  "properties": {
+    "worm": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WormFeatures"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "wheel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WheelFeatures"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "Features",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/features-v2.1.json"
+}

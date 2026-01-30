@@ -2,7 +2,7 @@
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT
  *
- * Generated from: schemas/enums-v2.0.json
+ * Generated from: schemas/enums-v2.1.json
  * Source of truth: src/wormgear/enums.py
  */
 

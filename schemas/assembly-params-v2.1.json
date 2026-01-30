@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "Hand": {
+      "description": "Thread hand / helix direction",
+      "enum": [
+        "right",
+        "left"
+      ],
+      "title": "Hand",
+      "type": "string"
+    }
+  },
+  "description": "Assembly parameters from calculator.",
+  "properties": {
+    "centre_distance_mm": {
+      "title": "Centre Distance Mm",
+      "type": "number"
+    },
+    "pressure_angle_deg": {
+      "title": "Pressure Angle Deg",
+      "type": "number"
+    },
+    "backlash_mm": {
+      "title": "Backlash Mm",
+      "type": "number"
+    },
+    "hand": {
+      "$ref": "#/$defs/Hand"
+    },
+    "ratio": {
+      "title": "Ratio",
+      "type": "integer"
+    },
+    "efficiency_percent": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Efficiency Percent"
+    },
+    "self_locking": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Self Locking"
+    }
+  },
+  "required": [
+    "centre_distance_mm",
+    "pressure_angle_deg",
+    "backlash_mm",
+    "hand",
+    "ratio"
+  ],
+  "title": "AssemblyParams",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/assembly-params-v2.1.json"
+}

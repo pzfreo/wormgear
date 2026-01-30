@@ -315,6 +315,10 @@ class WormGearDesign(BaseModel):
     assembly: AssemblyParams
     features: Optional[Features] = None
     manufacturing: Optional[ManufacturingParams] = None
+    measured_geometry: Optional["MeasuredGeometry"] = Field(
+        default=None,
+        description="Post-build measurements from actual 3D geometry"
+    )
 
 
 class WormPosition(BaseModel):
@@ -356,6 +360,56 @@ class MeshAlignment(BaseModel):
     )
     message: str = Field(
         description="Human-readable status message"
+    )
+
+
+class MeasurementPoint(BaseModel):
+    """3D point where measurement was taken."""
+    model_config = ConfigDict(extra='ignore')
+
+    x_mm: float = Field(description="X coordinate in mm")
+    y_mm: float = Field(description="Y coordinate in mm")
+    z_mm: float = Field(description="Z coordinate in mm")
+
+
+class MeasuredGeometry(BaseModel):
+    """Post-build geometry measurements from actual 3D solids.
+
+    These values are measured from the built geometry after all features
+    (bore, keyway, DD-cut, hobbing) have been applied. They may differ
+    from theoretical calculations, especially for virtual-hobbed wheels.
+    """
+    model_config = ConfigDict(extra='ignore')
+
+    wheel_rim_thickness_mm: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Minimum rim thickness from wheel bore surface to tooth root (mm)"
+    )
+    wheel_measurement_point: Optional[MeasurementPoint] = Field(
+        default=None,
+        description="Location on bore surface where minimum rim was measured"
+    )
+    wheel_rim_warning: Optional[bool] = Field(
+        default=None,
+        description="True if wheel rim thickness is below recommended minimum"
+    )
+    worm_rim_thickness_mm: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Minimum rim thickness from worm bore surface to thread root (mm)"
+    )
+    worm_measurement_point: Optional[MeasurementPoint] = Field(
+        default=None,
+        description="Location on bore surface where minimum rim was measured"
+    )
+    worm_rim_warning: Optional[bool] = Field(
+        default=None,
+        description="True if worm rim thickness is below recommended minimum"
+    )
+    measurement_timestamp: Optional[str] = Field(
+        default=None,
+        description="ISO 8601 timestamp when measurements were taken"
     )
 
 

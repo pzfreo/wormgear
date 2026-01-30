@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/enums-v2.1.json",
+  "title": "WormgearEnums",
+  "description": "Enum definitions for wormgear types",
+  "definitions": {
+    "Hand": {
+      "type": "string",
+      "enum": [
+        "right",
+        "left"
+      ],
+      "description": "Thread/gear hand direction"
+    },
+    "WormProfile": {
+      "type": "string",
+      "enum": [
+        "ZA",
+        "ZK",
+        "ZI"
+      ],
+      "description": "Tooth profile per DIN 3975"
+    },
+    "WormType": {
+      "type": "string",
+      "enum": [
+        "cylindrical",
+        "globoid"
+      ],
+      "description": "Worm geometry type"
+    }
+  }
+}

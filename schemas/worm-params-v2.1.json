@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "Hand": {
+      "description": "Thread hand / helix direction",
+      "enum": [
+        "right",
+        "left"
+      ],
+      "title": "Hand",
+      "type": "string"
+    },
+    "WormType": {
+      "description": "Worm geometry type",
+      "enum": [
+        "cylindrical",
+        "globoid"
+      ],
+      "title": "WormType",
+      "type": "string"
+    }
+  },
+  "description": "Worm dimensional parameters from calculator.",
+  "properties": {
+    "module_mm": {
+      "title": "Module Mm",
+      "type": "number"
+    },
+    "num_starts": {
+      "title": "Num Starts",
+      "type": "integer"
+    },
+    "pitch_diameter_mm": {
+      "title": "Pitch Diameter Mm",
+      "type": "number"
+    },
+    "tip_diameter_mm": {
+      "title": "Tip Diameter Mm",
+      "type": "number"
+    },
+    "root_diameter_mm": {
+      "title": "Root Diameter Mm",
+      "type": "number"
+    },
+    "lead_mm": {
+      "title": "Lead Mm",
+      "type": "number"
+    },
+    "axial_pitch_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Axial Pitch Mm"
+    },
+    "lead_angle_deg": {
+      "title": "Lead Angle Deg",
+      "type": "number"
+    },
+    "addendum_mm": {
+      "title": "Addendum Mm",
+      "type": "number"
+    },
+    "dedendum_mm": {
+      "title": "Dedendum Mm",
+      "type": "number"
+    },
+    "thread_thickness_mm": {
+      "title": "Thread Thickness Mm",
+      "type": "number"
+    },
+    "hand": {
+      "$ref": "#/$defs/Hand"
+    },
+    "profile_shift": {
+      "default": 0.0,
+      "title": "Profile Shift",
+      "type": "number"
+    },
+    "type": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WormType"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "throat_reduction_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Throat Reduction Mm"
+    },
+    "throat_curvature_radius_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Throat Curvature Radius Mm"
+    },
+    "length_mm": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Length Mm"
+    }
+  },
+  "required": [
+    "module_mm",
+    "num_starts",
+    "pitch_diameter_mm",
+    "tip_diameter_mm",
+    "root_diameter_mm",
+    "lead_mm",
+    "lead_angle_deg",
+    "addendum_mm",
+    "dedendum_mm",
+    "thread_thickness_mm",
+    "hand"
+  ],
+  "title": "WormParams",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wormgear.studio/schemas/worm-params-v2.1.json"
+}

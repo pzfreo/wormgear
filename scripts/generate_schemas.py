@@ -30,7 +30,10 @@ from wormgear.io.loaders import (
     HubSpec,
     MeshAlignment,
     WormPosition,
+    MeasuredGeometry,
+    MeasurementPoint,
 )
+from wormgear.io.schema import SCHEMA_VERSION
 from wormgear.enums import Hand, WormProfile, WormType
 
 # Check Pydantic version
@@ -63,11 +66,11 @@ def main():
     # Generate main design schema
     design_schema = get_model_schema(WormGearDesign)
     design_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-    design_schema["$id"] = "https://wormgear.studio/schemas/wormgear-design-v2.0.json"
+    design_schema["$id"] = f"https://wormgear.studio/schemas/wormgear-design-v{SCHEMA_VERSION}.json"
     design_schema["title"] = "WormGearDesign"
     design_schema["description"] = "Complete worm gear design output from calculator"
 
-    design_file = output_dir / "wormgear-design-v2.0.json"
+    design_file = output_dir / f"wormgear-design-v{SCHEMA_VERSION}.json"
     with open(design_file, "w") as f:
         json.dump(design_schema, f, indent=2)
     print(f"  Generated: {design_file}")
@@ -80,14 +83,15 @@ def main():
         "manufacturing-params": ManufacturingParams,
         "features": Features,
         "mesh-alignment": MeshAlignment,
+        "measured-geometry": MeasuredGeometry,
     }
 
     for name, model in components.items():
         schema = get_model_schema(model)
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-        schema["$id"] = f"https://wormgear.studio/schemas/{name}-v2.0.json"
+        schema["$id"] = f"https://wormgear.studio/schemas/{name}-v{SCHEMA_VERSION}.json"
 
-        schema_file = output_dir / f"{name}-v2.0.json"
+        schema_file = output_dir / f"{name}-v{SCHEMA_VERSION}.json"
         with open(schema_file, "w") as f:
             json.dump(schema, f, indent=2)
         print(f"  Generated: {schema_file}")
@@ -95,7 +99,7 @@ def main():
     # Generate enums schema
     enums_schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://wormgear.studio/schemas/enums-v2.0.json",
+        "$id": f"https://wormgear.studio/schemas/enums-v{SCHEMA_VERSION}.json",
         "title": "WormgearEnums",
         "description": "Enum definitions for wormgear types",
         "definitions": {
@@ -117,7 +121,7 @@ def main():
         }
     }
 
-    enums_file = output_dir / "enums-v2.0.json"
+    enums_file = output_dir / f"enums-v{SCHEMA_VERSION}.json"
     with open(enums_file, "w") as f:
         json.dump(enums_schema, f, indent=2)
     print(f"  Generated: {enums_file}")
