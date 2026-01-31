@@ -449,6 +449,8 @@ Examples:
     wheel = None
     worm_rim_result = None
     wheel_rim_result = None
+    worm_bore_diameter = None
+    wheel_bore_diameter = None
 
     # Get features from JSON if present (source of truth)
     json_worm_features = design.features.worm if design.features else None
@@ -622,19 +624,6 @@ Examples:
 
         worm = worm_geo.build()
         print(f"  Volume: {worm.volume:.2f} mm³")
-
-        # Measure rim thickness if bore is present
-        worm_rim_result = None
-        if worm_bore_diameter is not None:
-            worm_rim_result = measure_rim_thickness(
-                part=worm,
-                bore_diameter_mm=worm_bore_diameter,
-                is_worm=True
-            )
-            if worm_rim_result is not None:
-                print(f"  Rim thickness: {worm_rim_result.minimum_thickness_mm:.2f} mm")
-                if worm_rim_result.has_warning:
-                    print(f"  WARNING: Rim thickness below {WORM_RIM_WARNING_THRESHOLD_MM}mm threshold")
 
     # Generate wheel
     if generate_wheel:
@@ -820,18 +809,46 @@ Examples:
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
 
-        # Measure rim thickness if bore is present
-        wheel_rim_result = None
-        if wheel_bore_diameter is not None:
-            wheel_rim_result = measure_rim_thickness(
-                part=wheel,
-                bore_diameter_mm=wheel_bore_diameter,
-                is_worm=False
-            )
-            if wheel_rim_result is not None:
-                print(f"  Rim thickness: {wheel_rim_result.minimum_thickness_mm:.2f} mm")
-                if wheel_rim_result.has_warning:
-                    print(f"  WARNING: Rim thickness below {WHEEL_RIM_WARNING_THRESHOLD_MM}mm threshold")
+    # Save STEP files first (before calculations)
+    if not args.no_save:
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        from build123d import export_step
+
+        print(f"\nExporting STEP files...")
+        if worm is not None:
+            output_file = output_dir / f"worm_m{design.worm.module_mm}_z{design.worm.num_starts}.step"
+            export_step(worm, str(output_file))
+            print(f"  Saved: {output_file}")
+
+        if wheel is not None:
+            output_file = output_dir / f"wheel_m{design.wheel.module_mm}_z{design.wheel.num_teeth}.step"
+            export_step(wheel, str(output_file))
+            print(f"  Saved: {output_file}")
+
+    # Measure rim thickness (after STEP export)
+    if worm is not None and worm_bore_diameter is not None:
+        worm_rim_result = measure_rim_thickness(
+            part=worm,
+            bore_diameter_mm=worm_bore_diameter,
+            is_worm=True
+        )
+        if worm_rim_result is not None:
+            print(f"\nWorm rim thickness: {worm_rim_result.minimum_thickness_mm:.2f} mm")
+            if worm_rim_result.has_warning:
+                print(f"  WARNING: Below {WORM_RIM_WARNING_THRESHOLD_MM}mm threshold")
+
+    if wheel is not None and wheel_bore_diameter is not None:
+        wheel_rim_result = measure_rim_thickness(
+            part=wheel,
+            bore_diameter_mm=wheel_bore_diameter,
+            is_worm=False
+        )
+        if wheel_rim_result is not None:
+            print(f"Wheel rim thickness: {wheel_rim_result.minimum_thickness_mm:.2f} mm")
+            if wheel_rim_result.has_warning:
+                print(f"  WARNING: Below {WHEEL_RIM_WARNING_THRESHOLD_MM}mm threshold")
 
     # Check for interference between worm and wheel
     if args.check_interference and worm is not None and wheel is not None:
@@ -867,25 +884,11 @@ Examples:
         print(f"  Interference volume: {mesh_alignment_result.interference_volume_mm3:.4f} mm³")
         print(f"  Status: {mesh_alignment_result.message}")
 
-    # Save STEP files and mesh alignment
+    # Save geometry analysis JSON (mesh alignment + rim measurements)
     if not args.no_save:
         output_dir = Path(args.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        from build123d import export_step
         import json
 
-        if worm is not None:
-            output_file = output_dir / f"worm_m{design.worm.module_mm}_z{design.worm.num_starts}.step"
-            export_step(worm, str(output_file))
-            print(f"  Saved: {output_file}")
-
-        if wheel is not None:
-            output_file = output_dir / f"wheel_m{design.wheel.module_mm}_z{design.wheel.num_teeth}.step"
-            export_step(wheel, str(output_file))
-            print(f"  Saved: {output_file}")
-
-        # Save combined geometry analysis JSON (mesh alignment + rim measurements)
         if mesh_alignment_result is not None or worm_rim_result is not None or wheel_rim_result is not None:
             from datetime import datetime
             analysis_file = output_dir / f"geometry_analysis_m{design.worm.module_mm}.json"
