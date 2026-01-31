@@ -93,23 +93,21 @@ def calculate_mesh_rotation(
     worm: Part,
     num_teeth: int,
     coarse_step_deg: float = 1.0,
-    fine_step_deg: float = 0.1,
+    fine_step_deg: float = 0.2,
 ) -> tuple[float, float]:
     """Find wheel rotation that minimizes collision with worm.
 
-    Uses iterative collision minimization to find the optimal wheel rotation
-    angle that aligns wheel teeth with worm thread valleys.
-
-    The algorithm:
-    1. Coarse search: Test rotations in coarse_step increments over one tooth pitch
-    2. Fine search: Refine around the best coarse angle with fine_step increments
+    Uses two-phase grid search with early exit optimization:
+    1. Coarse search: 1° steps over one tooth pitch
+    2. Fine search: 0.2° steps around best coarse angle
+    3. Early exit: Stop immediately if zero interference found
 
     Args:
         wheel: Wheel Part centred at origin with axis along Z
         worm: Worm Part already positioned at correct centre distance
         num_teeth: Number of teeth on the wheel
-        coarse_step_deg: Step size in degrees for initial search (default 1.0°)
-        fine_step_deg: Step size in degrees for refinement (default 0.1°)
+        coarse_step_deg: Step size for initial search (default 1.0°)
+        fine_step_deg: Step size for refinement (default 0.2°)
 
     Returns:
         Tuple of (optimal_rotation_deg, min_interference_mm3)
@@ -130,11 +128,14 @@ def calculate_mesh_rotation(
             min_interference = interference
             best_rotation = angle
 
+        # Early exit on zero interference
+        if interference == 0.0:
+            return angle, 0.0
+
     # Fine search around best angle
-    fine_range = int(coarse_step_deg / fine_step_deg)
+    fine_range = int(coarse_step_deg / fine_step_deg) + 1
     for d in range(-fine_range, fine_range + 1):
         angle = best_rotation + d * fine_step_deg
-        # Keep within tooth pitch
         normalized_angle = angle % tooth_pitch_deg
 
         rotated_wheel = wheel.rotate(Axis.Z, normalized_angle)
@@ -143,6 +144,10 @@ def calculate_mesh_rotation(
         if interference < min_interference:
             min_interference = interference
             best_rotation = normalized_angle
+
+        # Early exit on zero interference
+        if interference == 0.0:
+            return normalized_angle, 0.0
 
     return best_rotation, min_interference
 
@@ -183,7 +188,7 @@ def find_optimal_mesh_rotation(
     num_teeth: int,
     backlash_tolerance_mm3: float = 1.0,
     coarse_step_deg: float = 1.0,
-    fine_step_deg: float = 0.1,
+    fine_step_deg: float = 0.2,
 ) -> MeshAlignmentResult:
     """Find optimal wheel rotation and analyse mesh quality.
 
@@ -192,6 +197,8 @@ def find_optimal_mesh_rotation(
     2. Calculates optimal wheel rotation to minimize interference
     3. Measures final interference volume
     4. Reports whether mesh is within tolerance
+
+    Uses two-phase grid search with early exit for efficiency.
 
     The worm is positioned with its axis along Y, offset from the wheel
     (whose axis is along Z) by the centre distance.
@@ -203,7 +210,7 @@ def find_optimal_mesh_rotation(
         num_teeth: Number of teeth on the wheel
         backlash_tolerance_mm3: Maximum acceptable interference volume (default 1.0)
         coarse_step_deg: Coarse search step size (default 1.0°)
-        fine_step_deg: Fine search step size (default 0.1°)
+        fine_step_deg: Fine search step size (default 0.2°)
 
     Returns:
         MeshAlignmentResult with rotation, interference, and status
