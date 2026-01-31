@@ -272,6 +272,12 @@ Examples:
     )
 
     parser.add_argument(
+        '--skip-mesh-alignment',
+        action='store_true',
+        help='Skip mesh alignment calculation (faster for complex geometry like virtual hobbing)'
+    )
+
+    parser.add_argument(
         '--hobbed',
         action='store_true',
         help='Generate hobbed wheel with throated teeth (default: helical without throating)'
@@ -840,8 +846,16 @@ Examples:
         )
 
     # Calculate mesh alignment (when both parts generated)
+    # Skip for virtual hobbing by default (very slow with complex geometry)
     mesh_alignment_result = None
-    if worm is not None and wheel is not None:
+    skip_mesh = args.skip_mesh_alignment
+    if use_virtual_hobbing and not args.check_interference:
+        # Auto-skip for virtual hobbing unless interference check is explicitly requested
+        skip_mesh = True
+        print(f"\nSkipping mesh alignment (virtual hobbing geometry is complex)")
+        print(f"  Use --check-interference to force calculation")
+
+    if worm is not None and wheel is not None and not skip_mesh:
         print(f"\nCalculating mesh alignment...")
         mesh_alignment_result = find_optimal_mesh_rotation(
             wheel=wheel,
