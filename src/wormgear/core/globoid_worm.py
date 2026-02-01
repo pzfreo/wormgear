@@ -98,14 +98,16 @@ class GloboidWormGeometry:
         # to ensure proper conjugate action where worm surface envelopes wheel pitch cylinder
         #
         # For a true globoid, at the throat (center):
-        #   throat_pitch_radius = center_distance - wheel_pitch_radius - throat_reduction
+        #   throat_pitch_radius = center_distance - wheel_pitch_radius
         #
-        # The throat_reduction_mm is computed by the calculator and allows the user
-        # to control how much the worm "wraps around" the wheel.
+        # NOTE: The calculator already reduces centre_distance by throat_reduction_mm,
+        # so we do NOT subtract it again here. The assembly.centre_distance_mm is the
+        # actual physical distance between axes for mesh positioning.
+        #
         # The nominal pitch radius is used at the ends where the worm transitions
         # back to cylindrical form.
         center_distance = assembly_params.centre_distance_mm
-        self.throat_pitch_radius = center_distance - wheel_pitch_radius - self.throat_reduction_mm
+        self.throat_pitch_radius = center_distance - wheel_pitch_radius
         self.nominal_pitch_radius = pitch_radius  # Standard pitch radius at ends
 
         # Validate throat geometry makes sense
