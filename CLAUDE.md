@@ -290,7 +290,31 @@ Before EVERY push, ALL items must pass:
 
 **DO NOT PUSH** until all checkboxes are checked.
 
-### 5. Pyodide + Pydantic Compatibility
+### 5. Pull Request Workflow (MANDATORY)
+
+**Branch protection is enabled on `main`.** Direct pushes will be rejected.
+
+**Workflow:**
+1. Create a feature branch: `git checkout -b feat/my-feature`
+2. Make changes and commit
+3. Push branch: `git push -u origin feat/my-feature`
+4. Create PR: `gh pr create --title "feat: Description" --body "..."`
+5. **STOP** - Leave PR for user to review and merge
+
+**NEVER use auto-merge:**
+```bash
+# ❌ WRONG - bypasses review
+gh pr merge --auto
+gh pr merge --squash --auto
+
+# ✅ CORRECT - create PR and stop
+gh pr create ...
+# Then tell user the PR URL and wait
+```
+
+**Why:** The user wants to review changes before they are merged. Auto-merge bypasses this review process.
+
+### 6. Pyodide + Pydantic Compatibility
 
 **Key facts:**
 - Pyodide 0.29.0 includes Pydantic 2.12.5 (bundled, pre-compiled for WASM)
@@ -304,7 +328,7 @@ await pyodide.loadPackage(['micropip', 'pydantic']);  // Load pydantic FIRST
 // Then load wormgear modules that import from pydantic
 ```
 
-### 6. Pyodide + Enum Compatibility
+### 7. Pyodide + Enum Compatibility
 
 **Myth**: "Pyodide can't handle enums, must use strings"
 
@@ -330,7 +354,7 @@ def design_from_module(hand: Union[Hand, str] = "right"):
 
 This gives best of both worlds: type safety in Python, flexibility for JavaScript.
 
-### 7. Manual JSON Parsing is a Bug Factory
+### 8. Manual JSON Parsing is a Bug Factory
 
 **What happened (Jan 2026)**: Chose dataclasses + manual parsing over Pydantic. Result: 6+ bugs from type mismatches over two days.
 
