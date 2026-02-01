@@ -553,10 +553,10 @@ class VirtualHobbingWheelGeometry:
         centre_distance = self.effective_centre_distance
         tooth_pitch_deg = 360.0 / self.params.num_teeth
 
-        # Position hob in mesh position (must match CLI mesh_alignment.py)
-        # CLI uses: rotate(Y, -90) then translate(0, centre_distance, 0)
-        # This puts worm axis along X, at position (0, cd, 0)
-        hob_positioned = Pos(0, centre_distance, 0) * Rot(Y=-90) * hob
+        # Position hob in mesh position (must match hobbing simulation)
+        # Hobbing uses: Pos(cd, 0, 0) * Rot(X=90) - hob at +X, axis along Y
+        # Pre-alignment must use same coordinate system as hobbing
+        hob_positioned = Pos(centre_distance, 0, 0) * Rot(X=90) * hob
 
         def calc_interference(angle_deg: float) -> float:
             """Calculate interference volume at given wheel rotation."""
