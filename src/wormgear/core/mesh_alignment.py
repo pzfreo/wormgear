@@ -206,7 +206,6 @@ def find_optimal_mesh_rotation(
     centre_distance_mm: float,
     num_teeth: int,
     backlash_tolerance_mm3: float = 1.0,
-    coarse_step_deg: float = 1.0,
     fine_step_deg: float = 0.2,
 ) -> MeshAlignmentResult:
     """Find optimal wheel rotation and analyse mesh quality.
@@ -217,7 +216,7 @@ def find_optimal_mesh_rotation(
     3. Measures final interference volume
     4. Reports whether mesh is within tolerance
 
-    Uses two-phase grid search with early exit for efficiency.
+    Uses golden section search for efficiency - O(log n) instead of O(n).
 
     The worm is positioned with its axis along Y, offset from the wheel
     (whose axis is along Z) by the centre distance.
@@ -228,8 +227,7 @@ def find_optimal_mesh_rotation(
         centre_distance_mm: Distance between wheel and worm axes in mm
         num_teeth: Number of teeth on the wheel
         backlash_tolerance_mm3: Maximum acceptable interference volume (default 1.0)
-        coarse_step_deg: Coarse search step size (default 1.0°)
-        fine_step_deg: Fine search step size (default 0.2°)
+        fine_step_deg: Search precision in degrees (default 0.2°)
 
     Returns:
         MeshAlignmentResult with rotation, interference, and status
@@ -241,13 +239,13 @@ def find_optimal_mesh_rotation(
     worm_positioned = worm_positioned.locate(Location((0, centre_distance_mm, 0)))
     worm_position = (0.0, centre_distance_mm, 0.0)
 
-    # Calculate optimal rotation
+    # Calculate optimal rotation using golden section search
+    # fine_step_deg controls the precision (tolerance_deg in the search)
     optimal_rotation, interference = calculate_mesh_rotation(
         wheel=wheel,
         worm=worm_positioned,
         num_teeth=num_teeth,
-        coarse_step_deg=coarse_step_deg,
-        fine_step_deg=fine_step_deg,
+        tolerance_deg=fine_step_deg,
     )
 
     # Also measure interference without rotation for comparison
