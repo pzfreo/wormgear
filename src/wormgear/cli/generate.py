@@ -877,7 +877,7 @@ More info: https://wormgear.studio
                 interference_volume_mm3=wheel_geo.pre_alignment_interference_mm3,
                 within_tolerance=wheel_geo.pre_alignment_interference_mm3 < 0.1,
                 tooth_pitch_deg=360.0 / design.wheel.num_teeth,
-                worm_position=(design.assembly.centre_distance_mm, 0.0, 0.0),
+                worm_position=(0.0, design.assembly.centre_distance_mm, 0.0),
                 message="Pre-aligned during virtual hobbing"
             )
         else:
