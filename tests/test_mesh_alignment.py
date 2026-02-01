@@ -443,17 +443,16 @@ class TestCalculateMeshRotation:
 
         assert interference >= 0.0
 
-    def test_custom_step_sizes(self, simple_gear_pair):
-        """Test with custom coarse and fine step sizes."""
+    def test_custom_tolerance(self, simple_gear_pair):
+        """Test with custom tolerance for golden section search."""
         wheel, worm, num_teeth = simple_gear_pair
 
-        # Use larger steps for faster test
+        # Use larger tolerance for faster test
         rotation, interference = calculate_mesh_rotation(
             wheel=wheel,
             worm=worm,
             num_teeth=num_teeth,
-            coarse_step_deg=2.0,
-            fine_step_deg=0.5,
+            tolerance_deg=1.0,
         )
 
         tooth_pitch = 360.0 / num_teeth
