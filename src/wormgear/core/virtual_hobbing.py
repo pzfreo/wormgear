@@ -211,6 +211,21 @@ class VirtualHobbingWheelGeometry:
         else:
             self.face_width = face_width
 
+        # Calculate effective centre_distance for hob positioning
+        # For globoid worms, use throat_reduction_mm to compute correct distance
+        # (JSON may have inconsistent values if throat_reduction was auto-defaulted)
+        if worm_params.throat_reduction_mm and worm_params.throat_reduction_mm > 0:
+            # For globoid: throat_pitch_radius = nominal - throat_reduction
+            worm_pitch_radius = worm_params.pitch_diameter_mm / 2
+            throat_pitch_radius = worm_pitch_radius - worm_params.throat_reduction_mm
+            wheel_pitch_radius = params.pitch_diameter_mm / 2
+            self.effective_centre_distance = throat_pitch_radius + wheel_pitch_radius
+            logger.debug(f"Globoid hob positioning: effective_centre_distance={self.effective_centre_distance:.3f}mm "
+                        f"(throat_pitch_radius={throat_pitch_radius:.3f}mm + wheel_pitch_radius={wheel_pitch_radius:.3f}mm)")
+        else:
+            # Cylindrical worm: use centre_distance from assembly params
+            self.effective_centre_distance = assembly_params.centre_distance_mm
+
         # Cache for built geometry (avoids rebuilding on export)
         self._part = None
 
@@ -542,7 +557,7 @@ class VirtualHobbingWheelGeometry:
         # Calculate trim radius: must be large enough to contain hob at working position
         # Hob is positioned at centre_distance from wheel center
         # Hob extends to: centre_distance + hob_tip_radius
-        centre_distance = self.assembly_params.centre_distance_mm
+        centre_distance = self.effective_centre_distance
         hob_tip_radius = self.worm_params.tip_diameter_mm / 2
 
         # Add small margin beyond hob envelope (0.5mm is enough)
@@ -590,7 +605,7 @@ class VirtualHobbingWheelGeometry:
         Pros: Simpler, more predictable memory usage
         Cons: More boolean operations, overlapping cuts
         """
-        centre_distance = self.assembly_params.centre_distance_mm
+        centre_distance = self.effective_centre_distance
         wheel_teeth = self.params.num_teeth
         worm_starts = self.worm_params.num_starts
         ratio = wheel_teeth / worm_starts
@@ -705,7 +720,7 @@ class VirtualHobbingWheelGeometry:
             _simplify_geometry: Reduces face count to improve boolean performance
             HOBBING_PRESETS: Recommended step counts for different quality levels
         """
-        centre_distance = self.assembly_params.centre_distance_mm
+        centre_distance = self.effective_centre_distance
         wheel_teeth = self.params.num_teeth
         worm_starts = self.worm_params.num_starts
         ratio = wheel_teeth / worm_starts

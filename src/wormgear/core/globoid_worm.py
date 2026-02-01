@@ -94,28 +94,29 @@ class GloboidWormGeometry:
         num_teeth_wheel = int(wheel_pitch_diameter / params.module_mm)
 
         # Globoid worm throat calculation - GEOMETRY-BASED per DIN 3975
-        # The throat pitch radius is derived from center distance and wheel geometry
-        # to ensure proper conjugate action where worm surface envelopes wheel pitch cylinder
+        # The throat pitch radius defines the hourglass shape: smaller at center, larger at ends.
         #
-        # For a true globoid, at the throat (center):
-        #   throat_pitch_radius = center_distance - wheel_pitch_radius
+        # We use throat_reduction_mm directly rather than deriving from centre_distance,
+        # because the JSON may have inconsistent values (e.g., if throat_reduction was
+        # auto-defaulted after centre_distance was already calculated).
         #
-        # NOTE: The calculator already reduces centre_distance by throat_reduction_mm,
-        # so we do NOT subtract it again here. The assembly.centre_distance_mm is the
-        # actual physical distance between axes for mesh positioning.
+        # throat_pitch_radius = nominal_pitch_radius - throat_reduction_mm
         #
         # The nominal pitch radius is used at the ends where the worm transitions
         # back to cylindrical form.
-        center_distance = assembly_params.centre_distance_mm
-        self.throat_pitch_radius = center_distance - wheel_pitch_radius
         self.nominal_pitch_radius = pitch_radius  # Standard pitch radius at ends
+        self.throat_pitch_radius = self.nominal_pitch_radius - self.throat_reduction_mm
+
+        # Calculate the effective centre_distance for this globoid geometry
+        # (used for validation and logging, may differ from assembly.centre_distance_mm if JSON is inconsistent)
+        self.effective_centre_distance = self.throat_pitch_radius + wheel_pitch_radius
 
         # Validate throat geometry makes sense
         if self.throat_pitch_radius <= 0:
             raise ValueError(
                 f"Invalid globoid geometry: throat_pitch_radius={self.throat_pitch_radius:.2f}mm "
-                f"(center_distance={center_distance:.2f}mm - wheel_pitch_radius={wheel_pitch_radius:.2f}mm). "
-                f"Center distance must be greater than wheel pitch radius."
+                f"(nominal={self.nominal_pitch_radius:.2f}mm - throat_reduction={self.throat_reduction_mm:.2f}mm). "
+                f"Throat reduction is too large for this worm diameter."
             )
 
         # Warn if throat is too aggressive (more than 20% reduction from nominal)

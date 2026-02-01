@@ -215,6 +215,13 @@ def calculate(input_json: str) -> str:
 
                 design.worm.throat_reduction_mm = throat_reduction
 
+                # IMPORTANT: Also update centre_distance to be consistent with throat_reduction
+                # The correct centre_distance for globoid mesh is:
+                #   throat_pitch_radius + wheel_pitch_radius
+                # where throat_pitch_radius = worm_pitch_radius - throat_reduction
+                throat_pitch_radius = worm_pitch_radius - throat_reduction
+                design.assembly.centre_distance_mm = throat_pitch_radius + wheel_pitch_radius
+
         # Update manufacturing params from UI settings
         if design.manufacturing:
             design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
