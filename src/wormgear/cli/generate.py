@@ -3,8 +3,56 @@ Command-line interface for worm gear geometry generation.
 """
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
+
+
+def get_version_string() -> str:
+    """Get version string, including PR info if on a feature branch."""
+    from importlib.metadata import version as pkg_version
+
+    try:
+        base_version = pkg_version("wormgear")
+    except Exception:
+        base_version = "0.0.0"
+
+    # Try to detect git branch and PR
+    try:
+        # Get current branch
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=5
+        )
+        branch = result.stdout.strip() if result.returncode == 0 else None
+
+        if branch and branch != "main" and branch != "master":
+            # On a feature branch - try to find PR number
+            try:
+                result = subprocess.run(
+                    ["gh", "pr", "view", "--json", "number", "-q", ".number"],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    pr_number = result.stdout.strip()
+                    return f"{base_version} (PR#{pr_number})"
+            except Exception:
+                pass
+            # No PR found, show branch name
+            return f"{base_version} ({branch})"
+
+        # Check if working tree is dirty
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return f"{base_version}-dev"
+
+    except Exception:
+        pass
+
+    return base_version
 
 from ..io.loaders import (
     load_design_json,
@@ -46,57 +94,66 @@ from ..io.loaders import MeshAlignment, WormPosition, MeasuredGeometry, Measurem
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Generate CNC-ready STEP files for worm gear pairs",
+        prog="wormgear",
+        description="Generate CNC-ready STEP files for worm gear pairs from wormgear.studio designs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Generate with auto-calculated bores and DIN 6885 keyways (default)
-  wormgear-geometry design.json
+  wormgear design.json
 
   # Generate solid parts without bores
-  wormgear-geometry design.json --no-bore
+  wormgear design.json --no-bore
 
   # Override bore sizes (keyways auto-sized to match)
-  wormgear-geometry design.json --worm-bore 8 --wheel-bore 12
+  wormgear design.json --worm-bore 8 --wheel-bore 12
 
   # Add set screw holes for shaft retention (auto-sized from bore)
-  wormgear-geometry design.json --set-screw
+  wormgear design.json --set-screw
 
   # Set screws with specific size and count
-  wormgear-geometry design.json --set-screw --set-screw-size M4 --set-screw-count 2
+  wormgear design.json --set-screw --set-screw-size M4 --set-screw-count 2
 
   # Extended hub for bearing support
-  wormgear-geometry design.json --hub-type extended --hub-length 15
+  wormgear design.json --hub-type extended --hub-length 15
 
   # Flanged hub with bolt holes for mounting
-  wormgear-geometry design.json --hub-type flanged --flange-diameter 60 --flange-bolts 4
+  wormgear design.json --hub-type flanged --flange-diameter 60 --flange-bolts 4
 
   # Bores but no keyways
-  wormgear-geometry design.json --no-keyway
+  wormgear design.json --no-keyway
 
   # View in OCP viewer without saving
-  wormgear-geometry design.json --view --no-save
+  wormgear design.json --view --no-save
 
   # Custom worm length and smoother geometry
-  wormgear-geometry design.json --worm-length 50 --sections 72
+  wormgear design.json --worm-length 50 --sections 72
 
   # Save extended JSON with all manufacturing features for reproducibility
-  wormgear-geometry design.json --set-screw --hub-type extended --save-json complete_design.json
+  wormgear design.json --set-screw --hub-type extended --save-json complete_design.json
 
   # Generate globoid (hourglass) worm for 30-50% higher load capacity
-  wormgear-geometry design.json --globoid
+  wormgear design.json --globoid
 
   # Tooth profiles per DIN 3975:
-  wormgear-geometry design.json --profile ZA  # Straight flanks (default, CNC)
-  wormgear-geometry design.json --profile ZK  # Circular arc (3D printing)
-  wormgear-geometry design.json --profile ZI  # Involute (hobbing)
+  wormgear design.json --profile ZA  # Straight flanks (default, CNC)
+  wormgear design.json --profile ZK  # Circular arc (3D printing)
+  wormgear design.json --profile ZI  # Involute (hobbing)
+
+More info: https://wormgear.studio
         """
+    )
+
+    parser.add_argument(
+        '-V', '--version',
+        action='version',
+        version=f'%(prog)s {get_version_string()}'
     )
 
     parser.add_argument(
         'design_file',
         type=str,
-        help='JSON file from wormgearcalc (Tool 1)'
+        help='JSON design file from wormgear.studio calculator'
     )
 
     parser.add_argument(
