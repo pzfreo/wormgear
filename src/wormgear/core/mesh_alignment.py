@@ -92,64 +92,83 @@ def calculate_mesh_rotation(
     wheel: Part,
     worm: Part,
     num_teeth: int,
-    coarse_step_deg: float = 1.0,
-    fine_step_deg: float = 0.2,
+    tolerance_deg: float = 0.2,
 ) -> tuple[float, float]:
     """Find wheel rotation that minimizes collision with worm.
 
-    Uses two-phase grid search with early exit optimization:
-    1. Coarse search: 1° steps over one tooth pitch
-    2. Fine search: 0.2° steps around best coarse angle
-    3. Early exit: Stop immediately if zero interference found
+    Uses golden section search for efficiency - O(log n) instead of O(n).
+    Searches within one tooth pitch since the mesh pattern repeats.
+
+    Algorithm:
+    1. Quick check at 0° (common case for properly designed gears)
+    2. Golden section search to find minimum interference angle
+    3. Returns as soon as zero interference is found
 
     Args:
         wheel: Wheel Part centred at origin with axis along Z
         worm: Worm Part already positioned at correct centre distance
         num_teeth: Number of teeth on the wheel
-        coarse_step_deg: Step size for initial search (default 1.0°)
-        fine_step_deg: Step size for refinement (default 0.2°)
+        tolerance_deg: Search precision in degrees (default 0.2°)
 
     Returns:
         Tuple of (optimal_rotation_deg, min_interference_mm3)
     """
     tooth_pitch_deg = 360.0 / num_teeth
 
-    best_rotation = 0.0
-    min_interference = float("inf")
+    # Helper to check interference at an angle
+    def check(angle: float) -> float:
+        rotated_wheel = wheel.rotate(Axis.Z, angle % tooth_pitch_deg)
+        return _calculate_interference(rotated_wheel, worm)
 
-    # Coarse search over one tooth pitch
-    num_coarse_steps = int(tooth_pitch_deg / coarse_step_deg) + 1
-    for i in range(num_coarse_steps):
-        angle = i * coarse_step_deg
-        rotated_wheel = wheel.rotate(Axis.Z, angle)
-        interference = _calculate_interference(rotated_wheel, worm)
+    # Quick check at 0° - most gears mesh correctly here
+    interference_at_zero = check(0.0)
+    if interference_at_zero == 0.0:
+        return 0.0, 0.0
 
-        if interference < min_interference:
-            min_interference = interference
-            best_rotation = angle
+    # Golden section search
+    # Golden ratio conjugate
+    phi = (math.sqrt(5) - 1) / 2  # ≈ 0.618
 
-        # Early exit on zero interference
-        if interference == 0.0:
-            return angle, 0.0
+    a = 0.0
+    b = tooth_pitch_deg
+    c = b - phi * (b - a)
+    d = a + phi * (b - a)
 
-    # Fine search around best angle
-    fine_range = int(coarse_step_deg / fine_step_deg) + 1
-    for d in range(-fine_range, fine_range + 1):
-        angle = best_rotation + d * fine_step_deg
-        normalized_angle = angle % tooth_pitch_deg
+    fc = check(c)
+    if fc == 0.0:
+        return c, 0.0
+    fd = check(d)
+    if fd == 0.0:
+        return d, 0.0
 
-        rotated_wheel = wheel.rotate(Axis.Z, normalized_angle)
-        interference = _calculate_interference(rotated_wheel, worm)
+    # Iterate until we reach desired precision
+    while (b - a) > tolerance_deg:
+        if fc < fd:
+            b = d
+            d = c
+            fd = fc
+            c = b - phi * (b - a)
+            fc = check(c)
+            if fc == 0.0:
+                return c, 0.0
+        else:
+            a = c
+            c = d
+            fc = fd
+            d = a + phi * (b - a)
+            fd = check(d)
+            if fd == 0.0:
+                return d, 0.0
 
-        if interference < min_interference:
-            min_interference = interference
-            best_rotation = normalized_angle
+    # Return the best found
+    best_angle = (a + b) / 2
+    best_interference = check(best_angle)
 
-        # Early exit on zero interference
-        if interference == 0.0:
-            return normalized_angle, 0.0
+    # Also check boundaries and midpoint candidates
+    candidates = [(a, check(a)), (b, check(b)), (c, fc), (d, fd), (best_angle, best_interference)]
+    best_angle, best_interference = min(candidates, key=lambda x: x[1])
 
-    return best_rotation, min_interference
+    return best_angle % tooth_pitch_deg, best_interference
 
 
 def check_interference(
