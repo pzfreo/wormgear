@@ -76,8 +76,9 @@ class TestWebIntegration:
         )
 
         # Verify throat_reduction is applied
-        # throat_pitch_radius = centre_distance - wheel_pitch_radius/2 - throat_reduction
-        expected = assembly.centre_distance_mm - wheel.pitch_diameter_mm / 2 - worm.throat_reduction_mm
+        # throat_pitch_radius = nominal_pitch_radius - throat_reduction_mm
+        # (The geometry uses throat_reduction_mm directly, not derived from centre_distance)
+        expected = worm.pitch_diameter_mm / 2 - worm.throat_reduction_mm
         assert geo.throat_pitch_radius == pytest.approx(expected, rel=0.01), \
             f"Expected throat_pitch_radius={expected:.3f}, got {geo.throat_pitch_radius:.3f}"
 

@@ -3,8 +3,114 @@ Command-line interface for worm gear geometry generation.
 """
 
 import argparse
+import subprocess
 import sys
+import time
 from pathlib import Path
+
+
+class CLIProgressReporter:
+    """Progress reporter for CLI with ETA calculation."""
+
+    def __init__(self, task_name: str = "Processing"):
+        self.task_name = task_name
+        self.start_time = None
+        self.last_percent = -1
+        self.completed = False
+
+    def __call__(self, message: str, percent: float):
+        """Report progress with ETA."""
+        if self.completed:
+            return  # Don't print after completion
+
+        if self.start_time is None:
+            self.start_time = time.time()
+
+        # Only update on significant progress (avoid spam)
+        if percent >= 0 and (percent - self.last_percent >= 5 or percent >= 100):
+            self.last_percent = percent
+            elapsed = time.time() - self.start_time
+
+            # Calculate ETA
+            eta_str = ""
+            if percent > 5 and percent < 100:
+                total_estimated = elapsed / (percent / 100)
+                remaining = total_estimated - elapsed
+                if remaining > 60:
+                    eta_str = f" (ETA: {remaining/60:.1f}min)"
+                elif remaining > 0:
+                    eta_str = f" (ETA: {remaining:.0f}s)"
+
+            # Format progress bar
+            bar_width = 20
+            filled = int(bar_width * percent / 100)
+            bar = "█" * filled + "░" * (bar_width - filled)
+
+            # Print progress line (overwrite previous)
+            print(f"\r  [{bar}] {percent:5.1f}%{eta_str}  ", end="", flush=True)
+
+            if percent >= 100:
+                self.completed = True
+                total_time = time.time() - self.start_time
+                if total_time > 60:
+                    print(f"\n  Completed in {total_time/60:.1f} minutes")
+                else:
+                    print(f"\n  Completed in {total_time:.1f} seconds")
+
+    def reset(self, task_name: str = None):
+        """Reset for a new task."""
+        if task_name:
+            self.task_name = task_name
+        self.start_time = None
+        self.last_percent = -1
+        self.completed = False
+
+
+def get_version_string() -> str:
+    """Get version string, including PR info if on a feature branch."""
+    from importlib.metadata import version as pkg_version
+
+    try:
+        base_version = pkg_version("wormgear")
+    except Exception:
+        base_version = "0.0.0"
+
+    # Try to detect git branch and PR
+    try:
+        # Get current branch
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=5
+        )
+        branch = result.stdout.strip() if result.returncode == 0 else None
+
+        if branch and branch != "main" and branch != "master":
+            # On a feature branch - try to find PR number
+            try:
+                result = subprocess.run(
+                    ["gh", "pr", "view", "--json", "number", "-q", ".number"],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    pr_number = result.stdout.strip()
+                    return f"{base_version} (PR#{pr_number})"
+            except Exception:
+                pass
+            # No PR found, show branch name
+            return f"{base_version} ({branch})"
+
+        # Check if working tree is dirty
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return f"{base_version}-dev"
+
+    except Exception:
+        pass
+
+    return base_version
 
 from ..io.loaders import (
     load_design_json,
@@ -33,6 +139,7 @@ from ..core.mesh_alignment import (
     find_optimal_mesh_rotation,
     position_for_mesh,
     mesh_alignment_to_dict,
+    MeshAlignmentResult,
 )
 from ..core.rim_thickness import (
     measure_rim_thickness,
@@ -46,57 +153,66 @@ from ..io.loaders import MeshAlignment, WormPosition, MeasuredGeometry, Measurem
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Generate CNC-ready STEP files for worm gear pairs",
+        prog="wormgear",
+        description="Generate CNC-ready STEP files for worm gear pairs from wormgear.studio designs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Generate with auto-calculated bores and DIN 6885 keyways (default)
-  wormgear-geometry design.json
+  wormgear design.json
 
   # Generate solid parts without bores
-  wormgear-geometry design.json --no-bore
+  wormgear design.json --no-bore
 
   # Override bore sizes (keyways auto-sized to match)
-  wormgear-geometry design.json --worm-bore 8 --wheel-bore 12
+  wormgear design.json --worm-bore 8 --wheel-bore 12
 
   # Add set screw holes for shaft retention (auto-sized from bore)
-  wormgear-geometry design.json --set-screw
+  wormgear design.json --set-screw
 
   # Set screws with specific size and count
-  wormgear-geometry design.json --set-screw --set-screw-size M4 --set-screw-count 2
+  wormgear design.json --set-screw --set-screw-size M4 --set-screw-count 2
 
   # Extended hub for bearing support
-  wormgear-geometry design.json --hub-type extended --hub-length 15
+  wormgear design.json --hub-type extended --hub-length 15
 
   # Flanged hub with bolt holes for mounting
-  wormgear-geometry design.json --hub-type flanged --flange-diameter 60 --flange-bolts 4
+  wormgear design.json --hub-type flanged --flange-diameter 60 --flange-bolts 4
 
   # Bores but no keyways
-  wormgear-geometry design.json --no-keyway
+  wormgear design.json --no-keyway
 
   # View in OCP viewer without saving
-  wormgear-geometry design.json --view --no-save
+  wormgear design.json --view --no-save
 
   # Custom worm length and smoother geometry
-  wormgear-geometry design.json --worm-length 50 --sections 72
+  wormgear design.json --worm-length 50 --sections 72
 
   # Save extended JSON with all manufacturing features for reproducibility
-  wormgear-geometry design.json --set-screw --hub-type extended --save-json complete_design.json
+  wormgear design.json --set-screw --hub-type extended --save-json complete_design.json
 
   # Generate globoid (hourglass) worm for 30-50% higher load capacity
-  wormgear-geometry design.json --globoid
+  wormgear design.json --globoid
 
   # Tooth profiles per DIN 3975:
-  wormgear-geometry design.json --profile ZA  # Straight flanks (default, CNC)
-  wormgear-geometry design.json --profile ZK  # Circular arc (3D printing)
-  wormgear-geometry design.json --profile ZI  # Involute (hobbing)
+  wormgear design.json --profile ZA  # Straight flanks (default, CNC)
+  wormgear design.json --profile ZK  # Circular arc (3D printing)
+  wormgear design.json --profile ZI  # Involute (hobbing)
+
+More info: https://wormgear.studio
         """
+    )
+
+    parser.add_argument(
+        '-V', '--version',
+        action='version',
+        version=f'%(prog)s {get_version_string()}'
     )
 
     parser.add_argument(
         'design_file',
         type=str,
-        help='JSON file from wormgearcalc (Tool 1)'
+        help='JSON design file from wormgear.studio calculator'
     )
 
     parser.add_argument(
@@ -483,6 +599,7 @@ Examples:
         print(f"\nGenerating worm ({worm_type_desc}, {design.worm.num_starts}-start, module {design.worm.module_mm}mm, {profile_desc}{features_desc})...")
 
         profile = use_profile
+        progress = CLIProgressReporter("Globoid worm") if use_globoid else None
         if use_globoid:
             worm_geo = GloboidWormGeometry(
                 params=design.worm,
@@ -494,7 +611,8 @@ Examples:
                 keyway=worm_keyway,
                 ddcut=worm_ddcut,
                 set_screw=worm_set_screw,
-                profile=profile
+                profile=profile,
+                progress_callback=progress
             )
         else:
             worm_geo = WormGeometry(
@@ -664,6 +782,7 @@ Examples:
             hob_type = "globoid" if use_globoid else "cylindrical"
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, VIRTUAL HOBBING [EXPERIMENTAL], {profile_desc}{features_desc})...")
             print(f"  Using {use_hobbing_steps} hobbing steps, {hob_type} hob")
+            hobbing_progress = CLIProgressReporter("Virtual hobbing")
             wheel_geo = VirtualHobbingWheelGeometry(
                 params=design.wheel,
                 worm_params=design.worm,
@@ -676,7 +795,8 @@ Examples:
                 set_screw=wheel_set_screw,
                 hub=wheel_hub,
                 profile=profile,
-                hob_geometry=hob_geo
+                hob_geometry=hob_geo,
+                progress_callback=hobbing_progress
             )
         else:
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc}, {profile_desc}{features_desc})...")
@@ -741,17 +861,37 @@ Examples:
     mesh_alignment_result = None
     skip_mesh = args.skip_mesh_alignment
 
+    # Check if wheel was pre-aligned during virtual hobbing
+    wheel_pre_aligned = hasattr(wheel_geo, 'pre_alignment_deg') if wheel_geo else False
+
     if worm is not None and wheel is not None and not skip_mesh:
-        print(f"\nCalculating mesh alignment...")
-        mesh_alignment_result = find_optimal_mesh_rotation(
-            wheel=wheel,
-            worm=worm,
-            centre_distance_mm=design.assembly.centre_distance_mm,
-            num_teeth=design.wheel.num_teeth,
-        )
-        print(f"  Optimal wheel rotation: {mesh_alignment_result.optimal_rotation_deg:.2f}°")
-        print(f"  Interference volume: {mesh_alignment_result.interference_volume_mm3:.4f} mm³")
-        print(f"  Status: {mesh_alignment_result.message}")
+        if wheel_pre_aligned:
+            # Virtual hobbing already aligned the wheel - use that result
+            print(f"\nMesh alignment (from virtual hobbing):")
+            print(f"  Pre-aligned rotation: {wheel_geo.pre_alignment_deg:.2f}°")
+            print(f"  Interference volume: {wheel_geo.pre_alignment_interference_mm3:.4f} mm³")
+            print(f"  Status: Pre-aligned during hobbing (no additional rotation needed)")
+            # Create a result object for consistency
+            mesh_alignment_result = MeshAlignmentResult(
+                optimal_rotation_deg=0.0,  # Already applied
+                interference_volume_mm3=wheel_geo.pre_alignment_interference_mm3,
+                within_tolerance=wheel_geo.pre_alignment_interference_mm3 < 0.1,
+                tooth_pitch_deg=360.0 / design.wheel.num_teeth,
+                worm_position=(design.assembly.centre_distance_mm, 0.0, 0.0),
+                message="Pre-aligned during virtual hobbing"
+            )
+        else:
+            # Standard mesh alignment calculation
+            print(f"\nCalculating mesh alignment...")
+            mesh_alignment_result = find_optimal_mesh_rotation(
+                wheel=wheel,
+                worm=worm,
+                centre_distance_mm=design.assembly.centre_distance_mm,
+                num_teeth=design.wheel.num_teeth,
+            )
+            print(f"  Optimal wheel rotation: {mesh_alignment_result.optimal_rotation_deg:.2f}°")
+            print(f"  Interference volume: {mesh_alignment_result.interference_volume_mm3:.4f} mm³")
+            print(f"  Status: {mesh_alignment_result.message}")
 
     # Save geometry analysis JSON (mesh alignment + rim measurements)
     if not args.no_save:

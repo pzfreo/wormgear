@@ -188,6 +188,15 @@ class VirtualHobbingWheelGeometry:
                 f"Higher values cause memory exhaustion."
             )
 
+        # Auto-reduce steps for complex hob geometry (globoid)
+        # Globoid boolean operations are 3-5x slower due to complex geometry
+        GLOBOID_HOB_MAX_STEPS = 36
+
+        if hob_geometry is not None and hobbing_steps > GLOBOID_HOB_MAX_STEPS:
+            logger.info(f"Auto-reducing hobbing steps from {hobbing_steps} to {GLOBOID_HOB_MAX_STEPS} "
+                        f"for complex hob geometry (globoid)")
+            hobbing_steps = GLOBOID_HOB_MAX_STEPS
+
         self.hobbing_steps = hobbing_steps
         self.bore = bore
         self.keyway = keyway
@@ -210,6 +219,21 @@ class VirtualHobbingWheelGeometry:
             self.face_width = max(0.3 * d1, min(0.67 * d1, self.face_width))
         else:
             self.face_width = face_width
+
+        # Calculate effective centre_distance for hob positioning
+        # For globoid worms, use throat_reduction_mm to compute correct distance
+        # (JSON may have inconsistent values if throat_reduction was auto-defaulted)
+        if worm_params.throat_reduction_mm and worm_params.throat_reduction_mm > 0:
+            # For globoid: throat_pitch_radius = nominal - throat_reduction
+            worm_pitch_radius = worm_params.pitch_diameter_mm / 2
+            throat_pitch_radius = worm_pitch_radius - worm_params.throat_reduction_mm
+            wheel_pitch_radius = params.pitch_diameter_mm / 2
+            self.effective_centre_distance = throat_pitch_radius + wheel_pitch_radius
+            logger.debug(f"Globoid hob positioning: effective_centre_distance={self.effective_centre_distance:.3f}mm "
+                        f"(throat_pitch_radius={throat_pitch_radius:.3f}mm + wheel_pitch_radius={wheel_pitch_radius:.3f}mm)")
+        else:
+            # Cylindrical worm: use centre_distance from assembly params
+            self.effective_centre_distance = assembly_params.centre_distance_mm
 
         # Cache for built geometry (avoids rebuilding on export)
         self._part = None
@@ -242,6 +266,11 @@ class VirtualHobbingWheelGeometry:
         # Perform virtual hobbing
         # Use incremental approach (faster, more reliable than envelope)
         wheel = self._simulate_hobbing_incremental(wheel, hob)
+
+        # Pre-align wheel for mesh at 0° rotation
+        # The hobbing simulation creates teeth at arbitrary phase - we align them now
+        # so the CLI doesn't need to run the expensive mesh alignment search
+        wheel = self._pre_align_for_mesh(wheel, hob)
 
         # Add bore, keyway, and set screw if specified
         if self.bore is not None or self.keyway is not None or self.set_screw is not None:
@@ -501,6 +530,79 @@ class VirtualHobbingWheelGeometry:
             logger.warning(f"failed after {simplify_time:.1f}s: {e}, using original")
             return part
 
+    def _pre_align_for_mesh(self, wheel: Part, hob: Part) -> Part:
+        """
+        Pre-align the hobbed wheel so it meshes with the worm at 0° rotation.
+
+        Since we control the hobbing simulation, we can align the wheel during
+        build rather than requiring expensive post-hoc mesh alignment search.
+
+        Uses a fast coarse-to-fine search over one tooth pitch to find the
+        rotation that minimizes interference with the hob in mesh position.
+
+        Args:
+            wheel: The hobbed wheel geometry
+            hob: The hob (worm) geometry used for cutting
+
+        Returns:
+            Wheel rotated to optimal mesh position
+        """
+        self._report_progress("Pre-aligning wheel for mesh...", 95.0)
+        align_start = time.time()
+
+        centre_distance = self.effective_centre_distance
+        tooth_pitch_deg = 360.0 / self.params.num_teeth
+
+        # Position hob in mesh position (same as CLI mesh display)
+        hob_positioned = Pos(centre_distance, 0, 0) * Rot(X=90) * hob
+
+        def calc_interference(angle_deg: float) -> float:
+            """Calculate interference volume at given wheel rotation."""
+            wheel_rotated = wheel.rotate(Axis.Z, angle_deg)
+            try:
+                intersection = wheel_rotated & hob_positioned
+                if hasattr(intersection, "volume"):
+                    return intersection.volume
+                if hasattr(intersection, "__iter__"):
+                    return sum(item.volume for item in intersection if hasattr(item, "volume"))
+                return 0.0
+            except Exception:
+                return 0.0
+
+        # Coarse search: test 6 positions across one tooth pitch
+        best_angle = 0.0
+        best_interference = float('inf')
+        coarse_step = tooth_pitch_deg / 6
+
+        for i in range(7):
+            angle = i * coarse_step
+            interference = calc_interference(angle)
+            if interference < best_interference:
+                best_interference = interference
+                best_angle = angle
+
+        # Fine search: binary search around best angle
+        search_range = coarse_step
+        for _ in range(4):  # 4 iterations gives ~1/16 of coarse step precision
+            search_range /= 2
+            for delta in [-search_range, search_range]:
+                angle = best_angle + delta
+                interference = calc_interference(angle)
+                if interference < best_interference:
+                    best_interference = interference
+                    best_angle = angle
+
+        align_time = time.time() - align_start
+        logger.info(f"Pre-aligned wheel by {best_angle:.2f}° (interference: {best_interference:.4f} mm³) in {align_time:.1f}s")
+
+        # Store alignment result for reference
+        self.pre_alignment_deg = best_angle
+        self.pre_alignment_interference_mm3 = best_interference
+
+        if best_angle != 0.0:
+            return wheel.rotate(Axis.Z, best_angle)
+        return wheel
+
     def _create_simplified_hob(self, original_hob: Part) -> Part:
         """
         Create a simplified version of a complex hob (e.g., globoid).
@@ -542,7 +644,7 @@ class VirtualHobbingWheelGeometry:
         # Calculate trim radius: must be large enough to contain hob at working position
         # Hob is positioned at centre_distance from wheel center
         # Hob extends to: centre_distance + hob_tip_radius
-        centre_distance = self.assembly_params.centre_distance_mm
+        centre_distance = self.effective_centre_distance
         hob_tip_radius = self.worm_params.tip_diameter_mm / 2
 
         # Add small margin beyond hob envelope (0.5mm is enough)
@@ -590,7 +692,7 @@ class VirtualHobbingWheelGeometry:
         Pros: Simpler, more predictable memory usage
         Cons: More boolean operations, overlapping cuts
         """
-        centre_distance = self.assembly_params.centre_distance_mm
+        centre_distance = self.effective_centre_distance
         wheel_teeth = self.params.num_teeth
         worm_starts = self.worm_params.num_starts
         ratio = wheel_teeth / worm_starts
@@ -705,7 +807,7 @@ class VirtualHobbingWheelGeometry:
             _simplify_geometry: Reduces face count to improve boolean performance
             HOBBING_PRESETS: Recommended step counts for different quality levels
         """
-        centre_distance = self.assembly_params.centre_distance_mm
+        centre_distance = self.effective_centre_distance
         wheel_teeth = self.params.num_teeth
         worm_starts = self.worm_params.num_starts
         ratio = wheel_teeth / worm_starts
@@ -745,7 +847,8 @@ class VirtualHobbingWheelGeometry:
         # Only do this for complex geometry (globoid) - skip for cylindrical
         # Simplify every N steps to prevent complexity buildup
         use_periodic_simplification = (self.hob_geometry is not None)  # Only if using provided geometry
-        simplification_interval = max(3, self.hobbing_steps // 6) if use_periodic_simplification else 999999
+        # Simplify more frequently for complex geometry (every 3 steps for 36-step hobbing)
+        simplification_interval = max(3, self.hobbing_steps // 12) if use_periodic_simplification else 999999
 
         for step in range(self.hobbing_steps):
             # Current rotations
