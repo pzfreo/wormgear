@@ -493,6 +493,17 @@ async function generateGeometry(type) {
         const hobbingSteps = manufacturing.hobbing_steps || 72;
         const profile = manufacturing.profile || 'ZA';
 
+        // Auto-reduce hobbing steps for globoid worms (complex geometry is 3-5x slower)
+        const isGloboid = designData.worm?.type === 'globoid' ||
+                          (designData.worm?.throat_curvature_radius_mm && designData.worm?.throat_curvature_radius_mm > 0);
+        const GLOBOID_HOB_MAX_STEPS = 36;
+
+        let effectiveHobbingSteps = hobbingSteps;
+        if (virtualHobbing && isGloboid && hobbingSteps > GLOBOID_HOB_MAX_STEPS) {
+            appendToConsole(`Auto-reducing hobbing steps from ${hobbingSteps} to ${GLOBOID_HOB_MAX_STEPS} for globoid worm`);
+            effectiveHobbingSteps = GLOBOID_HOB_MAX_STEPS;
+        }
+
         // Debug: Log what's being read from JSON
         console.log('[DEBUG] Generator reading from JSON:', {
             manufacturing: designData.manufacturing,
@@ -538,7 +549,7 @@ async function generateGeometry(type) {
                 designData,
                 generateType: type,
                 virtualHobbing,
-                hobbingSteps,
+                hobbingSteps: effectiveHobbingSteps,
                 profile,
                 wormLength,
                 wheelWidth

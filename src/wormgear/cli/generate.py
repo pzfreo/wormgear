@@ -139,6 +139,7 @@ from ..core.mesh_alignment import (
     find_optimal_mesh_rotation,
     position_for_mesh,
     mesh_alignment_to_dict,
+    MeshAlignmentResult,
 )
 from ..core.rim_thickness import (
     measure_rim_thickness,
@@ -860,17 +861,37 @@ More info: https://wormgear.studio
     mesh_alignment_result = None
     skip_mesh = args.skip_mesh_alignment
 
+    # Check if wheel was pre-aligned during virtual hobbing
+    wheel_pre_aligned = hasattr(wheel_geo, 'pre_alignment_deg') if wheel_geo else False
+
     if worm is not None and wheel is not None and not skip_mesh:
-        print(f"\nCalculating mesh alignment...")
-        mesh_alignment_result = find_optimal_mesh_rotation(
-            wheel=wheel,
-            worm=worm,
-            centre_distance_mm=design.assembly.centre_distance_mm,
-            num_teeth=design.wheel.num_teeth,
-        )
-        print(f"  Optimal wheel rotation: {mesh_alignment_result.optimal_rotation_deg:.2f}°")
-        print(f"  Interference volume: {mesh_alignment_result.interference_volume_mm3:.4f} mm³")
-        print(f"  Status: {mesh_alignment_result.message}")
+        if wheel_pre_aligned:
+            # Virtual hobbing already aligned the wheel - use that result
+            print(f"\nMesh alignment (from virtual hobbing):")
+            print(f"  Pre-aligned rotation: {wheel_geo.pre_alignment_deg:.2f}°")
+            print(f"  Interference volume: {wheel_geo.pre_alignment_interference_mm3:.4f} mm³")
+            print(f"  Status: Pre-aligned during hobbing (no additional rotation needed)")
+            # Create a result object for consistency
+            mesh_alignment_result = MeshAlignmentResult(
+                optimal_rotation_deg=0.0,  # Already applied
+                interference_volume_mm3=wheel_geo.pre_alignment_interference_mm3,
+                within_tolerance=wheel_geo.pre_alignment_interference_mm3 < 0.1,
+                tooth_pitch_deg=360.0 / design.wheel.num_teeth,
+                worm_position=(design.assembly.centre_distance_mm, 0.0, 0.0),
+                message="Pre-aligned during virtual hobbing"
+            )
+        else:
+            # Standard mesh alignment calculation
+            print(f"\nCalculating mesh alignment...")
+            mesh_alignment_result = find_optimal_mesh_rotation(
+                wheel=wheel,
+                worm=worm,
+                centre_distance_mm=design.assembly.centre_distance_mm,
+                num_teeth=design.wheel.num_teeth,
+            )
+            print(f"  Optimal wheel rotation: {mesh_alignment_result.optimal_rotation_deg:.2f}°")
+            print(f"  Interference volume: {mesh_alignment_result.interference_volume_mm3:.4f} mm³")
+            print(f"  Status: {mesh_alignment_result.message}")
 
     # Save geometry analysis JSON (mesh alignment + rim measurements)
     if not args.no_save:
