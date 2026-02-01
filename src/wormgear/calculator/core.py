@@ -490,18 +490,20 @@ def design_from_module(
     # Number of teeth on wheel
     num_teeth = ratio * num_starts
 
-    # Worm pitch diameter
+    # Worm pitch diameter (same calculation for cylindrical and globoid)
     if worm_pitch_diameter is None:
         # Calculate for target lead angle
         lead = pi * module * num_starts
         target_rad = radians(target_lead_angle)
-        worm_pitch_diameter_cylindrical = lead / (pi * tan(target_rad))
+        worm_pitch_diameter = lead / (pi * tan(target_rad))
 
-        # For globoid, increase pitch diameter to create hourglass effect
-        if globoid:
-            worm_pitch_diameter = worm_pitch_diameter_cylindrical + 2 * throat_reduction
-        else:
-            worm_pitch_diameter = worm_pitch_diameter_cylindrical
+    # Auto-calculate throat_reduction for globoid worms if not specified
+    # Geometrically: the throat should "cup" around the wheel
+    # throat_curvature_radius = wheel_pitch_radius = module * num_teeth / 2
+    # A good throat_reduction brings the worm closer by ~1 module depth
+    # This matches the addendum, giving proper tooth engagement at throat
+    if globoid and throat_reduction <= 0:
+        throat_reduction = module  # One module gives good hourglass effect
 
     # Calculate worm parameters
     worm = calculate_worm(
@@ -537,8 +539,11 @@ def design_from_module(
     )
 
     # Calculate centre distance
-    # For cylindrical: standard calculation
-    # For globoid: reduce by throat_reduction to create hourglass effect
+    # For cylindrical: cd = (worm_pd + wheel_pd) / 2
+    # For globoid: cd based on THROAT pitch radius (smaller than nominal)
+    #   throat_pitch_radius = worm_pd/2 - throat_reduction
+    #   cd = throat_pitch_radius + wheel_pd/2
+    #      = (worm_pd + wheel_pd)/2 - throat_reduction
     standard_centre_distance = calculate_centre_distance(
         worm["pitch_diameter_mm"],
         wheel["pitch_diameter_mm"]
@@ -642,6 +647,13 @@ def design_from_centre_distance(
     # Number of teeth on wheel
     num_teeth = ratio * num_starts
 
+    # Auto-calculate throat_reduction for globoid if not specified
+    # First estimate module from centre_distance (assuming no reduction for initial estimate)
+    # module ≈ 2 × centre_distance / ((worm_to_wheel_ratio + 1) × num_teeth)
+    if globoid and throat_reduction <= 0:
+        estimated_module = 2 * centre_distance / ((worm_to_wheel_ratio + 1) * num_teeth)
+        throat_reduction = estimated_module  # One module gives good hourglass effect
+
     # For globoid, the given centre_distance is the actual distance
     # We need to calculate what the standard centre would be
     if globoid:
@@ -736,16 +748,14 @@ def design_from_wheel(
     # Calculate module from wheel OD
     module = wheel_od / (num_teeth + 2)
 
+    # Auto-calculate throat_reduction for globoid if not specified
+    if globoid and throat_reduction <= 0:
+        throat_reduction = module  # One module gives good hourglass effect
+
     # Calculate worm pitch diameter for target lead angle
     lead = pi * module * num_starts
     target_rad = radians(target_lead_angle)
-    worm_pitch_diameter_cylindrical = lead / (pi * tan(target_rad))
-
-    # For globoid, increase pitch diameter to create hourglass effect
-    if globoid:
-        worm_pitch_diameter = worm_pitch_diameter_cylindrical + 2 * throat_reduction
-    else:
-        worm_pitch_diameter = worm_pitch_diameter_cylindrical
+    worm_pitch_diameter = lead / (pi * tan(target_rad))
 
     return design_from_module(
         module=module,
