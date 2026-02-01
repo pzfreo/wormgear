@@ -738,13 +738,8 @@ Examples:
                 print(f"  WARNING: Below {WHEEL_RIM_WARNING_THRESHOLD_MM}mm threshold")
 
     # Calculate mesh alignment (when both parts generated)
-    # Skip for virtual hobbing by default (very slow with complex geometry)
     mesh_alignment_result = None
     skip_mesh = args.skip_mesh_alignment
-    if use_virtual_hobbing:
-        # Auto-skip for virtual hobbing (complex geometry makes boolean ops slow)
-        skip_mesh = True
-        print(f"\nSkipping mesh alignment (virtual hobbing geometry is complex)")
 
     if worm is not None and wheel is not None and not skip_mesh:
         print(f"\nCalculating mesh alignment...")
