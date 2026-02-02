@@ -267,10 +267,10 @@ class VirtualHobbingWheelGeometry:
         # Use incremental approach (faster, more reliable than envelope)
         wheel = self._simulate_hobbing_incremental(wheel, hob)
 
-        # Pre-align wheel for mesh at 0° rotation
-        # The hobbing simulation creates teeth at arbitrary phase - we align them now
-        # so the CLI doesn't need to run the expensive mesh alignment search
-        wheel = self._pre_align_for_mesh(wheel, hob)
+        # Hobbing simulation cuts teeth at correct phase for 0° mesh
+        # (hob positioned at +X, wheel starts at 0° - no alignment search needed)
+        self.pre_alignment_deg = 0.0
+        self.pre_alignment_interference_mm3 = 0.0
 
         # Add bore, keyway, and set screw if specified
         if self.bore is not None or self.keyway is not None or self.set_screw is not None:
@@ -298,6 +298,7 @@ class VirtualHobbingWheelGeometry:
 
         # Cache the built geometry
         self._part = wheel
+        self._report_progress("  ✓ Virtual hobbing complete", 100.0)
         return wheel
 
     def _create_blank(self) -> Part:
@@ -547,7 +548,7 @@ class VirtualHobbingWheelGeometry:
         Returns:
             Wheel rotated to optimal mesh position
         """
-        self._report_progress("Pre-aligning wheel for mesh...", 95.0)
+        self._report_progress("  Pre-aligning wheel for mesh (15 interference tests)...", 91.0)
         align_start = time.time()
 
         centre_distance = self.effective_centre_distance
@@ -583,6 +584,8 @@ class VirtualHobbingWheelGeometry:
                 best_interference = interference
                 best_angle = angle
 
+        self._report_progress("  Pre-aligning wheel (fine search)...", 95.0, verbose=False)
+
         # Fine search: binary search around best angle
         search_range = coarse_step
         for _ in range(4):  # 4 iterations gives ~1/16 of coarse step precision
@@ -595,6 +598,7 @@ class VirtualHobbingWheelGeometry:
                     best_angle = angle
 
         align_time = time.time() - align_start
+        self._report_progress(f"  ✓ Pre-aligned by {best_angle:.1f}° in {align_time:.0f}s", 98.0)
         logger.info(f"Pre-aligned wheel by {best_angle:.2f}° (interference: {best_interference:.4f} mm³) in {align_time:.1f}s")
 
         # Store alignment result for reference
@@ -745,7 +749,7 @@ class VirtualHobbingWheelGeometry:
                     verbose=(step + 1) in [self.hobbing_steps // 4, self.hobbing_steps // 2, 3 * self.hobbing_steps // 4]
                 )
 
-        self._report_progress(f"    ✓ Incremental hobbing complete", 100.0)
+        self._report_progress(f"    ✓ Incremental hobbing complete", 95.0)
         return wheel
 
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
