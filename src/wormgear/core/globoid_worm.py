@@ -597,11 +597,17 @@ class GloboidWormGeometry:
 
             # Profile coordinates relative to local pitch radius
             # inner_r is negative (below pitch), outer_r is positive (above pitch)
-            inner_r = -local_dedendum
+            # Extend inner_r well beyond dedendum to ensure solid overlap with core
+            # We extend to 50% of the local pitch radius below the pitch circle
+            # This creates substantial material overlap for a clean boolean union
+            core_overlap = local_pitch_radius * 0.5
+            inner_r = -core_overlap
             outer_r = local_addendum
 
             # Apply taper factor to thread width with minimum to avoid zero-width profiles
-            local_thread_half_width_root = max(0.05, thread_half_width_root * taper_factor)
+            # Extend root width to account for deeper inner_r (maintain flank angle)
+            root_extension = (core_overlap - local_dedendum) * math.tan(pressure_angle_rad)
+            local_thread_half_width_root = max(0.05, thread_half_width_root * taper_factor + root_extension)
             local_thread_half_width_tip = max(0.05, thread_half_width_tip * taper_factor)
 
             # Create filled profile based on profile type
