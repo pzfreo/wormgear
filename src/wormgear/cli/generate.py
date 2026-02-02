@@ -450,6 +450,7 @@ More info: https://wormgear.studio
 
     worm = None
     wheel = None
+    wheel_geo = None
     worm_rim_result = None
     wheel_rim_result = None
     worm_bore_diameter = None

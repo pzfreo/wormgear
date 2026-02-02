@@ -406,9 +406,9 @@ class GloboidWormGeometry:
             else:
                 local_pitch_radius = self.nominal_pitch_radius
 
-            # Clamp to reasonable range
+            # Clamp to valid range: throat to nominal (never exceed cylindrical)
             local_pitch_radius = max(self.throat_pitch_radius,
-                                    min(self.nominal_pitch_radius * 1.05, local_pitch_radius))
+                                    min(self.nominal_pitch_radius, local_pitch_radius))
 
             # Core radius is local pitch radius minus tapered dedendum minus tiny clearance
             local_dedendum = dedendum * taper_factor
@@ -475,9 +475,9 @@ class GloboidWormGeometry:
             else:
                 r = self.nominal_pitch_radius
 
-            # Clamp to reasonable range (90-105% of nominal)
+            # Clamp to valid range: throat to nominal (never exceed cylindrical)
             r = max(self.throat_pitch_radius,
-                    min(self.nominal_pitch_radius * 1.05, r))
+                    min(self.nominal_pitch_radius, r))
 
             # Calculate rotation angle (cumulative along axis)
             theta = start_angle + (z + half_width) / lead * 360.0
