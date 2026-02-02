@@ -822,17 +822,39 @@ More info: https://wormgear.studio
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        from build123d import export_step
+        from build123d import export_step, Part
+        from OCP.ShapeFix import ShapeFix_Shape
+        from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
+
+        def repair_geometry(part: Part, name: str) -> Part:
+            """Repair geometry to ensure valid STEP export."""
+            try:
+                # Unify same-domain faces (merges adjacent faces on same surface)
+                unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
+                unifier.Build()
+                unified = unifier.Shape()
+
+                # Fix any remaining issues
+                fixer = ShapeFix_Shape(unified)
+                fixer.Perform()
+                fixed = fixer.Shape()
+
+                return Part(fixed)
+            except Exception as e:
+                print(f"  Warning: geometry repair failed for {name}: {e}")
+                return part
 
         print(f"\nExporting STEP files...")
         if worm is not None:
+            worm_export = repair_geometry(worm, "worm")
             output_file = output_dir / f"worm_m{design.worm.module_mm}_z{design.worm.num_starts}.step"
-            export_step(worm, str(output_file))
+            export_step(worm_export, str(output_file))
             print(f"  Saved: {output_file}")
 
         if wheel is not None:
+            wheel_export = repair_geometry(wheel, "wheel")
             output_file = output_dir / f"wheel_m{design.wheel.module_mm}_z{design.wheel.num_teeth}.step"
-            export_step(wheel, str(output_file))
+            export_step(wheel_export, str(output_file))
             print(f"  Saved: {output_file}")
 
     # Measure rim thickness (after STEP export)
