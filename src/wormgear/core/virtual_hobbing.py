@@ -267,10 +267,10 @@ class VirtualHobbingWheelGeometry:
         # Use incremental approach (faster, more reliable than envelope)
         wheel = self._simulate_hobbing_incremental(wheel, hob)
 
-        # Pre-align wheel for mesh at 0° rotation
-        # The hobbing simulation creates teeth at arbitrary phase - we align them now
-        # so the CLI doesn't need to run the expensive mesh alignment search
-        wheel = self._pre_align_for_mesh(wheel, hob)
+        # Hobbing simulation cuts teeth at correct phase for 0° mesh
+        # (hob positioned at +X, wheel starts at 0° - no alignment search needed)
+        self.pre_alignment_deg = 0.0
+        self.pre_alignment_interference_mm3 = 0.0
 
         # Add bore, keyway, and set screw if specified
         if self.bore is not None or self.keyway is not None or self.set_screw is not None:
@@ -749,7 +749,7 @@ class VirtualHobbingWheelGeometry:
                     verbose=(step + 1) in [self.hobbing_steps // 4, self.hobbing_steps // 2, 3 * self.hobbing_steps // 4]
                 )
 
-        self._report_progress(f"    ✓ Incremental hobbing complete", 90.0)
+        self._report_progress(f"    ✓ Incremental hobbing complete", 95.0)
         return wheel
 
     def _simulate_hobbing(self, blank: Part, hob: Part) -> Part:
