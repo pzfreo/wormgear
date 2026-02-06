@@ -108,6 +108,7 @@ class CalculatorInputs(BaseModel):
     od_as_maximum: bool = False
     use_standard_module: bool = True
     wheel_max_od: Optional[float] = None
+    relief_groove: Optional[Dict[str, Any]] = None
 
     # Nested settings
     bore: BoreSettings = Field(default_factory=BoreSettings)
@@ -251,7 +252,7 @@ def calculate(input_json: str) -> str:
         # Build output
         output = CalculatorOutput(
             success=True,
-            design_json=to_json(design, bore_settings=bore_dict, manufacturing_settings=mfg_dict),
+            design_json=to_json(design, bore_settings=bore_dict, manufacturing_settings=mfg_dict, relief_groove=inputs.relief_groove),
             summary=to_summary(design),
             markdown=to_markdown(design, validation),
             valid=validation.valid,

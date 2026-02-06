@@ -350,6 +350,35 @@
                                     <option value="ddcut">DD-Cut (flat sides)</option>
                                 </select>
                             </div>
+
+                            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Relief Grooves</h3>
+
+                            <div class="checkbox-option">
+                                <input type="checkbox" id="relief-groove">
+                                <label for="relief-groove">Add relief grooves at worm thread ends</label>
+                            </div>
+
+                            <div id="relief-groove-group" style="display: none;">
+                                <label for="groove-type">Groove Type:</label>
+                                <select id="groove-type">
+                                    <option value="din76" selected>DIN 76 (standard undercut)</option>
+                                    <option value="full-radius">Full radius (semicircular)</option>
+                                </select>
+
+                                <div id="din76-options">
+                                    <label for="groove-width">Width (mm):</label>
+                                    <input type="number" id="groove-width" placeholder="auto" step="0.1" min="0.5">
+                                    <label for="groove-depth">Depth (mm):</label>
+                                    <input type="number" id="groove-depth" placeholder="auto" step="0.1" min="0.1">
+                                </div>
+
+                                <div id="full-radius-options" style="display: none;">
+                                    <label for="groove-radius">Radius (mm):</label>
+                                    <input type="number" id="groove-radius" placeholder="auto" step="0.1" min="0.3">
+                                </div>
+
+                                <small class="hint">Defaults calculated from axial pitch (DIN 76: width=2.5P, depth=0.5P)</small>
+                            </div>
                         </div>
                     </details>
                 </section>

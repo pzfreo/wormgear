@@ -130,6 +130,7 @@ from ..core.features import (
     DDCutFeature,
     SetScrewFeature,
     HubFeature,
+    ReliefGrooveFeature,
     calculate_default_bore,
     calculate_default_ddcut,
     get_din_6885_keyway,
@@ -441,6 +442,42 @@ More info: https://wormgear.studio
         help='Bolt hole diameter in mm (for flanged hub, default: auto-sized)'
     )
 
+    # Relief groove options (worm only)
+    parser.add_argument(
+        '--relief-groove',
+        action='store_true',
+        help='Add relief grooves at worm thread termination points (DIN 76 defaults)'
+    )
+
+    parser.add_argument(
+        '--relief-groove-type',
+        type=str,
+        choices=['din76', 'full-radius'],
+        default=None,
+        help='Relief groove type: "din76" (rectangular undercut) or "full-radius" (semicircular)'
+    )
+
+    parser.add_argument(
+        '--groove-width',
+        type=float,
+        default=None,
+        help='DIN 76 groove width in mm (default: 2.5× axial pitch)'
+    )
+
+    parser.add_argument(
+        '--groove-depth',
+        type=float,
+        default=None,
+        help='DIN 76 groove depth in mm (default: 0.5× axial pitch)'
+    )
+
+    parser.add_argument(
+        '--groove-radius',
+        type=float,
+        default=None,
+        help='Full-radius groove radius in mm (default: 0.75× axial pitch)'
+    )
+
     args = parser.parse_args()
 
     # Load design
@@ -584,6 +621,26 @@ More info: https://wormgear.studio
                     else:
                         worm_set_screw = SetScrewFeature(count=args.set_screw_count)
 
+        # Relief groove: CLI arg > JSON features > no groove
+        worm_relief_groove = None
+        json_relief_groove = json_worm_features.relief_groove if json_worm_features else None
+        if args.relief_groove or json_relief_groove:
+            groove_type = args.relief_groove_type or (json_relief_groove.type if json_relief_groove else "din76")
+            worm_relief_groove = ReliefGrooveFeature(
+                type=groove_type,
+                width_mm=args.groove_width or (json_relief_groove.width_mm if json_relief_groove else None),
+                depth_mm=args.groove_depth or (json_relief_groove.depth_mm if json_relief_groove else None),
+                radius_mm=args.groove_radius or (json_relief_groove.radius_mm if json_relief_groove else None),
+            )
+            # Display groove info
+            axial_pitch = design.worm.lead_mm / design.worm.num_starts
+            if groove_type == "full-radius":
+                r = worm_relief_groove.get_full_radius_dimensions(axial_pitch)
+                print(f"  Relief groove (full-radius): radius={r:.2f}mm (axial pitch={axial_pitch:.2f}mm)")
+            else:
+                w, d, _ = worm_relief_groove.get_din76_dimensions(axial_pitch)
+                print(f"  Relief groove (DIN 76): width={w:.2f}mm, depth={d:.2f}mm (axial pitch={axial_pitch:.2f}mm)")
+
         # Build description
         features_desc = ""
         if worm_bore:
@@ -601,6 +658,8 @@ More info: https://wormgear.studio
                 if worm_set_screw.count > 1:
                     screw_desc += f" x{worm_set_screw.count}"
                 features_desc += f" + set screw ({screw_desc})"
+        if worm_relief_groove:
+            features_desc += f" + relief groove ({worm_relief_groove.type})"
 
         worm_type_desc = "globoid (hourglass)" if use_globoid else "cylindrical"
         profile_upper = use_profile
@@ -625,6 +684,7 @@ More info: https://wormgear.studio
                 keyway=worm_keyway,
                 ddcut=worm_ddcut,
                 set_screw=worm_set_screw,
+                relief_groove=worm_relief_groove,
                 profile=profile,
                 progress_callback=progress
             )
@@ -638,6 +698,7 @@ More info: https://wormgear.studio
                 keyway=worm_keyway,
                 ddcut=worm_ddcut,
                 set_screw=worm_set_screw,
+                relief_groove=worm_relief_groove,
                 profile=profile
             )
 

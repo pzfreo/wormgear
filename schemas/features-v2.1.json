@@ -91,6 +91,59 @@
       "title": "HubSpec",
       "type": "object"
     },
+    "ReliefGrooveSpec": {
+      "description": "Relief groove at thread termination points.\n\ntype specifies groove profile:\n- \"din76\": Standard rectangular undercut per DIN 76 (default)\n- \"full-radius\": Semicircular groove profile\n\nDimensions default to auto-calculated from axial pitch if not specified.",
+      "properties": {
+        "type": {
+          "default": "din76",
+          "title": "Type",
+          "type": "string"
+        },
+        "width_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width Mm"
+        },
+        "depth_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depth Mm"
+        },
+        "radius_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Radius Mm"
+        },
+        "position": {
+          "default": "both",
+          "title": "Position",
+          "type": "string"
+        }
+      },
+      "title": "ReliefGrooveSpec",
+      "type": "object"
+    },
     "SetScrewSpec": {
       "description": "Set screw specification.",
       "properties": {
@@ -211,6 +264,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/SetScrewSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relief_groove": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReliefGrooveSpec"
             },
             {
               "type": "null"
