@@ -197,6 +197,9 @@ export function validateCalculatorInputs(inputs) {
     if (inputs.use_standard_module !== undefined) {
         validated.use_standard_module = !!inputs.use_standard_module;
     }
+    if (inputs.wheel_max_od !== null && inputs.wheel_max_od !== undefined) {
+        validated.wheel_max_od = requireNumber(inputs.wheel_max_od, 'wheel_max_od');
+    }
 
     return validated;
 }
