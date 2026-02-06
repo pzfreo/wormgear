@@ -47,9 +47,10 @@ class TestDesignFromModule:
             throat_reduction=0.1
         )
 
-        # Centre distance should be reduced for globoid
+        # Centre distance is always (worm_pd + wheel_pd) / 2, even for globoid
+        # Throat reduction affects worm shape, not axis spacing
         standard_cd = (design.worm.pitch_diameter_mm + design.wheel.pitch_diameter_mm) / 2
-        assert design.assembly.centre_distance_mm < standard_cd
+        assert design.assembly.centre_distance_mm == pytest.approx(standard_cd, rel=1e-6)
 
     def test_profile_shift(self):
         """Test design with profile shift."""
