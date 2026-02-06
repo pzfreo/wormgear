@@ -979,6 +979,7 @@ def create_hub(
 def create_relief_groove(
     part: Part,
     root_diameter_mm: float,
+    tip_diameter_mm: float,
     axial_pitch_mm: float,
     part_length: float,
     groove: ReliefGrooveFeature,
@@ -988,12 +989,14 @@ def create_relief_groove(
     Cut relief grooves at thread termination points.
 
     Creates annular recesses at one or both ends of the worm where the thread
-    meets the plain shaft. Supports DIN 76 rectangular profile and full-radius
-    (semicircular) profile.
+    meets the plain shaft. The groove cuts through the full thread height so it
+    is visible and accessible for CNC machining. Supports DIN 76 rectangular
+    profile and full-radius (semicircular) profile.
 
     Args:
         part: Worm part to modify
         root_diameter_mm: Worm root diameter in mm
+        tip_diameter_mm: Worm tip (outer) diameter in mm
         axial_pitch_mm: Axial pitch of the worm thread in mm
         part_length: Total worm length in mm
         groove: Groove specification
@@ -1003,17 +1006,16 @@ def create_relief_groove(
         Part with relief grooves cut
     """
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
-    from build123d import BuildSketch, Rectangle, Circle, Plane, revolve, fillet, Sketch
+    from build123d import BuildSketch, Rectangle, Circle, Plane, revolve, Locations
 
     half_length = part_length / 2
     root_radius = root_diameter_mm / 2
+    tip_radius = tip_diameter_mm / 2
+    clearance = 0.5  # extend beyond tip to ensure clean cut
 
     if groove.type == "din76":
         width, depth, fillet_r = groove.get_din76_dimensions(axial_pitch_mm)
 
-        # DIN 76 groove: rectangular profile revolved around Z axis
-        # Profile is a rectangle in XZ plane, from (root_radius - depth) to root_radius radially
-        # Fillet radius is clamped to avoid exceeding half the smaller dimension
         max_fillet = min(width, depth) * 0.45
         fillet_r = min(fillet_r, max_fillet)
 
@@ -1024,20 +1026,18 @@ def create_relief_groove(
             groove_positions.append(-half_length + width / 2)
 
         for z_pos in groove_positions:
-            # Create groove profile as rectangle in XZ plane
-            # Center at (root_radius - depth/2, z_pos)
+            # DIN 76 groove: rectangular profile extending from below root
+            # through the full thread height so the groove is visible
             groove_inner_radius = root_radius - depth
-            groove_center_r = (groove_inner_radius + root_radius) / 2
+            total_radial_extent = tip_radius + clearance - groove_inner_radius
+            groove_center_r = groove_inner_radius + total_radial_extent / 2
 
             with BuildSketch(Plane.XZ) as sk:
-                Rectangle(depth, width, align=(Align.CENTER, Align.CENTER))
+                Rectangle(total_radial_extent, width, align=(Align.CENTER, Align.CENTER))
 
             face = sk.sketch.moved(Location((groove_center_r, 0, z_pos)))
-
-            # Revolve around Z axis to make annular groove
             groove_solid = revolve(face, axis=Axis.Z, revolution_arc=360)
 
-            # Boolean subtract
             try:
                 part_shape = part.wrapped if hasattr(part, 'wrapped') else part
                 groove_shape = groove_solid.wrapped if hasattr(groove_solid, 'wrapped') else groove_solid
@@ -1059,16 +1059,25 @@ def create_relief_groove(
             groove_positions.append(-half_length + radius)
 
         for z_pos in groove_positions:
-            # Full-radius groove: semicircular profile revolved around Z axis
-            # Circle center at (root_radius - radius, z_pos) so bottom of semicircle
-            # is at root_radius - 2*radius and top touches root_radius
-            circle_center_r = root_radius - radius
+            # Full-radius groove: U-shaped profile revolved around Z axis.
+            # The bottom is a semicircle at root level for stress relief,
+            # with straight sides extending outward through the thread so
+            # the groove is visible and CNC-accessible.
+            #
+            # Profile (in sketch XZ coords, before moving to position):
+            # - Circle of groove radius centered at origin (provides semicircular bottom)
+            # - Rectangle extending from origin outward to beyond tip (clears thread)
+            # These are fused, then moved to (root_radius, 0, z_pos) and revolved.
+
+            thread_height = tip_radius + clearance - root_radius
+            rect_center_offset = thread_height / 2  # offset from circle center
 
             with BuildSketch(Plane.XZ) as sk:
                 Circle(radius)
+                with Locations([(rect_center_offset, 0)]):
+                    Rectangle(thread_height, 2 * radius)
 
-            face = sk.sketch.moved(Location((circle_center_r, 0, z_pos)))
-
+            face = sk.sketch.moved(Location((root_radius, 0, z_pos)))
             groove_solid = revolve(face, axis=Axis.Z, revolution_arc=360)
 
             try:
