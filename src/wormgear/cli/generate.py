@@ -1061,9 +1061,9 @@ More info: https://wormgear.studio
 
     # Summary
     profile_upper = use_profile
-    if profile_upper == "ZK":
+    if profile_upper == WormProfile.ZK or profile_upper == "ZK":
         profile_name = "ZK (circular arc, 3D printing)"
-    elif profile_upper == "ZI":
+    elif profile_upper == WormProfile.ZI or profile_upper == "ZI":
         profile_name = "ZI (involute, hobbing)"
     else:
         profile_name = "ZA (straight, CNC)"
