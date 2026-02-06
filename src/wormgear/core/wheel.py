@@ -10,9 +10,9 @@ import logging
 import math
 from typing import Optional, Literal
 from build123d import (
-    Part, Cylinder, Align, Vector, Plane,
+    Part, Cylinder, Align, Vector, Plane, BuildPart, Polyline,
     BuildSketch, BuildLine, Line, Spline, make_face, loft, Axis,
-    export_step,
+    export_step, revolve,
 )
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from ..enums import WormProfile
@@ -99,6 +99,16 @@ class WheelGeometry:
         else:
             self.face_width = face_width
 
+        # Detect globoid worm and compute effective centre distance
+        if worm_params.throat_reduction_mm and worm_params.throat_reduction_mm > 0:
+            throat_pitch_r = worm_params.pitch_diameter_mm / 2 - worm_params.throat_reduction_mm
+            wheel_pitch_r = params.pitch_diameter_mm / 2
+            self.effective_centre_distance = throat_pitch_r + wheel_pitch_r
+            self.is_globoid = True
+        else:
+            self.effective_centre_distance = assembly_params.centre_distance_mm
+            self.is_globoid = False
+
         # Cache for built geometry (avoids rebuilding on export)
         self._part = None
 
@@ -174,12 +184,15 @@ class WheelGeometry:
         twist_radians = self.face_width * math.tan(lead_angle) / pitch_radius
         twist_degrees = math.degrees(twist_radians)
 
-        # Create gear blank
-        blank = Cylinder(
-            radius=tip_radius,
-            height=self.face_width,
-            align=(Align.CENTER, Align.CENTER, Align.CENTER)
-        )
+        # Create gear blank - throated for globoid worms, flat cylinder otherwise
+        if self.is_globoid:
+            blank = self._create_throated_blank(tip_radius)
+        else:
+            blank = Cylinder(
+                radius=tip_radius,
+                height=self.face_width,
+                align=(Align.CENTER, Align.CENTER, Align.CENTER)
+            )
 
         # Calculate tooth space dimensions
         circular_pitch = math.pi * m
@@ -420,6 +433,54 @@ class WheelGeometry:
                 logger.warning(f"Tooth space {i} failed: {e}")
 
         return gear
+
+    def _create_throated_blank(self, tip_radius: float) -> Part:
+        """
+        Create a throated (concave OD) wheel blank for globoid worm engagement.
+
+        The blank OD follows the globoid worm's tip envelope so that the worm's
+        wider ends don't gouge the wheel edges. At the wheel centre (z=0) the
+        blank is smallest; it increases to full tip_radius at the edges.
+        """
+        half_width = self.face_width / 2
+        cd = self.effective_centre_distance
+        throat_reduction = self.worm_params.throat_reduction_mm or 0
+        arc_r = self.worm_params.tip_diameter_mm / 2 - throat_reduction
+        margin = self.worm_params.addendum_mm
+
+        num_points = 40
+        profile_points = []
+
+        for i in range(num_points + 1):
+            t = i / num_points
+            z = -half_width + t * self.face_width
+
+            if abs(z) < arc_r:
+                under_sqrt = arc_r**2 - z**2
+                worm_surface_dist = cd - math.sqrt(max(0, under_sqrt))
+                blank_r = min(tip_radius, worm_surface_dist + margin)
+            else:
+                blank_r = tip_radius
+
+            profile_points.append((blank_r, z))
+
+        logger.info(f"Creating throated blank: tip_r={tip_radius:.2f}mm, "
+                    f"throat_r={profile_points[num_points // 2][0]:.2f}mm at z=0, "
+                    f"arc_r={arc_r:.2f}mm, cd={cd:.2f}mm")
+
+        # Revolve profile around Z axis (same pattern as globoid_worm.py)
+        with BuildPart() as builder:
+            with BuildSketch(Plane.XZ) as sketch:
+                points = [Vector(r, 0, z) for r, z in profile_points]
+                with BuildLine():
+                    Polyline(*points)
+                    Line(points[-1], Vector(0, 0, half_width))
+                    Line(Vector(0, 0, half_width), Vector(0, 0, -half_width))
+                    Line(Vector(0, 0, -half_width), points[0])
+                make_face()
+            revolve(axis=Axis.Z)
+
+        return builder.part
 
     def show(self):
         """Display the wheel in OCP viewer (requires ocp_vscode)."""
