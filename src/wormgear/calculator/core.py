@@ -364,7 +364,8 @@ def _build_design(
     wheel_width_mm: float,
     globoid: bool = False,
     throat_reduction_mm: Optional[float] = None,
-    throat_curvature_radius_mm: Optional[float] = None
+    throat_curvature_radius_mm: Optional[float] = None,
+    wheel_max_od_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Build a typed WormGearDesign from calculated parameters.
@@ -403,7 +404,8 @@ def _build_design(
         helix_angle_deg=wheel_dict["helix_angle_deg"],
         addendum_mm=wheel_dict["addendum_mm"],
         dedendum_mm=wheel_dict["dedendum_mm"],
-        profile_shift=wheel_dict.get("profile_shift", 0.0)
+        profile_shift=wheel_dict.get("profile_shift", 0.0),
+        max_od_mm=wheel_max_od_mm
     )
 
     # Build AssemblyParams
@@ -451,7 +453,8 @@ def design_from_module(
     worm_type: Union[WormType, str, None] = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
-    wheel_throated: bool = False
+    wheel_throated: bool = False,
+    wheel_max_od_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from module specification.
@@ -539,20 +542,13 @@ def design_from_module(
     )
 
     # Calculate centre distance
-    # For cylindrical: cd = (worm_pd + wheel_pd) / 2
-    # For globoid: cd based on THROAT pitch radius (smaller than nominal)
-    #   throat_pitch_radius = worm_pd/2 - throat_reduction
-    #   cd = throat_pitch_radius + wheel_pd/2
-    #      = (worm_pd + wheel_pd)/2 - throat_reduction
-    standard_centre_distance = calculate_centre_distance(
+    # Centre distance is always (worm_pd + wheel_pd) / 2 regardless of worm type.
+    # For globoid worms, the throat_reduction affects the worm's hourglass shape
+    # (reducing pitch radius at the throat) but does NOT change axis spacing.
+    centre_distance = calculate_centre_distance(
         worm["pitch_diameter_mm"],
         wheel["pitch_diameter_mm"]
     )
-
-    if globoid:
-        centre_distance = standard_centre_distance - throat_reduction
-    else:
-        centre_distance = standard_centre_distance
 
     # Calculate efficiency and self-locking
     efficiency_percent = estimate_efficiency(
@@ -591,7 +587,8 @@ def design_from_module(
         wheel_width_mm=wheel_width_mm,
         globoid=globoid,
         throat_reduction_mm=throat_reduction_mm,
-        throat_curvature_radius_mm=throat_curvature_radius_mm
+        throat_curvature_radius_mm=throat_curvature_radius_mm,
+        wheel_max_od_mm=wheel_max_od_mm
     )
 
 
@@ -609,7 +606,8 @@ def design_from_centre_distance(
     worm_type: Union[WormType, str, None] = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
-    wheel_throated: bool = False
+    wheel_throated: bool = False,
+    wheel_max_od_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from centre distance constraint.
@@ -654,23 +652,16 @@ def design_from_centre_distance(
         estimated_module = 2 * centre_distance / ((worm_to_wheel_ratio + 1) * num_teeth)
         throat_reduction = estimated_module  # One module gives good hourglass effect
 
-    # For globoid, the given centre_distance is the actual distance
-    # We need to calculate what the standard centre would be
-    if globoid:
-        standard_centre_distance = centre_distance + throat_reduction
-    else:
-        standard_centre_distance = centre_distance
-
     # Solve for diameters
-    # standard_centre_distance = (worm_pd + wheel_pd) / 2
+    # centre_distance = (worm_pd + wheel_pd) / 2
     # wheel_pd = module × num_teeth
     # worm_pd = k × wheel_pd (where k = worm_to_wheel_ratio)
     #
     # 2 × cd = k × wheel_pd + wheel_pd = wheel_pd × (k + 1)
     # wheel_pd = 2 × cd / (k + 1)
 
-    wheel_pitch_diameter = 2 * standard_centre_distance / (worm_to_wheel_ratio + 1)
-    worm_pitch_diameter = standard_centre_distance * 2 - wheel_pitch_diameter
+    wheel_pitch_diameter = 2 * centre_distance / (worm_to_wheel_ratio + 1)
+    worm_pitch_diameter = centre_distance * 2 - wheel_pitch_diameter
 
     # Module from wheel
     module = wheel_pitch_diameter / num_teeth
@@ -688,7 +679,8 @@ def design_from_centre_distance(
         profile=profile,
         globoid=globoid,
         throat_reduction=throat_reduction,
-        wheel_throated=wheel_throated
+        wheel_throated=wheel_throated,
+        wheel_max_od_mm=wheel_max_od_mm
     )
 
 
@@ -706,7 +698,8 @@ def design_from_wheel(
     worm_type: Union[WormType, str, None] = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
-    wheel_throated: bool = False
+    wheel_throated: bool = False,
+    wheel_max_od_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from wheel OD constraint.
@@ -770,7 +763,8 @@ def design_from_wheel(
         profile=profile,
         globoid=globoid,
         throat_reduction=throat_reduction,
-        wheel_throated=wheel_throated
+        wheel_throated=wheel_throated,
+        wheel_max_od_mm=wheel_max_od_mm
     )
 
 
@@ -789,7 +783,8 @@ def design_from_envelope(
     throat_reduction: float = 0.0,
     wheel_throated: bool = False,
     od_as_maximum: bool = False,
-    use_standard_module: bool = False
+    use_standard_module: bool = False,
+    wheel_max_od_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from outside diameter constraints (envelope mode).
@@ -862,7 +857,8 @@ def design_from_envelope(
                     profile=profile,
                     worm_type=worm_type,
                     throat_reduction=throat_reduction,
-                    wheel_throated=wheel_throated
+                    wheel_throated=wheel_throated,
+                    wheel_max_od_mm=wheel_max_od_mm
                 )
 
                 # Check if both ODs fit within constraints
@@ -901,5 +897,6 @@ def design_from_envelope(
         profile=profile,
         worm_type=worm_type,
         throat_reduction=throat_reduction,
-        wheel_throated=wheel_throated
+        wheel_throated=wheel_throated,
+        wheel_max_od_mm=wheel_max_od_mm
     )

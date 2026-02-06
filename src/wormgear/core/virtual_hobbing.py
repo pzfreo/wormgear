@@ -304,6 +304,8 @@ class VirtualHobbingWheelGeometry:
     def _create_blank(self) -> Part:
         """Create the wheel blank cylinder."""
         tip_radius = self.params.tip_diameter_mm / 2
+        if self.params.max_od_mm is not None:
+            tip_radius = min(tip_radius, self.params.max_od_mm / 2)
 
         blank = Cylinder(
             radius=tip_radius,

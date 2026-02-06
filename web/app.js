@@ -678,6 +678,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Wheel max OD toggle
+    document.getElementById('limit-wheel-od').addEventListener('change', (e) => {
+        const group = document.getElementById('wheel-max-od-group');
+        if (group) {
+            group.style.display = e.target.checked ? 'block' : 'none';
+        }
+    });
+
     // Auto-recalculate on input changes
     const inputs = document.querySelectorAll('input, select');
     inputs.forEach(input => {

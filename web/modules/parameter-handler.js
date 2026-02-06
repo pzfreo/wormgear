@@ -112,7 +112,8 @@ export function getInputs(mode) {
             : 0,  // 0 = auto (Python calculates 15% of module)
         wheel_throated: getChecked('wheel-throated'),
         bore: bore,
-        manufacturing: manufacturing
+        manufacturing: manufacturing,
+        wheel_max_od: getChecked('limit-wheel-od') ? safeParseFloat(getValue('wheel-max-od')) : null
     };
 
     // Add mode-specific parameters

@@ -42,6 +42,7 @@ export type RootDiameterMm1 = number;
 export type AddendumMm1 = number;
 export type DedendumMm1 = number;
 export type ProfileShift1 = number;
+export type MaxOdMm = number | null;
 export type ThroatDiameterMm = number | null;
 export type HelixAngleDeg = number | null;
 export type WidthMm = number | null;
@@ -182,6 +183,7 @@ export interface WheelParams {
   addendum_mm: AddendumMm1;
   dedendum_mm: DedendumMm1;
   profile_shift?: ProfileShift1;
+  max_od_mm?: MaxOdMm;
   throat_diameter_mm?: ThroatDiameterMm;
   helix_angle_deg?: HelixAngleDeg;
   width_mm?: WidthMm;

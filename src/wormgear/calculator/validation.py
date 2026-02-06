@@ -662,46 +662,44 @@ def _validate_worm_type(design: DesignInput) -> List[ValidationMessage]:
                 suggestion="Ensure throat radii are calculated for proper geometry"
             ))
         else:
-            # Calculate geometrically correct throat reduction
-            # throat_reduction = worm_pitch_radius - (center_distance - wheel_pitch_radius)
-            worm_pitch_radius = worm_pitch_diameter / 2
-            wheel_pitch_radius = wheel_pitch_diameter / 2
-            geometric_reduction = worm_pitch_radius - (centre_distance - wheel_pitch_radius)
-            if geometric_reduction <= 0:
-                geometric_reduction = worm_pitch_diameter * 0.02  # fallback
+            # Validate throat reduction against module (typical range: 0.5-2.0 modules)
+            # Throat reduction controls the hourglass shape depth but does NOT affect
+            # centre distance (axis spacing is always (worm_pd + wheel_pd) / 2).
+            module_mm = _get(design, 'worm', 'module_mm', default=2.0)
 
             # Validate throat reduction value if present
             if throat_reduction is not None and throat_reduction > 0:
                 hourglass_depth = throat_reduction * 2
+                reduction_in_modules = throat_reduction / module_mm if module_mm > 0 else 0
                 messages.append(ValidationMessage(
                     severity=Severity.INFO,
                     code="THROAT_REDUCTION_SET",
-                    message=f"Throat reduction: {throat_reduction:.2f}mm (hourglass depth ~{hourglass_depth:.2f}mm)",
-                    suggestion=f"Geometric value: {geometric_reduction:.2f}mm"
+                    message=f"Throat reduction: {throat_reduction:.2f}mm ({reduction_in_modules:.1f}x module, hourglass depth ~{hourglass_depth:.2f}mm)",
+                    suggestion=f"Typical range: 0.5-2.0x module ({module_mm * 0.5:.2f}-{module_mm * 2:.2f}mm)"
                 ))
 
-                # Warn if significantly different from geometric value
-                if throat_reduction < geometric_reduction * 0.5:
+                # Warn if outside reasonable range
+                if throat_reduction < module_mm * 0.3:
                     messages.append(ValidationMessage(
                         severity=Severity.WARNING,
                         code="THROAT_REDUCTION_SMALL",
-                        message=f"Throat reduction is smaller than geometric optimum ({geometric_reduction:.2f}mm)",
-                        suggestion="May result in reduced wheel contact"
+                        message=f"Throat reduction ({throat_reduction:.2f}mm) is less than 0.3x module ({module_mm * 0.3:.2f}mm)",
+                        suggestion="May result in minimal hourglass effect and reduced wheel contact"
                     ))
-                elif throat_reduction > geometric_reduction * 2:
+                elif throat_reduction > module_mm * 2.5:
                     messages.append(ValidationMessage(
                         severity=Severity.WARNING,
                         code="THROAT_REDUCTION_LARGE",
-                        message=f"Throat reduction is larger than geometric optimum ({geometric_reduction:.2f}mm)",
+                        message=f"Throat reduction ({throat_reduction:.2f}mm) exceeds 2.5x module ({module_mm * 2.5:.2f}mm)",
                         suggestion="May cause interference or manufacturing difficulty"
                     ))
             else:
-                # Using auto value
+                # Using auto value (1x module)
                 messages.append(ValidationMessage(
                     severity=Severity.INFO,
                     code="THROAT_REDUCTION_AUTO",
-                    message=f"Using geometric throat reduction: {geometric_reduction:.2f}mm",
-                    suggestion=f"Formula: worm_r - (CD - wheel_r) = {worm_pitch_radius:.1f} - ({centre_distance:.1f} - {wheel_pitch_radius:.1f})"
+                    message=f"Using default throat reduction: {module_mm:.2f}mm (1x module)",
+                    suggestion="Provides good hourglass effect for most applications"
                 ))
 
             # Info about globoid benefits
