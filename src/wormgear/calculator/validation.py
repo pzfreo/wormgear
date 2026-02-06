@@ -19,6 +19,7 @@ from enum import Enum
 from math import sin, radians
 
 from .core import is_standard_module, nearest_standard_module
+from ..enums import AntiRotation
 
 # Import for type checking only (avoids circular imports at runtime)
 if TYPE_CHECKING:
@@ -1101,7 +1102,7 @@ def _validate_bore(design: DesignInput, bore_settings: Optional[Dict[str, Any]] 
                 keyway_depth = 0.0
 
                 # Account for keyway depth if DIN6885 keyway is specified
-                if worm_anti_rot and worm_anti_rot.upper() == 'DIN6885':
+                if worm_anti_rot and (worm_anti_rot == AntiRotation.DIN6885 or str(worm_anti_rot).upper() == 'DIN6885'):
                     keyway_depth = _get_keyway_depth(worm_bore, is_shaft=True)
 
                 effective_rim = rim_base - keyway_depth
@@ -1199,7 +1200,7 @@ def _validate_bore(design: DesignInput, bore_settings: Optional[Dict[str, Any]] 
                 keyway_depth = 0.0
 
                 # Account for keyway depth if DIN6885 keyway is specified
-                if wheel_anti_rot and wheel_anti_rot.upper() == 'DIN6885':
+                if wheel_anti_rot and (wheel_anti_rot == AntiRotation.DIN6885 or str(wheel_anti_rot).upper() == 'DIN6885'):
                     keyway_depth = _get_keyway_depth(wheel_bore, is_shaft=False)
 
                 effective_rim = rim_base - keyway_depth
