@@ -394,15 +394,22 @@ def _build_design(
     )
 
     # Build WheelParams
+    # Stub tooth: when max_od constrains the tip, cap tip and adjust addendum
+    tip_diameter = wheel_dict["tip_diameter_mm"]
+    addendum = wheel_dict["addendum_mm"]
+    if wheel_max_od_mm is not None and wheel_max_od_mm < tip_diameter:
+        tip_diameter = wheel_max_od_mm
+        addendum = (tip_diameter - wheel_dict["pitch_diameter_mm"]) / 2
+
     wheel_params = WheelParams(
         module_mm=wheel_dict["module_mm"],
         num_teeth=wheel_dict["num_teeth"],
         pitch_diameter_mm=wheel_dict["pitch_diameter_mm"],
-        tip_diameter_mm=wheel_dict["tip_diameter_mm"],
+        tip_diameter_mm=tip_diameter,
         root_diameter_mm=wheel_dict["root_diameter_mm"],
         throat_diameter_mm=wheel_dict["throat_diameter_mm"],
         helix_angle_deg=wheel_dict["helix_angle_deg"],
-        addendum_mm=wheel_dict["addendum_mm"],
+        addendum_mm=addendum,
         dedendum_mm=wheel_dict["dedendum_mm"],
         profile_shift=wheel_dict.get("profile_shift", 0.0),
         max_od_mm=wheel_max_od_mm
@@ -739,7 +746,8 @@ def design_from_wheel(
     num_teeth = ratio * num_starts
 
     # Calculate module from wheel OD
-    module = wheel_od / (num_teeth + 2)
+    # Account for profile shift: tip = m * (z + 2*(1+x))
+    module = wheel_od / (num_teeth + 2 * (1 + profile_shift))
 
     # Auto-calculate throat_reduction for globoid if not specified
     if globoid and throat_reduction <= 0:
@@ -830,7 +838,8 @@ def design_from_envelope(
     # When od_as_maximum is True, find the largest standard module that fits
     if od_as_maximum and use_standard_module:
         # First calculate baseline design from exact ODs to get reference geometry
-        base_module = wheel_od / (num_teeth + 2)
+        # Account for profile shift: tip = m * (z + 2*(1+x))
+        base_module = wheel_od / (num_teeth + 2 * (1 + profile_shift))
         base_worm_pitch_diameter = worm_od - 2 * base_module
 
         # Try standard modules in descending order to find largest that fits
@@ -870,8 +879,8 @@ def design_from_envelope(
         # No standard module fits - fall through to exact calculation
 
     # Calculate module from wheel OD
-    # tip_diameter = module × (num_teeth + 2)
-    module = wheel_od / (num_teeth + 2)
+    # tip_diameter = module × (num_teeth + 2*(1+profile_shift))
+    module = wheel_od / (num_teeth + 2 * (1 + profile_shift))
 
     # Round to standard module if requested (and not already handled above)
     if use_standard_module and not od_as_maximum:
