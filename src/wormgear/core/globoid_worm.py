@@ -250,6 +250,7 @@ class GloboidWormGeometry:
             result = create_relief_groove(
                 result,
                 root_diameter_mm=self.params.root_diameter_mm,
+                tip_diameter_mm=self.params.tip_diameter_mm,
                 axial_pitch_mm=axial_pitch,
                 part_length=self.length,
                 groove=self.relief_groove,

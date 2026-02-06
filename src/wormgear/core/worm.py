@@ -225,6 +225,7 @@ class WormGeometry:
             worm = create_relief_groove(
                 worm,
                 root_diameter_mm=self.params.root_diameter_mm,
+                tip_diameter_mm=self.params.tip_diameter_mm,
                 axial_pitch_mm=axial_pitch,
                 part_length=self.length,
                 groove=self.relief_groove,
