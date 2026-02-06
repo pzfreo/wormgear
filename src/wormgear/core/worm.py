@@ -23,7 +23,7 @@ from build123d import (
 )
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
-from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
+from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -50,6 +50,7 @@ class WormGeometry:
         keyway: Optional[KeywayFeature] = None,
         ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
+        relief_groove: Optional[ReliefGrooveFeature] = None,
         profile: ProfileType = "ZA"
     ):
         """
@@ -64,6 +65,7 @@ class WormGeometry:
             keyway: Optional keyway feature specification (requires bore, mutually exclusive with ddcut)
             ddcut: Optional double-D cut feature (requires bore, mutually exclusive with keyway)
             set_screw: Optional set screw feature specification (requires bore)
+            relief_groove: Optional relief groove at thread termination points
             profile: Tooth profile type per DIN 3975:
                      "ZA" - Straight flanks (trapezoidal) - best for CNC (default)
                      "ZK" - Slightly convex flanks - better for 3D printing
@@ -77,6 +79,7 @@ class WormGeometry:
         self.keyway = keyway
         self.ddcut = ddcut
         self.set_screw = set_screw
+        self.relief_groove = relief_groove
         self.profile = profile.upper() if isinstance(profile, str) else profile
 
         # Set keyway as shaft type if specified
@@ -215,6 +218,18 @@ class WormGeometry:
             elif len(solids) > 1:
                 # Return the largest solid (should be the worm)
                 worm = max(solids, key=lambda s: s.volume)
+
+        # Cut relief grooves at thread termination points (before bore features)
+        if self.relief_groove is not None:
+            axial_pitch = self.params.lead_mm / self.params.num_starts
+            worm = create_relief_groove(
+                worm,
+                root_diameter_mm=self.params.root_diameter_mm,
+                axial_pitch_mm=axial_pitch,
+                part_length=self.length,
+                groove=self.relief_groove,
+                axis=Axis.Z
+            )
 
         # Add bore, keyway/ddcut, and set screw if specified
         if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:

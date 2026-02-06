@@ -70,6 +70,11 @@ export type AntiRotation = "none" | "DIN6885" | "ddcut";
 export type DdcutDepthPercent = number;
 export type Size = string;
 export type Count = number;
+export type Type = string;
+export type WidthMm1 = number | null;
+export type DepthMm = number | null;
+export type RadiusMm = number | null;
+export type Position = string;
 /**
  * Bore type: 'none' for solid, 'custom' for specified diameter
  */
@@ -86,7 +91,7 @@ export type AntiRotation1 = "none" | "DIN6885" | "ddcut";
  * DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'.
  */
 export type DdcutDepthPercent1 = number;
-export type Type = string;
+export type Type1 = string;
 export type LengthMm1 = number | null;
 export type FlangeDiameterMm = number | null;
 export type FlangeThicknessMm = number | null;
@@ -225,6 +230,7 @@ export interface WormFeatures {
   anti_rotation?: AntiRotation;
   ddcut_depth_percent?: DdcutDepthPercent;
   set_screw?: SetScrewSpec | null;
+  relief_groove?: ReliefGrooveSpec | null;
 }
 /**
  * Set screw specification.
@@ -232,6 +238,22 @@ export interface WormFeatures {
 export interface SetScrewSpec {
   size: Size;
   count?: Count;
+}
+/**
+ * Relief groove at thread termination points.
+ *
+ * type specifies groove profile:
+ * - "din76": Standard rectangular undercut per DIN 76 (default)
+ * - "full-radius": Semicircular groove profile
+ *
+ * Dimensions default to auto-calculated from axial pitch if not specified.
+ */
+export interface ReliefGrooveSpec {
+  type?: Type;
+  width_mm?: WidthMm1;
+  depth_mm?: DepthMm;
+  radius_mm?: RadiusMm;
+  position?: Position;
 }
 /**
  * Manufacturing features for wheel.
@@ -257,7 +279,7 @@ export interface WheelFeatures {
  * Hub specification (wheel only).
  */
 export interface HubSpec {
-  type?: Type;
+  type?: Type1;
   length_mm?: LengthMm1;
   flange_diameter_mm?: FlangeDiameterMm;
   flange_thickness_mm?: FlangeThicknessMm;

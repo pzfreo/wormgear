@@ -34,7 +34,8 @@ def to_json(
     validation: Optional["ValidationResult"] = None,
     indent: int = 2,
     bore_settings: Optional[dict] = None,
-    manufacturing_settings: Optional[dict] = None
+    manufacturing_settings: Optional[dict] = None,
+    relief_groove: Optional[dict] = None
 ) -> str:
     """Convert WormGearDesign to JSON string.
 
@@ -158,6 +159,11 @@ def to_json(
 
         if features:
             design_dict['features'] = features
+
+    # Add relief groove to worm features if specified
+    if relief_groove:
+        design_dict.setdefault('features', {}).setdefault('worm', {}).setdefault('bore_type', 'none')
+        design_dict['features']['worm']['relief_groove'] = relief_groove
 
     # Merge in manufacturing settings if provided
     if manufacturing_settings:

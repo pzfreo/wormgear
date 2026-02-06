@@ -401,6 +401,69 @@ def calculate_default_ddcut(bore_diameter: float, depth_percent: float = 15.0) -
     return DDCutFeature(depth=depth)
 
 
+@dataclass
+class ReliefGrooveFeature:
+    """
+    Relief groove at thread termination points (DIN 76 / full-radius).
+
+    Cut as annular recesses at both ends of the worm where threads terminate.
+    Provides clean thread runout for CNC machining and reduces stress concentrations.
+
+    Two profile types:
+    - din76: Rectangular groove with fillet radii (standard DIN 76 undercut)
+    - full-radius: Semicircular groove profile
+
+    Dimensions auto-calculated from axial pitch when None.
+
+    Attributes:
+        type: Groove profile - "din76" (default) or "full-radius"
+        width_mm: DIN 76 groove width (auto: 2.5 × axial_pitch)
+        depth_mm: DIN 76 groove depth below root (auto: 0.5 × axial_pitch)
+        radius_mm: Full-radius groove radius (auto: 0.75 × axial_pitch)
+        position: Where to cut - "both" (default), "top", or "bottom"
+    """
+    type: str = "din76"
+    width_mm: Optional[float] = None
+    depth_mm: Optional[float] = None
+    radius_mm: Optional[float] = None
+    position: str = "both"
+
+    def __post_init__(self):
+        valid_types = ["din76", "full-radius"]
+        if self.type not in valid_types:
+            raise ValueError(f"Groove type must be one of {valid_types}, got '{self.type}'")
+        valid_positions = ["both", "top", "bottom"]
+        if self.position not in valid_positions:
+            raise ValueError(f"Groove position must be one of {valid_positions}, got '{self.position}'")
+
+    def get_din76_dimensions(self, axial_pitch_mm: float) -> Tuple[float, float, float]:
+        """
+        Get DIN 76 groove width, depth, and fillet radius.
+
+        Args:
+            axial_pitch_mm: Axial pitch of the worm thread in mm
+
+        Returns:
+            (width_mm, depth_mm, fillet_radius_mm)
+        """
+        width = self.width_mm if self.width_mm is not None else 2.5 * axial_pitch_mm
+        depth = self.depth_mm if self.depth_mm is not None else 0.5 * axial_pitch_mm
+        fillet_r = 0.15 * axial_pitch_mm
+        return (width, depth, fillet_r)
+
+    def get_full_radius_dimensions(self, axial_pitch_mm: float) -> float:
+        """
+        Get full-radius groove radius.
+
+        Args:
+            axial_pitch_mm: Axial pitch of the worm thread in mm
+
+        Returns:
+            radius_mm
+        """
+        return self.radius_mm if self.radius_mm is not None else 0.75 * axial_pitch_mm
+
+
 def create_bore(
     part: Part,
     bore: BoreFeature,
@@ -911,6 +974,115 @@ def create_hub(
         result = result + flange
 
     return result
+
+
+def create_relief_groove(
+    part: Part,
+    root_diameter_mm: float,
+    axial_pitch_mm: float,
+    part_length: float,
+    groove: ReliefGrooveFeature,
+    axis: Axis = Axis.Z
+) -> Part:
+    """
+    Cut relief grooves at thread termination points.
+
+    Creates annular recesses at one or both ends of the worm where the thread
+    meets the plain shaft. Supports DIN 76 rectangular profile and full-radius
+    (semicircular) profile.
+
+    Args:
+        part: Worm part to modify
+        root_diameter_mm: Worm root diameter in mm
+        axial_pitch_mm: Axial pitch of the worm thread in mm
+        part_length: Total worm length in mm
+        groove: Groove specification
+        axis: Worm axis (default: Z)
+
+    Returns:
+        Part with relief grooves cut
+    """
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+    from build123d import BuildSketch, Rectangle, Circle, Plane, revolve, fillet, Sketch
+
+    half_length = part_length / 2
+    root_radius = root_diameter_mm / 2
+
+    if groove.type == "din76":
+        width, depth, fillet_r = groove.get_din76_dimensions(axial_pitch_mm)
+
+        # DIN 76 groove: rectangular profile revolved around Z axis
+        # Profile is a rectangle in XZ plane, from (root_radius - depth) to root_radius radially
+        # Fillet radius is clamped to avoid exceeding half the smaller dimension
+        max_fillet = min(width, depth) * 0.45
+        fillet_r = min(fillet_r, max_fillet)
+
+        groove_positions = []
+        if groove.position in ("both", "top"):
+            groove_positions.append(half_length - width / 2)
+        if groove.position in ("both", "bottom"):
+            groove_positions.append(-half_length + width / 2)
+
+        for z_pos in groove_positions:
+            # Create groove profile as rectangle in XZ plane
+            # Center at (root_radius - depth/2, z_pos)
+            groove_inner_radius = root_radius - depth
+            groove_center_r = (groove_inner_radius + root_radius) / 2
+
+            with BuildSketch(Plane.XZ) as sk:
+                Rectangle(depth, width, align=(Align.CENTER, Align.CENTER))
+
+            face = sk.sketch.moved(Location((groove_center_r, 0, z_pos)))
+
+            # Revolve around Z axis to make annular groove
+            groove_solid = revolve(face, axis=Axis.Z, revolution_arc=360)
+
+            # Boolean subtract
+            try:
+                part_shape = part.wrapped if hasattr(part, 'wrapped') else part
+                groove_shape = groove_solid.wrapped if hasattr(groove_solid, 'wrapped') else groove_solid
+                cut_op = BRepAlgoAPI_Cut(part_shape, groove_shape)
+                cut_op.Build()
+                if cut_op.IsDone():
+                    part = Part(cut_op.Shape())
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Relief groove cut failed: {e}")
+
+    elif groove.type == "full-radius":
+        radius = groove.get_full_radius_dimensions(axial_pitch_mm)
+
+        groove_positions = []
+        if groove.position in ("both", "top"):
+            groove_positions.append(half_length - radius)
+        if groove.position in ("both", "bottom"):
+            groove_positions.append(-half_length + radius)
+
+        for z_pos in groove_positions:
+            # Full-radius groove: semicircular profile revolved around Z axis
+            # Circle center at (root_radius - radius, z_pos) so bottom of semicircle
+            # is at root_radius - 2*radius and top touches root_radius
+            circle_center_r = root_radius - radius
+
+            with BuildSketch(Plane.XZ) as sk:
+                Circle(radius)
+
+            face = sk.sketch.moved(Location((circle_center_r, 0, z_pos)))
+
+            groove_solid = revolve(face, axis=Axis.Z, revolution_arc=360)
+
+            try:
+                part_shape = part.wrapped if hasattr(part, 'wrapped') else part
+                groove_shape = groove_solid.wrapped if hasattr(groove_solid, 'wrapped') else groove_solid
+                cut_op = BRepAlgoAPI_Cut(part_shape, groove_shape)
+                cut_op.Build()
+                if cut_op.IsDone():
+                    part = Part(cut_op.Shape())
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Relief groove cut failed: {e}")
+
+    return part
 
 
 def add_bore_and_keyway(

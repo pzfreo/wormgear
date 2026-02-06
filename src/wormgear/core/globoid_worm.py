@@ -14,7 +14,7 @@ from build123d import (
 )
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
-from .features import BoreFeature, KeywayFeature, SetScrewFeature, add_bore_and_keyway
+from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -49,6 +49,7 @@ class GloboidWormGeometry:
         keyway: Optional[KeywayFeature] = None,
         ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
+        relief_groove: Optional[ReliefGrooveFeature] = None,
         profile: ProfileType = "ZA",
         progress_callback: Optional[ProgressCallback] = None
     ):
@@ -80,6 +81,7 @@ class GloboidWormGeometry:
         self.keyway = keyway
         self.ddcut = ddcut
         self.set_screw = set_screw
+        self.relief_groove = relief_groove
         self.profile = profile.upper() if isinstance(profile, str) else profile
         self.progress_callback = progress_callback
 
@@ -241,6 +243,18 @@ class GloboidWormGeometry:
         self._report_progress(f"  Trimming to final length ({self.length:.2f}mm)...", 87.0)
         result = self._trim_to_length(result)
         self._report_progress("  ✓ Trimmed to length", 90.0)
+
+        # Cut relief grooves at thread termination points (before bore features)
+        if self.relief_groove is not None:
+            axial_pitch = self.params.lead_mm / self.params.num_starts
+            result = create_relief_groove(
+                result,
+                root_diameter_mm=self.params.root_diameter_mm,
+                axial_pitch_mm=axial_pitch,
+                part_length=self.length,
+                groove=self.relief_groove,
+                axis=Axis.Z
+            )
 
         # Add features (bore, keyway/ddcut, set screw)
         if self.bore or self.keyway or self.ddcut or self.set_screw:

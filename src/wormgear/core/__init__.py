@@ -44,6 +44,7 @@ try:
         DDCutFeature,
         SetScrewFeature,
         HubFeature,
+        ReliefGrooveFeature,
         calculate_default_ddcut,
         get_din_6885_keyway,
     )
@@ -84,6 +85,7 @@ try:
         "DDCutFeature",
         "SetScrewFeature",
         "HubFeature",
+        "ReliefGrooveFeature",
         "calculate_default_bore",
         "calculate_default_ddcut",
         "get_din_6885_keyway",

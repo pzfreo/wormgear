@@ -37,6 +37,31 @@ class HubSpec(BaseModel):
     bolt_diameter_mm: Optional[float] = None  # For flanged only
 
 
+class ReliefGrooveSpec(BaseModel):
+    """Relief groove at thread termination points.
+
+    type specifies groove profile:
+    - "din76": Standard rectangular undercut per DIN 76 (default)
+    - "full-radius": Semicircular groove profile
+
+    Dimensions default to auto-calculated from axial pitch if not specified.
+    """
+    model_config = ConfigDict(extra='ignore')
+
+    type: str = "din76"  # "din76" or "full-radius"
+    width_mm: Optional[float] = None  # DIN 76: auto = 2.5 × axial_pitch
+    depth_mm: Optional[float] = None  # DIN 76: auto = 0.5 × axial_pitch
+    radius_mm: Optional[float] = None  # Full-radius: auto = 0.75 × axial_pitch
+    position: str = "both"  # "both", "top", or "bottom"
+
+    @field_validator('type', mode='before')
+    @classmethod
+    def coerce_type(cls, v):
+        if isinstance(v, str):
+            return v.lower().replace('_', '-')
+        return v
+
+
 class WormFeatures(BaseModel):
     """Manufacturing features for worm.
 
@@ -71,6 +96,7 @@ class WormFeatures(BaseModel):
         description="DD-cut depth as percentage of bore diameter. Only used when anti_rotation is 'ddcut'."
     )
     set_screw: Optional[SetScrewSpec] = None
+    relief_groove: Optional[ReliefGrooveSpec] = None
 
     @field_validator('bore_type', mode='before')
     @classmethod

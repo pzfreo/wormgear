@@ -678,6 +678,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Relief groove toggle
+    document.getElementById('relief-groove').addEventListener('change', (e) => {
+        const group = document.getElementById('relief-groove-group');
+        if (group) {
+            group.style.display = e.target.checked ? 'block' : 'none';
+        }
+    });
+
+    // Relief groove type toggle (DIN 76 vs full-radius options)
+    document.getElementById('groove-type').addEventListener('change', (e) => {
+        const din76 = document.getElementById('din76-options');
+        const fullRadius = document.getElementById('full-radius-options');
+        if (din76) din76.style.display = e.target.value === 'din76' ? 'block' : 'none';
+        if (fullRadius) fullRadius.style.display = e.target.value === 'full-radius' ? 'block' : 'none';
+    });
+
     // Wheel max OD toggle
     document.getElementById('limit-wheel-od').addEventListener('change', (e) => {
         const group = document.getElementById('wheel-max-od-group');

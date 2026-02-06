@@ -200,6 +200,15 @@ export function validateCalculatorInputs(inputs) {
     if (inputs.wheel_max_od !== null && inputs.wheel_max_od !== undefined) {
         validated.wheel_max_od = requireNumber(inputs.wheel_max_od, 'wheel_max_od');
     }
+    if (inputs.relief_groove !== null && inputs.relief_groove !== undefined) {
+        const rg = inputs.relief_groove;
+        validated.relief_groove = {
+            type: requireEnum(rg.type || 'din76', ['din76', 'full-radius'], 'relief_groove.type'),
+            width_mm: optionalNumber(rg.width_mm, 'relief_groove.width_mm'),
+            depth_mm: optionalNumber(rg.depth_mm, 'relief_groove.depth_mm'),
+            radius_mm: optionalNumber(rg.radius_mm, 'relief_groove.radius_mm'),
+        };
+    }
 
     return validated;
 }
