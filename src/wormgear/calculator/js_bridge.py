@@ -107,6 +107,7 @@ class CalculatorInputs(BaseModel):
     target_lead_angle: Optional[float] = None
     od_as_maximum: bool = False
     use_standard_module: bool = True
+    wheel_max_od: Optional[float] = None
 
     # Nested settings
     bore: BoreSettings = Field(default_factory=BoreSettings)
@@ -303,6 +304,10 @@ def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
     # Add wheel throated flag
     if inputs.wheel_throated:
         kwargs['wheel_throated'] = True
+
+    # Add wheel max OD truncation
+    if inputs.wheel_max_od is not None:
+        kwargs['wheel_max_od_mm'] = inputs.wheel_max_od
 
     return kwargs
 
