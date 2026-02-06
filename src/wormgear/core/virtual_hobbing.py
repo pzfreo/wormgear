@@ -26,8 +26,9 @@ import sys
 import time
 from typing import Optional, Literal, Callable
 from build123d import (
-    Part, Cylinder, Align, BuildSketch, BuildLine, Line, make_face, Spline,
-    loft, Helix, Vector, Plane, Axis, Pos, Rot, export_step,
+    Part, Cylinder, Align, BuildSketch, BuildLine, BuildPart, Line, Polyline,
+    make_face, Spline, loft, Helix, Vector, Plane, Axis, Pos, Rot,
+    export_step, revolve,
 )
 from OCP.ShapeFix import ShapeFix_Shape
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
@@ -190,11 +191,11 @@ class VirtualHobbingWheelGeometry:
 
         # Auto-reduce steps for complex hob geometry (globoid)
         # Globoid boolean operations are 3-5x slower due to complex geometry
-        GLOBOID_HOB_MAX_STEPS = 36
+        GLOBOID_HOB_MAX_STEPS = 72
 
         if hob_geometry is not None and hobbing_steps > GLOBOID_HOB_MAX_STEPS:
-            logger.info(f"Auto-reducing hobbing steps from {hobbing_steps} to {GLOBOID_HOB_MAX_STEPS} "
-                        f"for complex hob geometry (globoid)")
+            logger.warning(f"Reducing hobbing steps from {hobbing_steps} to {GLOBOID_HOB_MAX_STEPS} "
+                           f"for globoid hob geometry (complex booleans)")
             hobbing_steps = GLOBOID_HOB_MAX_STEPS
 
         self.hobbing_steps = hobbing_steps
@@ -302,19 +303,73 @@ class VirtualHobbingWheelGeometry:
         return wheel
 
     def _create_blank(self) -> Part:
-        """Create the wheel blank cylinder."""
+        """Create the wheel blank - throated for globoid worms, flat cylinder otherwise."""
         tip_radius = self.params.tip_diameter_mm / 2
         if self.params.max_od_mm is not None:
             tip_radius = min(tip_radius, self.params.max_od_mm / 2)
+
+        is_globoid = (self.hob_geometry is not None or
+                      (self.worm_params.throat_reduction_mm and
+                       self.worm_params.throat_reduction_mm > 0))
+
+        if is_globoid:
+            return self._create_throated_blank(tip_radius)
 
         blank = Cylinder(
             radius=tip_radius,
             height=self.face_width,
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
-
         logger.debug(f"Blank: radius={tip_radius:.2f}mm, height={self.face_width:.2f}mm")
         return blank
+
+    def _create_throated_blank(self, tip_radius: float) -> Part:
+        """
+        Create a throated (concave OD) wheel blank for globoid worm engagement.
+
+        The blank OD follows the globoid worm's tip envelope so that the worm's
+        wider ends don't gouge the wheel edges. At the wheel centre (z=0) the
+        blank is smallest; it increases to full tip_radius at the edges.
+        """
+        half_width = self.face_width / 2
+        cd = self.effective_centre_distance
+        throat_reduction = self.worm_params.throat_reduction_mm or 0
+        arc_r = self.worm_params.tip_diameter_mm / 2 - throat_reduction
+        margin = self.worm_params.addendum_mm
+
+        num_points = 40
+        profile_points = []
+
+        for i in range(num_points + 1):
+            t = i / num_points
+            z = -half_width + t * self.face_width
+
+            if abs(z) < arc_r:
+                under_sqrt = arc_r**2 - z**2
+                worm_surface_dist = cd - math.sqrt(max(0, under_sqrt))
+                blank_r = min(tip_radius, worm_surface_dist + margin)
+            else:
+                blank_r = tip_radius
+
+            profile_points.append((blank_r, z))
+
+        logger.info(f"Creating throated blank: tip_r={tip_radius:.2f}mm, "
+                    f"throat_r={profile_points[num_points // 2][0]:.2f}mm at z=0, "
+                    f"arc_r={arc_r:.2f}mm, cd={cd:.2f}mm")
+
+        # Revolve profile around Z axis (same pattern as globoid_worm.py)
+        with BuildPart() as builder:
+            with BuildSketch(Plane.XZ) as sketch:
+                points = [Vector(r, 0, z) for r, z in profile_points]
+                with BuildLine():
+                    Polyline(*points)
+                    Line(points[-1], Vector(0, 0, half_width))
+                    Line(Vector(0, 0, half_width), Vector(0, 0, -half_width))
+                    Line(Vector(0, 0, -half_width), points[0])
+                make_face()
+            revolve(axis=Axis.Z)
+
+        return builder.part
 
     def _create_hob(self) -> Part:
         """
