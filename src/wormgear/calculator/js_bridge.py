@@ -107,7 +107,7 @@ class CalculatorInputs(BaseModel):
     target_lead_angle: Optional[float] = None
     od_as_maximum: bool = False
     use_standard_module: bool = True
-    wheel_max_od: Optional[float] = None
+    wheel_tip_reduction: Optional[float] = None
     relief_groove: Optional[Dict[str, Any]] = None
 
     # Nested settings
@@ -306,9 +306,9 @@ def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
     if inputs.wheel_throated:
         kwargs['wheel_throated'] = True
 
-    # Add wheel max OD truncation
-    if inputs.wheel_max_od is not None:
-        kwargs['wheel_max_od_mm'] = inputs.wheel_max_od
+    # Add wheel tip reduction (stub teeth)
+    if inputs.wheel_tip_reduction is not None and inputs.wheel_tip_reduction > 0:
+        kwargs['wheel_tip_reduction_mm'] = inputs.wheel_tip_reduction
 
     return kwargs
 

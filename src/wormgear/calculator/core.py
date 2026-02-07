@@ -365,7 +365,7 @@ def _build_design(
     globoid: bool = False,
     throat_reduction_mm: Optional[float] = None,
     throat_curvature_radius_mm: Optional[float] = None,
-    wheel_max_od_mm: Optional[float] = None
+    wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Build a typed WormGearDesign from calculated parameters.
@@ -394,11 +394,11 @@ def _build_design(
     )
 
     # Build WheelParams
-    # Stub tooth: when max_od constrains the tip, cap tip and adjust addendum
+    # Stub tooth: reduce tip diameter by a fixed amount and adjust addendum
     tip_diameter = wheel_dict["tip_diameter_mm"]
     addendum = wheel_dict["addendum_mm"]
-    if wheel_max_od_mm is not None and wheel_max_od_mm < tip_diameter:
-        tip_diameter = wheel_max_od_mm
+    if wheel_tip_reduction_mm is not None and wheel_tip_reduction_mm > 0:
+        tip_diameter = tip_diameter - wheel_tip_reduction_mm
         addendum = (tip_diameter - wheel_dict["pitch_diameter_mm"]) / 2
 
     wheel_params = WheelParams(
@@ -412,7 +412,7 @@ def _build_design(
         addendum_mm=addendum,
         dedendum_mm=wheel_dict["dedendum_mm"],
         profile_shift=wheel_dict.get("profile_shift", 0.0),
-        max_od_mm=wheel_max_od_mm
+        tip_reduction_mm=wheel_tip_reduction_mm
     )
 
     # Build AssemblyParams
@@ -461,7 +461,7 @@ def design_from_module(
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False,
-    wheel_max_od_mm: Optional[float] = None
+    wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from module specification.
@@ -600,7 +600,7 @@ def design_from_module(
         globoid=globoid,
         throat_reduction_mm=throat_reduction_mm,
         throat_curvature_radius_mm=throat_curvature_radius_mm,
-        wheel_max_od_mm=wheel_max_od_mm
+        wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
 
 
@@ -619,7 +619,7 @@ def design_from_centre_distance(
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False,
-    wheel_max_od_mm: Optional[float] = None
+    wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from centre distance constraint.
@@ -694,7 +694,7 @@ def design_from_centre_distance(
         globoid=globoid,
         throat_reduction=throat_reduction,
         wheel_throated=wheel_throated,
-        wheel_max_od_mm=wheel_max_od_mm
+        wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
 
 
@@ -713,7 +713,7 @@ def design_from_wheel(
     globoid: bool = False,
     throat_reduction: float = 0.0,
     wheel_throated: bool = False,
-    wheel_max_od_mm: Optional[float] = None
+    wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from wheel OD constraint.
@@ -782,7 +782,7 @@ def design_from_wheel(
         globoid=globoid,
         throat_reduction=throat_reduction,
         wheel_throated=wheel_throated,
-        wheel_max_od_mm=wheel_max_od_mm
+        wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
 
 
@@ -802,7 +802,7 @@ def design_from_envelope(
     wheel_throated: bool = False,
     od_as_maximum: bool = False,
     use_standard_module: bool = False,
-    wheel_max_od_mm: Optional[float] = None
+    wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
     Design worm gear pair from outside diameter constraints (envelope mode).
@@ -877,11 +877,15 @@ def design_from_envelope(
                     worm_type=worm_type,
                     throat_reduction=throat_reduction,
                     wheel_throated=wheel_throated,
-                    wheel_max_od_mm=wheel_max_od_mm
+                    wheel_tip_reduction_mm=wheel_tip_reduction_mm
                 )
 
-                # Check if both ODs fit within constraints
-                if test_design.worm.tip_diameter_mm <= worm_od and test_design.wheel.tip_diameter_mm <= wheel_od:
+                # Check ODs fit and geometry is valid.
+                # Tip reduction is relative so it can't produce the old
+                # "oversized module with capped tip" bug.
+                if (test_design.worm.tip_diameter_mm <= worm_od
+                        and test_design.wheel.tip_diameter_mm <= wheel_od
+                        and test_design.worm.root_diameter_mm > 0):
                     return test_design
             except (ZeroDivisionError, ValueError):
                 continue
@@ -917,5 +921,5 @@ def design_from_envelope(
         worm_type=worm_type,
         throat_reduction=throat_reduction,
         wheel_throated=wheel_throated,
-        wheel_max_od_mm=wheel_max_od_mm
+        wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )

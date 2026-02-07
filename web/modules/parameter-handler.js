@@ -113,7 +113,7 @@ export function getInputs(mode) {
         wheel_throated: getChecked('wheel-throated'),
         bore: bore,
         manufacturing: manufacturing,
-        wheel_max_od: getChecked('limit-wheel-od') ? safeParseFloat(getValue('wheel-max-od')) : null,
+        wheel_tip_reduction: getChecked('limit-wheel-od') ? safeParseFloat(getValue('wheel-tip-reduction')) : null,
         relief_groove: getChecked('relief-groove') ? {
             type: getValue('groove-type'),
             width_mm: safeParseFloat(getValue('groove-width')) || null,
