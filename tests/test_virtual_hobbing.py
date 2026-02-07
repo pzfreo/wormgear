@@ -13,6 +13,8 @@ from wormgear import (
     VirtualHobbingWheelGeometry, WheelGeometry,
 )
 
+pytestmark = pytest.mark.slow
+
 
 class TestVirtualHobbingWheelGeometry:
     """Tests for VirtualHobbingWheelGeometry class."""

@@ -18,6 +18,8 @@ from wormgear.core.features import (
 )
 from build123d import Cylinder, Axis, Align
 
+pytestmark = pytest.mark.slow
+
 
 class TestBoreFeature:
     """Tests for BoreFeature dataclass."""

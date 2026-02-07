@@ -14,6 +14,8 @@ from wormgear.core.rim_thickness import (
 )
 from pathlib import Path
 
+pytestmark = pytest.mark.slow
+
 
 # Get the example design file
 EXAMPLE_FILE = Path(__file__).parent.parent / "examples" / "sample_m2_ratio30.json"
