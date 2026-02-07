@@ -75,10 +75,10 @@ class TestModuleValidationMessages:
 class TestGloboidValidationMessages:
     """Tests for globoid worm validation messages."""
 
-    def test_globoid_non_throated_warning_without_virtual_hobbing(self):
+    def test_globoid_non_throated_no_echo_back(self):
         """
-        GLOBOID_NON_THROATED should appear as INFO when globoid worm
-        has non-throated wheel and virtual hobbing is NOT enabled.
+        GLOBOID_NON_THROATED was removed as it just echoed back user choices.
+        Validation should not include purely informational echo-back messages.
         """
         design = calculate_design_from_module(
             module=2.0,
@@ -88,17 +88,14 @@ class TestGloboidValidationMessages:
             wheel_throated=False  # Non-throated wheel
         )
 
-        # Virtual hobbing NOT enabled
         if design.manufacturing:
             design.manufacturing.virtual_hobbing = False
 
         validation = validate_design(design)
 
-        # Should have GLOBOID_NON_THROATED as INFO
-        globoid_msgs = [m for m in validation.messages if m.code == 'GLOBOID_NON_THROATED']
-        assert len(globoid_msgs) == 1
-        assert globoid_msgs[0].severity.value == 'info'
-        assert 'virtual hobbing' in globoid_msgs[0].suggestion.lower()
+        # GLOBOID_NON_THROATED should no longer appear
+        codes = [m.code for m in validation.messages]
+        assert 'GLOBOID_NON_THROATED' not in codes
 
     def test_globoid_non_throated_suppressed_with_virtual_hobbing(self):
         """
