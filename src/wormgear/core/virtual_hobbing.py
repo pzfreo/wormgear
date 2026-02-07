@@ -141,7 +141,8 @@ class VirtualHobbingWheelGeometry:
         hub: Optional[HubFeature] = None,
         profile: ProfileType = "ZA",
         hob_geometry: Optional[Part] = None,
-        progress_callback: Optional[ProgressCallback] = None
+        progress_callback: Optional[ProgressCallback] = None,
+        trim_to_min_engagement: bool = False
     ):
         """
         Initialize virtual hobbing wheel generator.
@@ -207,6 +208,7 @@ class VirtualHobbingWheelGeometry:
         self.profile = profile.upper() if isinstance(profile, str) else profile
         self.hob_geometry = hob_geometry
         self.progress_callback = progress_callback
+        self.trim_to_min_engagement = trim_to_min_engagement
 
         # Set keyway as hub type if specified
         if self.keyway is not None:
@@ -324,6 +326,10 @@ class VirtualHobbingWheelGeometry:
         arc_r = self.worm_params.tip_diameter_mm / 2 - throat_reduction
         margin = self.worm_params.addendum_mm
 
+        # Calculate min radius at throat centre (z=0) for trim option
+        centre_worm_dist = cd - arc_r
+        min_engagement_r = min(tip_radius, centre_worm_dist + margin)
+
         num_points = 40
         profile_points = []
 
@@ -338,11 +344,16 @@ class VirtualHobbingWheelGeometry:
             else:
                 blank_r = tip_radius
 
+            # When trim enabled, cap all radii to throat minimum
+            if self.trim_to_min_engagement:
+                blank_r = min(blank_r, min_engagement_r)
+
             profile_points.append((blank_r, z))
 
+        trim_note = " (trimmed to min engagement)" if self.trim_to_min_engagement else ""
         logger.info(f"Creating throated blank: tip_r={tip_radius:.2f}mm, "
                     f"throat_r={profile_points[num_points // 2][0]:.2f}mm at z=0, "
-                    f"arc_r={arc_r:.2f}mm, cd={cd:.2f}mm")
+                    f"arc_r={arc_r:.2f}mm, cd={cd:.2f}mm{trim_note}")
 
         # Revolve profile around Z axis (same pattern as globoid_worm.py)
         with BuildPart() as builder:

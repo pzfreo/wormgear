@@ -228,6 +228,7 @@ class ManufacturingParams(BaseModel):
     virtual_hobbing: bool = False
     hobbing_steps: int = 18
     throated_wheel: bool = Field(default=False, alias='wheel_throated')
+    trim_to_min_engagement: bool = False
     sections_per_turn: int = 36
     worm_length_mm: Optional[float] = Field(default=None, alias='worm_length')
     wheel_width_mm: Optional[float] = Field(default=None, alias='wheel_width')

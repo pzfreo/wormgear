@@ -104,6 +104,7 @@ export type WormProfile = "ZA" | "ZK" | "ZI";
 export type VirtualHobbing = boolean;
 export type HobbingSteps = number;
 export type ThroatedWheel = boolean;
+export type TrimToMinEngagement = boolean;
 export type SectionsPerTurn = number;
 export type WormLengthMm = number | null;
 export type WheelWidthMm = number | null;
@@ -299,6 +300,7 @@ export interface ManufacturingParams {
   virtual_hobbing?: VirtualHobbing;
   hobbing_steps?: HobbingSteps;
   throated_wheel?: ThroatedWheel;
+  trim_to_min_engagement?: TrimToMinEngagement;
   sections_per_turn?: SectionsPerTurn;
   worm_length_mm?: WormLengthMm;
   wheel_width_mm?: WheelWidthMm;
