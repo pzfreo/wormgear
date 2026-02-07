@@ -923,12 +923,16 @@ More info: https://wormgear.studio
         if worm is not None:
             worm_export = repair_geometry(worm, "worm")
             output_file = output_dir / f"worm_m{design.worm.module_mm}_z{design.worm.num_starts}.step"
+            if output_file.exists():
+                output_file.unlink()
             export_step(worm_export, str(output_file))
             print(f"  Saved: {output_file}")
 
         if wheel is not None:
             wheel_export = repair_geometry(wheel, "wheel")
             output_file = output_dir / f"wheel_m{design.wheel.module_mm}_z{design.wheel.num_teeth}.step"
+            if output_file.exists():
+                output_file.unlink()
             export_step(wheel_export, str(output_file))
             print(f"  Saved: {output_file}")
 
@@ -1023,6 +1027,8 @@ More info: https://wormgear.studio
                 if wheel_rim_result is not None:
                     analysis_data["rim_thickness"]["wheel"] = rim_thickness_to_dict(wheel_rim_result)
 
+            if analysis_file.exists():
+                analysis_file.unlink()
             with open(analysis_file, 'w') as f:
                 json.dump(analysis_data, f, indent=2)
             print(f"  Saved: {analysis_file}")
