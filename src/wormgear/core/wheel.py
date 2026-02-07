@@ -99,15 +99,10 @@ class WheelGeometry:
         else:
             self.face_width = face_width
 
-        # Detect globoid worm and compute effective centre distance
-        if worm_params.throat_reduction_mm and worm_params.throat_reduction_mm > 0:
-            throat_pitch_r = worm_params.pitch_diameter_mm / 2 - worm_params.throat_reduction_mm
-            wheel_pitch_r = params.pitch_diameter_mm / 2
-            self.effective_centre_distance = throat_pitch_r + wheel_pitch_r
-            self.is_globoid = True
-        else:
-            self.effective_centre_distance = assembly_params.centre_distance_mm
-            self.is_globoid = False
+        # Use assembly centre distance directly — the calculator now accounts for
+        # throat reduction when computing CD for globoid worms.
+        self.effective_centre_distance = assembly_params.centre_distance_mm
+        self.is_globoid = bool(worm_params.throat_reduction_mm and worm_params.throat_reduction_mm > 0)
 
         # Cache for built geometry (avoids rebuilding on export)
         self._part = None
