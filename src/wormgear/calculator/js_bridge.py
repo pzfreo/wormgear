@@ -74,6 +74,7 @@ class ManufacturingSettings(BaseModel):
     use_recommended_dims: bool = True
     worm_length_mm: Optional[float] = None
     wheel_width_mm: Optional[float] = None
+    trim_to_min_engagement: bool = False
 
 
 class CalculatorInputs(BaseModel):
@@ -171,6 +172,9 @@ class CalculatorOutput(BaseModel):
     recommended_worm_bore: Optional[RecommendedBore] = None
     recommended_wheel_bore: Optional[RecommendedBore] = None
 
+    # Wheel throat OD (minimum OD at engagement zone for throated/globoid wheels)
+    wheel_throat_od_mm: Optional[float] = None
+
 
 # ============================================================================
 # Main Entry Point
@@ -249,6 +253,17 @@ def calculate(input_json: str) -> str:
             too_small_for_keyway=False
         )
 
+        # Calculate wheel throat OD (minimum OD at engagement zone for throated wheels)
+        # Uses same margin as _create_throated_blank(): worm_addendum + 50% wheel_addendum
+        wheel_throat_od = None
+        if inputs.worm_type == 'globoid' and design.worm.throat_reduction_mm:
+            arc_r = design.worm.tip_diameter_mm / 2 - design.worm.throat_reduction_mm
+            margin = design.worm.addendum_mm + 0.5 * design.wheel.addendum_mm
+            cd = design.assembly.centre_distance_mm
+            min_blank_r = cd - arc_r + margin
+            tip_r = design.wheel.tip_diameter_mm / 2
+            wheel_throat_od = round(2 * min(tip_r, min_blank_r), 3)
+
         # Build output
         output = CalculatorOutput(
             success=True,
@@ -266,7 +281,8 @@ def calculate(input_json: str) -> str:
                 for m in validation.messages
             ],
             recommended_worm_bore=recommended_worm_bore,
-            recommended_wheel_bore=recommended_wheel_bore
+            recommended_wheel_bore=recommended_wheel_bore,
+            wheel_throat_od_mm=wheel_throat_od
         )
 
         return output.model_dump_json()

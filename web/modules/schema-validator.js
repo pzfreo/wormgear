@@ -146,7 +146,8 @@ export function validateManufacturingSettings(mfg) {
         hobbing_steps: typeof mfg.hobbing_steps === 'number' ? mfg.hobbing_steps : 72,
         use_recommended_dims: typeof mfg.use_recommended_dims === 'boolean' ? mfg.use_recommended_dims : true,
         worm_length_mm: optionalNumber(mfg.worm_length_mm, 'worm_length_mm'),
-        wheel_width_mm: optionalNumber(mfg.wheel_width_mm, 'wheel_width_mm')
+        wheel_width_mm: optionalNumber(mfg.wheel_width_mm, 'wheel_width_mm'),
+        trim_to_min_engagement: typeof mfg.trim_to_min_engagement === 'boolean' ? mfg.trim_to_min_engagement : false
     };
 }
 
@@ -254,7 +255,9 @@ export function validateCalculatorOutput(output) {
         messages: Array.isArray(output.messages) ? output.messages : [],
         // Python-calculated bore recommendations
         recommended_worm_bore: output.recommended_worm_bore || null,
-        recommended_wheel_bore: output.recommended_wheel_bore || null
+        recommended_wheel_bore: output.recommended_wheel_bore || null,
+        // Wheel throat OD (minimum OD at engagement zone for globoid/throated wheels)
+        wheel_throat_od_mm: output.wheel_throat_od_mm ?? null
     };
 }
 

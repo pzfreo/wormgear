@@ -322,6 +322,12 @@ More info: https://wormgear.studio
         help='Number of steps for virtual hobbing (default: 72, higher=more accurate but slower)'
     )
 
+    parser.add_argument(
+        '--trim-to-min-engagement',
+        action='store_true',
+        help='Trim wheel OD to throat minimum (globoid only) — removes flared edges'
+    )
+
     # Bore and keyway options (defaults: auto-calculated bore with keyway)
     parser.add_argument(
         '--no-bore',
@@ -519,6 +525,7 @@ More info: https://wormgear.studio
     use_sections = args.sections if args.sections != 36 else (json_mfg.sections_per_turn if json_mfg else 36)
     use_worm_length = args.worm_length if args.worm_length != 40.0 else (json_mfg.worm_length_mm if json_mfg and json_mfg.worm_length_mm else 40.0)
     use_wheel_width = args.wheel_width if args.wheel_width is not None else (json_mfg.wheel_width_mm if json_mfg and json_mfg.wheel_width_mm else None)
+    use_trim_engagement = args.trim_to_min_engagement or (json_mfg.trim_to_min_engagement if json_mfg else False)
 
     # Wheel tip reduction (stub teeth): CLI arg > JSON value
     if args.wheel_tip_reduction is not None:
@@ -526,6 +533,8 @@ More info: https://wormgear.studio
     if design.wheel.tip_reduction_mm is not None and design.wheel.tip_reduction_mm > 0:
         reduced_tip = design.wheel.tip_diameter_mm - design.wheel.tip_reduction_mm
         print(f"  Wheel tip reduced: {design.wheel.tip_diameter_mm:.2f}mm → {reduced_tip:.2f}mm (stub teeth)")
+    if use_trim_engagement and use_globoid:
+        print(f"  Wheel OD trimmed to throat minimum (edges won't flare beyond engagement zone)")
 
     # Generate worm
     if generate_worm:
@@ -872,7 +881,8 @@ More info: https://wormgear.studio
                 hub=wheel_hub,
                 profile=profile,
                 hob_geometry=hob_geo,
-                progress_callback=hobbing_progress
+                progress_callback=hobbing_progress,
+                trim_to_min_engagement=use_trim_engagement
             )
         else:
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc}, {profile_desc}{features_desc})...")
@@ -887,7 +897,8 @@ More info: https://wormgear.studio
                 ddcut=wheel_ddcut,
                 set_screw=wheel_set_screw,
                 hub=wheel_hub,
-                profile=profile
+                profile=profile,
+                trim_to_min_engagement=use_trim_engagement
             )
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
@@ -1000,7 +1011,11 @@ More info: https://wormgear.studio
         output_dir = Path(args.output_dir)
         import json
 
-        if mesh_alignment_result is not None or worm_rim_result is not None or wheel_rim_result is not None:
+        has_analysis = (mesh_alignment_result is not None or
+                        worm_rim_result is not None or
+                        wheel_rim_result is not None or
+                        use_globoid)
+        if has_analysis:
             from datetime import datetime
             analysis_file = output_dir / f"geometry_analysis_m{design.worm.module_mm}.json"
 
@@ -1026,6 +1041,22 @@ More info: https://wormgear.studio
                     analysis_data["rim_thickness"]["worm"] = rim_thickness_to_dict(worm_rim_result)
                 if wheel_rim_result is not None:
                     analysis_data["rim_thickness"]["wheel"] = rim_thickness_to_dict(wheel_rim_result)
+
+            # Add throat geometry for globoid worms
+            if use_globoid and design.worm.throat_reduction_mm:
+                arc_r = design.worm.tip_diameter_mm / 2 - design.worm.throat_reduction_mm
+                cd = design.assembly.centre_distance_mm
+                margin = design.worm.addendum_mm + 0.5 * design.wheel.addendum_mm
+                min_blank_r = cd - arc_r + margin
+                tip_r = design.wheel.tip_diameter_mm / 2
+                throat_od = round(2 * min(tip_r, min_blank_r), 3)
+                analysis_data["throat_geometry"] = {
+                    "wheel_throat_od_mm": throat_od,
+                    "wheel_tip_od_mm": design.wheel.tip_diameter_mm,
+                    "od_difference_mm": round(design.wheel.tip_diameter_mm - throat_od, 3),
+                    "note": "wheel_throat_od_mm is the minimum OD at the engagement zone; edges can be clipped to this without losing engagement"
+                }
+                print(f"\nWheel throat OD: {throat_od:.2f}mm (tip OD {design.wheel.tip_diameter_mm:.2f}mm, {design.wheel.tip_diameter_mm - throat_od:.2f}mm recoverable at edges)")
 
             if analysis_file.exists():
                 analysis_file.unlink()

@@ -613,6 +613,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const shouldShow = isGloboid && isHelical;
         throatReductionGroup.style.display = shouldShow ? 'block' : 'none';
 
+        // Show trim-to-min-engagement for any globoid worm
+        const trimGroup = document.getElementById('trim-engagement-group');
+        if (trimGroup) {
+            trimGroup.style.display = isGloboid ? 'block' : 'none';
+            if (!isGloboid) {
+                document.getElementById('trim-to-min-engagement').checked = false;
+            }
+        }
+
         if (shouldShow) {
             updateThroatReductionAutoHint();
         }

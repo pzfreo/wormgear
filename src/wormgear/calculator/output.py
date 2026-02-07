@@ -282,6 +282,14 @@ def to_markdown(
     md += f"| Root Diameter | {wheel['root_diameter_mm']:.3f} mm |\n"
     if wheel.get('throat_diameter_mm'):
         md += f"| Throat Diameter | {wheel['throat_diameter_mm']:.3f} mm |\n"
+    # Show minimum OD at throat for globoid/throated wheels
+    # Uses same margin as _create_throated_blank(): worm_addendum + 50% wheel_addendum
+    if worm_type == "globoid" and worm.get('throat_reduction_mm'):
+        arc_r = worm['tip_diameter_mm'] / 2 - worm['throat_reduction_mm']
+        margin = worm['addendum_mm'] + 0.5 * wheel['addendum_mm']
+        min_blank_r = asm['centre_distance_mm'] - arc_r + margin
+        throat_od = 2 * min(wheel['tip_diameter_mm'] / 2, min_blank_r)
+        md += f"| Min OD at Throat | {throat_od:.3f} mm |\n"
     if wheel.get('helix_angle_deg'):
         md += f"| Helix Angle | {wheel['helix_angle_deg']:.2f}° |\n"
     md += f"| Addendum | {wheel['addendum_mm']:.3f} mm |\n"
@@ -458,6 +466,14 @@ def to_summary(
         f"  Root diameter:     {wheel['root_diameter_mm']:.2f} mm",
         f"  Teeth:             {wheel['num_teeth']}",
     ])
+
+    # Show min OD at throat for globoid wheels
+    if worm_type_str == "globoid" and worm.get('throat_reduction_mm'):
+        arc_r = worm['tip_diameter_mm'] / 2 - worm['throat_reduction_mm']
+        margin = worm['addendum_mm'] + 0.5 * wheel['addendum_mm']
+        min_blank_r = asm['centre_distance_mm'] - arc_r + margin
+        throat_od = 2 * min(wheel['tip_diameter_mm'] / 2, min_blank_r)
+        lines.append(f"  Min OD at throat:  {throat_od:.2f} mm")
 
     if wheel.get('helix_angle_deg'):
         lines.append(f"  Helix angle:       {wheel['helix_angle_deg']:.1f}°")

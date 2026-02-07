@@ -56,7 +56,8 @@ class WheelGeometry:
         ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         hub: Optional[HubFeature] = None,
-        profile: ProfileType = "ZA"
+        profile: ProfileType = "ZA",
+        trim_to_min_engagement: bool = False
     ):
         """
         Initialize wheel geometry generator.
@@ -74,6 +75,8 @@ class WheelGeometry:
             profile: Tooth profile type per DIN 3975:
                      "ZA" - Straight flanks (trapezoidal) - best for CNC (default)
                      "ZK" - Slightly convex flanks - better for 3D printing
+            trim_to_min_engagement: If True, cap throated blank OD to throat
+                     minimum (removes flared edges). Only affects globoid worms.
         """
         self.params = params
         self.worm_params = worm_params
@@ -85,6 +88,7 @@ class WheelGeometry:
         self.set_screw = set_screw
         self.hub = hub
         self.profile = profile.upper() if isinstance(profile, str) else profile
+        self.trim_to_min_engagement = trim_to_min_engagement
 
         # Set keyway as hub type if specified
         if self.keyway is not None:
@@ -439,7 +443,16 @@ class WheelGeometry:
         cd = self.effective_centre_distance
         throat_reduction = self.worm_params.throat_reduction_mm or 0
         arc_r = self.worm_params.tip_diameter_mm / 2 - throat_reduction
-        margin = self.worm_params.addendum_mm
+        # Margin = clearance between worm tip envelope and blank surface.
+        # worm_addendum alone cancels algebraically, leaving zero addendum at
+        # the throat (blank_r = pitch_r). Adding 50% of wheel addendum ensures
+        # half-height teeth at the throat while preserving meaningful throating.
+        wheel_addendum = self.params.addendum_mm
+        margin = self.worm_params.addendum_mm + 0.5 * wheel_addendum
+
+        # Calculate min radius at throat centre (z=0) for trim option
+        centre_worm_dist = cd - arc_r
+        min_engagement_r = min(tip_radius, centre_worm_dist + margin)
 
         num_points = 40
         profile_points = []
@@ -455,11 +468,16 @@ class WheelGeometry:
             else:
                 blank_r = tip_radius
 
+            # When trim enabled, cap all radii to throat minimum
+            if self.trim_to_min_engagement:
+                blank_r = min(blank_r, min_engagement_r)
+
             profile_points.append((blank_r, z))
 
+        trim_note = " (trimmed to min engagement)" if self.trim_to_min_engagement else ""
         logger.info(f"Creating throated blank: tip_r={tip_radius:.2f}mm, "
                     f"throat_r={profile_points[num_points // 2][0]:.2f}mm at z=0, "
-                    f"arc_r={arc_r:.2f}mm, cd={cd:.2f}mm")
+                    f"arc_r={arc_r:.2f}mm, cd={cd:.2f}mm{trim_note}")
 
         # Revolve profile around Z axis (same pattern as globoid_worm.py)
         with BuildPart() as builder:

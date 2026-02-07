@@ -847,17 +847,18 @@ def design_from_envelope(
 
     # When od_as_maximum is True, find the largest standard module that fits
     if od_as_maximum and use_standard_module:
-        # First calculate baseline design from exact ODs to get reference geometry
-        # Account for profile shift: tip = m * (z + 2*(1+x))
-        base_module = wheel_od / (num_teeth + 2 * (1 + profile_shift))
-        base_worm_pitch_diameter = worm_od - 2 * base_module
-
-        # Try standard modules in descending order to find largest that fits
+        # Try standard modules in descending order to find largest that fits.
+        # For each candidate module:
+        #   wheel_tip = module × (num_teeth + 2×(1+x))  → fixed by module
+        #   worm_pitch_d = worm_od - 2×module            → worm uses all available OD
         for test_module in sorted(STANDARD_MODULES, reverse=True):
-            # Adjust worm pitch diameter to maintain similar geometry
-            # As module changes, adjust pitch diameter to keep worm OD close to requested
-            addendum_change = test_module - base_module
-            test_worm_pitch_diameter = base_worm_pitch_diameter - 2 * addendum_change
+            # Wheel OD is determined by module — skip if it exceeds the max
+            test_wheel_od = test_module * (num_teeth + 2 * (1 + profile_shift))
+            if test_wheel_od > wheel_od:
+                continue
+
+            # Worm pitch diameter uses the full worm OD budget
+            test_worm_pitch_diameter = worm_od - 2 * test_module
 
             if test_worm_pitch_diameter <= 0:
                 continue
@@ -880,12 +881,8 @@ def design_from_envelope(
                     wheel_tip_reduction_mm=wheel_tip_reduction_mm
                 )
 
-                # Check ODs fit and geometry is valid.
-                # Tip reduction is relative so it can't produce the old
-                # "oversized module with capped tip" bug.
-                if (test_design.worm.tip_diameter_mm <= worm_od
-                        and test_design.wheel.tip_diameter_mm <= wheel_od
-                        and test_design.worm.root_diameter_mm > 0):
+                # Verify geometry is valid (root diameter positive)
+                if test_design.worm.root_diameter_mm > 0:
                     return test_design
             except (ZeroDivisionError, ValueError):
                 continue

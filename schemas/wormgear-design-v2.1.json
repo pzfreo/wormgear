@@ -219,6 +219,11 @@
           "title": "Throated Wheel",
           "type": "boolean"
         },
+        "trim_to_min_engagement": {
+          "default": false,
+          "title": "Trim To Min Engagement",
+          "type": "boolean"
+        },
         "sections_per_turn": {
           "default": 36,
           "title": "Sections Per Turn",
