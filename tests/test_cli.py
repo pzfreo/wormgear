@@ -9,6 +9,9 @@ import pytest
 from pathlib import Path
 
 
+pytestmark = pytest.mark.slow
+
+
 class TestCLIEntryPoints:
     """Test that CLI entry points defined in pyproject.toml are importable."""
 

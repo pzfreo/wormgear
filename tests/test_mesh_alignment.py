@@ -25,6 +25,8 @@ from wormgear.core.mesh_alignment import (
     mesh_alignment_to_dict,
 )
 
+pytestmark = pytest.mark.slow
+
 
 class TestMeshAlignmentResult:
     """Tests for MeshAlignmentResult dataclass."""

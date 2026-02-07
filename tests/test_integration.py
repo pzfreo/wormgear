@@ -12,6 +12,8 @@ from wormgear import (
     WormGeometry, WheelGeometry,
 )
 
+pytestmark = pytest.mark.slow
+
 
 class TestWormWheelPair:
     """Tests for generating matching worm and wheel pairs."""

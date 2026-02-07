@@ -11,6 +11,8 @@ from wormgear import (
     BoreFeature, KeywayFeature, SetScrewFeature,
 )
 
+pytestmark = pytest.mark.slow
+
 
 class TestGloboidWormGeometry:
     """Tests for GloboidWormGeometry class."""

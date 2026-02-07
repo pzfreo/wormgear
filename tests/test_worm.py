@@ -7,6 +7,8 @@ import pytest
 
 from wormgear import load_design_json, WormParams, AssemblyParams, WormGeometry
 
+pytestmark = pytest.mark.slow
+
 
 class TestWormGeometry:
     """Tests for WormGeometry class."""
