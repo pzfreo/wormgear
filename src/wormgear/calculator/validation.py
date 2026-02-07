@@ -238,6 +238,17 @@ def _validate_geometry_possible(design: DesignInput) -> List[ValidationMessage]:
             suggestion="This indicates a calculation error - check wheel dimensions"
         ))
 
+    # Check wheel tip reduction doesn't eliminate teeth
+    wheel_addendum = _get(design, 'wheel', 'addendum_mm', default=0)
+    wheel_tip_reduction = _get(design, 'wheel', 'tip_reduction_mm', default=0)
+    if wheel_tip_reduction and wheel_addendum and wheel_tip_reduction >= wheel_addendum:
+        messages.append(ValidationMessage(
+            severity=Severity.ERROR,
+            code="WHEEL_TIP_REDUCTION_EXCESSIVE",
+            message=f"Wheel tip reduction ({wheel_tip_reduction:.2f}mm) eliminates tooth height (addendum: {wheel_addendum:.2f}mm)",
+            suggestion="Reduce tip reduction to less than the wheel addendum"
+        ))
+
     return messages
 
 
@@ -269,13 +280,6 @@ def _validate_lead_angle(design: DesignInput) -> List[ValidationMessage]:
             message=f"Lead angle {lead_angle:.1f}° gives low efficiency (~{efficiency:.0f}%) but good self-locking",
             suggestion=None
         ))
-    elif lead_angle > 25.0:
-        messages.append(ValidationMessage(
-            severity=Severity.WARNING,
-            code="LEAD_ANGLE_HIGH",
-            message=f"Lead angle {lead_angle:.1f}° is high. Drive will not self-lock.",
-            suggestion="This is fine if self-locking is not required"
-        ))
     elif lead_angle > 45.0:
         messages.append(ValidationMessage(
             severity=Severity.ERROR,
@@ -283,64 +287,27 @@ def _validate_lead_angle(design: DesignInput) -> List[ValidationMessage]:
             message=f"Lead angle {lead_angle:.1f}° exceeds practical limits",
             suggestion="Reduce worm pitch diameter or increase module"
         ))
+    elif lead_angle > 25.0:
+        messages.append(ValidationMessage(
+            severity=Severity.WARNING,
+            code="LEAD_ANGLE_HIGH",
+            message=f"Lead angle {lead_angle:.1f}° is high. Drive will not self-lock.",
+            suggestion="This is fine if self-locking is not required"
+        ))
 
     return messages
 
 
 def _validate_contact_ratio(design: DesignInput) -> List[ValidationMessage]:
     """
-    Check contact ratio is sufficient for smooth operation.
+    Contact ratio check — currently disabled.
 
-    Per DIN 3975 §7.4 and AGMA 6022, the contact ratio (epsilon) should be
-    at least 1.2 for smooth, continuous power transmission.
-
-    For worm gears, contact ratio is approximated as:
-    epsilon = (wheel_teeth * tan(lead_angle)) / (pi * num_starts)
-
-    A higher contact ratio means more teeth in mesh at any time,
-    resulting in smoother operation and higher load capacity.
+    The spur gear formula (z × tan(gamma) / (pi × n)) is inappropriate for
+    worm gears, which have wrapping contact across multiple teeth. A proper
+    worm gear contact ratio depends on face width and addendum geometry.
+    Until a correct formula is implemented, this check is a no-op.
     """
-    messages = []
-
-    # Get required parameters
-    wheel_teeth = _get(design, 'wheel', 'num_teeth', default=0)
-    num_starts = _get(design, 'worm', 'num_starts', default=1)
-    lead_angle_deg = _get(design, 'worm', 'lead_angle_deg', default=0)
-
-    if wheel_teeth <= 0 or lead_angle_deg <= 0:
-        return messages  # Skip if data is incomplete
-
-    # Calculate approximate contact ratio for worm gears
-    from math import tan, radians, pi
-    lead_angle_rad = radians(lead_angle_deg)
-
-    # Simplified contact ratio approximation for worm gears
-    # More accurate calculation would require face width and addendum data
-    contact_ratio = (wheel_teeth * tan(lead_angle_rad)) / (pi * num_starts)
-
-    # Also consider the effective tooth overlap from geometry
-    # Minimum acceptable per AGMA 6022
-    MIN_CONTACT_RATIO = 1.2
-
-    if contact_ratio < 1.0:
-        messages.append(ValidationMessage(
-            severity=Severity.ERROR,
-            code="CONTACT_RATIO_TOO_LOW",
-            message=f"Calculated contact ratio {contact_ratio:.2f} < 1.0. "
-                    f"Teeth will not maintain continuous contact.",
-            suggestion="Increase wheel teeth count or lead angle for smoother operation. "
-                       "DIN 3975 §7.4 recommends contact ratio >= 1.2"
-        ))
-    elif contact_ratio < MIN_CONTACT_RATIO:
-        messages.append(ValidationMessage(
-            severity=Severity.WARNING,
-            code="CONTACT_RATIO_LOW",
-            message=f"Contact ratio {contact_ratio:.2f} is below recommended {MIN_CONTACT_RATIO}. "
-                    f"Operation may be rough or noisy.",
-            suggestion="For smoother operation, increase wheel teeth or lead angle"
-        ))
-
-    return messages
+    return []
 
 
 def _validate_module(design: DesignInput) -> List[ValidationMessage]:
@@ -408,7 +375,7 @@ def _validate_teeth_count(design: DesignInput) -> List[ValidationMessage]:
             ))
 
     # Check for extremely low teeth
-    if num_teeth < 12:
+    if num_teeth < 10:
         messages.append(ValidationMessage(
             severity=Severity.WARNING,
             code="TEETH_VERY_LOW",
@@ -495,22 +462,7 @@ def _validate_efficiency(design: DesignInput) -> List[ValidationMessage]:
                 message=f"Efficiency {efficiency:.0f}% is very low. Much power will be lost as heat.",
                 suggestion="Increase lead angle for better efficiency if self-locking not required"
             ))
-        elif efficiency < 50:
-            messages.append(ValidationMessage(
-                severity=Severity.INFO,
-                code="EFFICIENCY_LOW",
-                message=f"Efficiency {efficiency:.0f}% is low but typical for self-locking drives",
-                suggestion=None
-            ))
-
-    self_locking = _get(design, 'assembly', 'self_locking', default=False)
-    if self_locking:
-        messages.append(ValidationMessage(
-            severity=Severity.INFO,
-            code="SELF_LOCKING",
-            message="Drive is self-locking (backdrive prevented)",
-            suggestion="Ensure adequate lubrication to minimize heat from friction"
-        ))
+        # Efficiency 30-50% is normal for self-locking worm gears — no message needed
 
     return messages
 
@@ -530,8 +482,13 @@ def _validate_clearance(design: DesignInput) -> List[ValidationMessage]:
     worm_tip_radius = worm_tip_dia / 2
     wheel_root_radius = wheel_root_dia / 2
 
+    # For globoid worms, use the throat radius (smaller) for clearance check
+    # The full tip_diameter is at the worm ends, not the engagement zone
+    throat_reduction = _get(design, 'worm', 'throat_reduction_mm', default=0) or 0
+    effective_worm_tip_radius = worm_tip_radius - throat_reduction
+
     # At centre distance, worm tip should not reach wheel root
-    clearance = centre_distance - worm_tip_radius - wheel_root_radius
+    clearance = centre_distance - effective_worm_tip_radius - wheel_root_radius
 
     if clearance < 0:
         messages.append(ValidationMessage(
@@ -540,7 +497,7 @@ def _validate_clearance(design: DesignInput) -> List[ValidationMessage]:
             message=f"Worm and wheel geometries interfere (clearance: {clearance:.2f}mm)",
             suggestion="Check calculator inputs - this geometry is impossible"
         ))
-    elif clearance < 0.1:
+    elif clearance < 0.05:
         messages.append(ValidationMessage(
             severity=Severity.WARNING,
             code="CLEARANCE_VERY_SMALL",
@@ -559,7 +516,7 @@ def _validate_centre_distance(design: DesignInput) -> List[ValidationMessage]:
     if cd <= 0:
         return messages  # Skip if missing
 
-    if cd < 5:
+    if cd < 2:
         messages.append(ValidationMessage(
             severity=Severity.WARNING,
             code="CENTRE_DISTANCE_SMALL",
@@ -600,22 +557,6 @@ def _validate_profile(design: DesignInput) -> List[ValidationMessage]:
         ))
         return messages
 
-    # Info about profile type
-    if profile == 'ZK':
-        messages.append(ValidationMessage(
-            severity=Severity.INFO,
-            code="PROFILE_ZK",
-            message="ZK profile selected - optimized for 3D printing (FDM)",
-            suggestion=None
-        ))
-    elif profile == 'ZI':
-        messages.append(ValidationMessage(
-            severity=Severity.INFO,
-            code="PROFILE_ZI",
-            message="ZI profile selected - involute helicoid for high precision hobbed gears",
-            suggestion=None
-        ))
-
     return messages
 
 
@@ -646,70 +587,26 @@ def _validate_worm_type(design: DesignInput) -> List[ValidationMessage]:
         ))
         return messages
 
-    # Globoid-specific validations
+    # Globoid-specific validations — only warn about out-of-range throat reduction
     if worm_type == 'globoid':
         throat_reduction = _get(design, 'worm', 'throat_reduction_mm')
-        throat_curvature = _get(design, 'worm', 'throat_curvature_radius_mm')
-        worm_pitch_diameter = _get(design, 'worm', 'pitch_diameter_mm', default=16.0)
-        wheel_pitch_diameter = _get(design, 'wheel', 'pitch_diameter_mm', default=60.0)
-        centre_distance = _get(design, 'assembly', 'centre_distance_mm', default=38.0)
+        module_mm = _get(design, 'worm', 'module_mm', default=2.0)
 
-        # Check throat parameters are present
-        if throat_curvature is None:
-            messages.append(ValidationMessage(
-                severity=Severity.WARNING,
-                code="GLOBOID_MISSING_THROAT",
-                message="Globoid worm without throat curvature radius specified",
-                suggestion="Ensure throat radii are calculated for proper geometry"
-            ))
-        else:
-            # Validate throat reduction against module (typical range: 0.5-2.0 modules)
-            # Throat reduction controls the hourglass shape depth but does NOT affect
-            # centre distance (axis spacing is always (worm_pd + wheel_pd) / 2).
-            module_mm = _get(design, 'worm', 'module_mm', default=2.0)
-
-            # Validate throat reduction value if present
-            if throat_reduction is not None and throat_reduction > 0:
-                hourglass_depth = throat_reduction * 2
-                reduction_in_modules = throat_reduction / module_mm if module_mm > 0 else 0
+        if throat_reduction is not None and throat_reduction > 0 and module_mm > 0:
+            if throat_reduction < module_mm * 0.3:
                 messages.append(ValidationMessage(
-                    severity=Severity.INFO,
-                    code="THROAT_REDUCTION_SET",
-                    message=f"Throat reduction: {throat_reduction:.2f}mm ({reduction_in_modules:.1f}x module, hourglass depth ~{hourglass_depth:.2f}mm)",
-                    suggestion=f"Typical range: 0.5-2.0x module ({module_mm * 0.5:.2f}-{module_mm * 2:.2f}mm)"
+                    severity=Severity.WARNING,
+                    code="THROAT_REDUCTION_SMALL",
+                    message=f"Throat reduction ({throat_reduction:.2f}mm) is less than 0.3x module ({module_mm * 0.3:.2f}mm)",
+                    suggestion="May result in minimal hourglass effect and reduced wheel contact"
                 ))
-
-                # Warn if outside reasonable range
-                if throat_reduction < module_mm * 0.3:
-                    messages.append(ValidationMessage(
-                        severity=Severity.WARNING,
-                        code="THROAT_REDUCTION_SMALL",
-                        message=f"Throat reduction ({throat_reduction:.2f}mm) is less than 0.3x module ({module_mm * 0.3:.2f}mm)",
-                        suggestion="May result in minimal hourglass effect and reduced wheel contact"
-                    ))
-                elif throat_reduction > module_mm * 2.5:
-                    messages.append(ValidationMessage(
-                        severity=Severity.WARNING,
-                        code="THROAT_REDUCTION_LARGE",
-                        message=f"Throat reduction ({throat_reduction:.2f}mm) exceeds 2.5x module ({module_mm * 2.5:.2f}mm)",
-                        suggestion="May cause interference or manufacturing difficulty"
-                    ))
-            else:
-                # Using auto value (1x module)
+            elif throat_reduction > module_mm * 2.5:
                 messages.append(ValidationMessage(
-                    severity=Severity.INFO,
-                    code="THROAT_REDUCTION_AUTO",
-                    message=f"Using default throat reduction: {module_mm:.2f}mm (1x module)",
-                    suggestion="Provides good hourglass effect for most applications"
+                    severity=Severity.WARNING,
+                    code="THROAT_REDUCTION_LARGE",
+                    message=f"Throat reduction ({throat_reduction:.2f}mm) exceeds 2.5x module ({module_mm * 2.5:.2f}mm)",
+                    suggestion="May cause interference or manufacturing difficulty"
                 ))
-
-            # Info about globoid benefits
-            messages.append(ValidationMessage(
-                severity=Severity.INFO,
-                code="GLOBOID_WORM",
-                message="Globoid worm provides better contact area with wheel",
-                suggestion="Use with virtual hobbing for best wheel tooth fit"
-            ))
 
     return messages
 
@@ -723,26 +620,6 @@ def _validate_wheel_throated(design: DesignInput) -> List[ValidationMessage]:
 
     wheel_throated = _get(design, 'manufacturing', 'throated_wheel', default=False)
     virtual_hobbing = _get(design, 'manufacturing', 'virtual_hobbing', default=False)
-
-    # Info if globoid worm with non-throated wheel (unless using virtual hobbing)
-    # Virtual hobbing automatically creates proper throating regardless of wheel_throated flag
-    # This is INFO not WARNING because user may deliberately choose helical for manufacturing reasons
-    if worm_type == 'globoid' and not wheel_throated and not virtual_hobbing:
-        messages.append(ValidationMessage(
-            severity=Severity.INFO,
-            code="GLOBOID_NON_THROATED",
-            message="Globoid worm with helical (non-throated) wheel - contact may be suboptimal",
-            suggestion="Consider enabling throated wheel or using virtual hobbing for better mesh"
-        ))
-
-    # Info about throated wheel
-    if wheel_throated:
-        messages.append(ValidationMessage(
-            severity=Severity.INFO,
-            code="WHEEL_THROATED",
-            message="Throated wheel teeth provide better contact area",
-            suggestion=None
-        ))
 
     return messages
 
@@ -758,14 +635,6 @@ def _validate_manufacturing_compatibility(design: DesignInput) -> List[Validatio
     # Skip if manufacturing dimensions not specified
     if worm_length is None or wheel_width is None:
         return messages
-
-    # Info about recommendations
-    messages.append(ValidationMessage(
-        severity=Severity.INFO,
-        code="MANUFACTURING_RECOMMENDATIONS",
-        message=f"Recommended: wheel width {wheel_width:.2f}mm, worm length {worm_length:.2f}mm",
-        suggestion="These are design guidelines based on contact ratio and engagement - adjust as needed"
-    ))
 
     # Check worm length provides adequate engagement
     if lead > 0 and worm_length < wheel_width + lead:

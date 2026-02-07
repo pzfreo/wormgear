@@ -240,6 +240,18 @@ function getModeSuffix(mode) {
 // EXPORT FUNCTIONS
 // ============================================================================
 
+function getDesignFilename() {
+    if (!currentDesign) return 'wormgear-design';
+    const m = currentDesign.worm?.module_mm;
+    const r = currentDesign.assembly?.ratio;
+    const type = currentDesign.worm?.type === 'globoid' ? 'globoid' : 'cyl';
+    const parts = ['wormgear'];
+    if (m != null) parts.push(`m${m}`);
+    if (r != null) parts.push(`r${r}`);
+    parts.push(type);
+    return parts.join('-');
+}
+
 function copyJSON() {
     if (!currentDesign) return;
     navigator.clipboard.writeText(JSON.stringify(currentDesign, null, 2));
@@ -252,7 +264,7 @@ function downloadJSON() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'wormgear-design.json';
+    a.download = getDesignFilename() + '.json';
     a.click();
     URL.revokeObjectURL(url);
 }
@@ -266,7 +278,7 @@ function downloadMarkdown() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'wormgear-design.md';
+    a.download = getDesignFilename() + '.md';
     a.click();
     URL.revokeObjectURL(url);
 }
