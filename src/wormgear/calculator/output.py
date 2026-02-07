@@ -467,6 +467,14 @@ def to_summary(
         f"  Teeth:             {wheel['num_teeth']}",
     ])
 
+    # Show min OD at throat for globoid wheels
+    if worm_type_str == "globoid" and worm.get('throat_reduction_mm'):
+        arc_r = worm['tip_diameter_mm'] / 2 - worm['throat_reduction_mm']
+        margin = worm['addendum_mm'] + 0.5 * wheel['addendum_mm']
+        min_blank_r = asm['centre_distance_mm'] - arc_r + margin
+        throat_od = 2 * min(wheel['tip_diameter_mm'] / 2, min_blank_r)
+        lines.append(f"  Min OD at throat:  {throat_od:.2f} mm")
+
     if wheel.get('helix_angle_deg'):
         lines.append(f"  Helix angle:       {wheel['helix_angle_deg']:.1f}°")
 
