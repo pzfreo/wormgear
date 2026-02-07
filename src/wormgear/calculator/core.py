@@ -508,12 +508,14 @@ def design_from_module(
         worm_pitch_diameter = lead / (pi * tan(target_rad))
 
     # Auto-calculate throat_reduction for globoid worms if not specified
-    # Geometrically: the throat should "cup" around the wheel
-    # throat_curvature_radius = wheel_pitch_radius = module * num_teeth / 2
-    # A good throat_reduction brings the worm closer by ~1 module depth
-    # This matches the addendum, giving proper tooth engagement at throat
+    # throat_reduction is a RADIUS reduction at the worm throat.
+    # Must be significantly less than addendum (= module) to maintain tooth engagement.
+    # If throat_reduction >= addendum, worm tip at throat only just reaches the
+    # wheel pitch circle → zero engagement → gears slip ("Throat Diameter Trap").
     if globoid and throat_reduction <= 0:
-        throat_reduction = module  # One module gives good hourglass effect
+        addendum = module
+        wheel_pitch_radius = (module * ratio * num_starts) / 2
+        throat_reduction = min(addendum * 0.4, wheel_pitch_radius * 0.05)
 
     # Calculate worm parameters
     worm = calculate_worm(
@@ -549,13 +551,16 @@ def design_from_module(
     )
 
     # Calculate centre distance
-    # Centre distance is always (worm_pd + wheel_pd) / 2 regardless of worm type.
-    # For globoid worms, the throat_reduction affects the worm's hourglass shape
-    # (reducing pitch radius at the throat) but does NOT change axis spacing.
-    centre_distance = calculate_centre_distance(
-        worm["pitch_diameter_mm"],
-        wheel["pitch_diameter_mm"]
-    )
+    # For globoid worms: CD uses throat pitch diameter (where engagement happens).
+    # The physical shaft spacing must match the throat, not the nominal worm diameter.
+    if globoid and throat_reduction > 0:
+        throat_pd = worm["pitch_diameter_mm"] - 2 * throat_reduction
+        centre_distance = calculate_centre_distance(throat_pd, wheel["pitch_diameter_mm"])
+    else:
+        centre_distance = calculate_centre_distance(
+            worm["pitch_diameter_mm"],
+            wheel["pitch_diameter_mm"]
+        )
 
     # Calculate efficiency and self-locking
     efficiency_percent = estimate_efficiency(
@@ -653,22 +658,24 @@ def design_from_centre_distance(
     num_teeth = ratio * num_starts
 
     # Auto-calculate throat_reduction for globoid if not specified
-    # First estimate module from centre_distance (assuming no reduction for initial estimate)
-    # module ≈ 2 × centre_distance / ((worm_to_wheel_ratio + 1) × num_teeth)
+    # throat_reduction is a RADIUS reduction — must be well below addendum for engagement
     if globoid and throat_reduction <= 0:
         estimated_module = 2 * centre_distance / ((worm_to_wheel_ratio + 1) * num_teeth)
-        throat_reduction = estimated_module  # One module gives good hourglass effect
+        addendum = estimated_module
+        wheel_pitch_radius = (estimated_module * ratio * num_starts) / 2
+        throat_reduction = min(addendum * 0.4, wheel_pitch_radius * 0.05)
 
     # Solve for diameters
-    # centre_distance = (worm_pd + wheel_pd) / 2
-    # wheel_pd = module × num_teeth
-    # worm_pd = k × wheel_pd (where k = worm_to_wheel_ratio)
-    #
-    # 2 × cd = k × wheel_pd + wheel_pd = wheel_pd × (k + 1)
-    # wheel_pd = 2 × cd / (k + 1)
-
-    wheel_pitch_diameter = 2 * centre_distance / (worm_to_wheel_ratio + 1)
-    worm_pitch_diameter = centre_distance * 2 - wheel_pitch_diameter
+    # For cylindrical: cd = (worm_pd + wheel_pd) / 2
+    # For globoid: cd = ((worm_pd - 2*throat_reduction) + wheel_pd) / 2
+    #   → 2*cd = k*wheel_pd - 2*throat_reduction + wheel_pd
+    #   → wheel_pd = (2*cd + 2*throat_reduction) / (k + 1)
+    if globoid and throat_reduction > 0:
+        wheel_pitch_diameter = (2 * centre_distance + 2 * throat_reduction) / (worm_to_wheel_ratio + 1)
+        worm_pitch_diameter = wheel_pitch_diameter * worm_to_wheel_ratio
+    else:
+        wheel_pitch_diameter = 2 * centre_distance / (worm_to_wheel_ratio + 1)
+        worm_pitch_diameter = centre_distance * 2 - wheel_pitch_diameter
 
     # Module from wheel
     module = wheel_pitch_diameter / num_teeth
@@ -750,8 +757,11 @@ def design_from_wheel(
     module = wheel_od / (num_teeth + 2 * (1 + profile_shift))
 
     # Auto-calculate throat_reduction for globoid if not specified
+    # throat_reduction is a RADIUS reduction — must be well below addendum for engagement
     if globoid and throat_reduction <= 0:
-        throat_reduction = module  # One module gives good hourglass effect
+        addendum = module
+        wheel_pitch_radius = (module * ratio * num_starts) / 2
+        throat_reduction = min(addendum * 0.4, wheel_pitch_radius * 0.05)
 
     # Calculate worm pitch diameter for target lead angle
     lead = pi * module * num_starts

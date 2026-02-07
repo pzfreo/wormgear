@@ -109,9 +109,9 @@ class GloboidWormGeometry:
         self.nominal_pitch_radius = pitch_radius  # Standard pitch radius at ends
         self.throat_pitch_radius = self.nominal_pitch_radius - self.throat_reduction_mm
 
-        # Calculate the effective centre_distance for this globoid geometry
-        # (used for validation and logging, may differ from assembly.centre_distance_mm if JSON is inconsistent)
-        self.effective_centre_distance = self.throat_pitch_radius + wheel_pitch_radius
+        # Use assembly centre distance directly — the calculator now accounts for
+        # throat reduction when computing CD for globoid worms.
+        self.effective_centre_distance = assembly_params.centre_distance_mm
 
         # Validate throat geometry makes sense
         if self.throat_pitch_radius <= 0:

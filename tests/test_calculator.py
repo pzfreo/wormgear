@@ -47,10 +47,23 @@ class TestDesignFromModule:
             throat_reduction=0.1
         )
 
-        # Centre distance is always (worm_pd + wheel_pd) / 2, even for globoid
-        # Throat reduction affects worm shape, not axis spacing
-        standard_cd = (design.worm.pitch_diameter_mm + design.wheel.pitch_diameter_mm) / 2
-        assert design.assembly.centre_distance_mm == pytest.approx(standard_cd, rel=1e-6)
+        # For globoid: CD uses throat pitch diameter (where engagement happens)
+        # throat_pd = worm_pd - 2 * throat_reduction
+        throat_cd = ((design.worm.pitch_diameter_mm - 2 * 0.1) + design.wheel.pitch_diameter_mm) / 2
+        assert design.assembly.centre_distance_mm == pytest.approx(throat_cd, rel=1e-6)
+
+    def test_globoid_auto_throat_reduction(self):
+        """Test auto throat_reduction preserves tooth engagement."""
+        design = calculate_design_from_module(module=0.6, ratio=11, globoid=True)
+
+        # Auto reduction must be less than addendum (prevents zero-engagement trap)
+        assert design.worm.throat_reduction_mm < design.worm.addendum_mm
+
+        # Worm tip at throat must extend past wheel pitch (positive engagement)
+        throat_pitch_r = design.worm.pitch_diameter_mm / 2 - design.worm.throat_reduction_mm
+        worm_tip_at_throat = throat_pitch_r + design.worm.addendum_mm
+        wheel_pitch_from_worm = design.assembly.centre_distance_mm - design.wheel.pitch_diameter_mm / 2
+        assert worm_tip_at_throat > wheel_pitch_from_worm
 
     def test_profile_shift(self):
         """Test design with profile shift."""
@@ -267,3 +280,120 @@ class TestManufacturingParams:
         )
 
         assert design.manufacturing.throated_wheel is True
+
+
+class TestContactPointVerification:
+    """Verify worm and wheel teeth actually engage at assembly centre distance.
+
+    These tests catch the "Throat Diameter Trap" and similar meshing failures
+    by checking that tooth profiles overlap at the pitch point for any design.
+    """
+
+    @staticmethod
+    def _check_engagement(design):
+        """Check that worm tooth tip reaches past wheel pitch circle.
+
+        At assembly CD, the worm tooth tip must extend beyond the point
+        where the wheel pitch circle intersects the line between axes.
+        Otherwise the teeth cannot mesh and the gears will slip.
+
+        Returns (engagement_mm, details_dict).
+        """
+        cd = design.assembly.centre_distance_mm
+        worm_pitch_r = design.worm.pitch_diameter_mm / 2
+        wheel_pitch_r = design.wheel.pitch_diameter_mm / 2
+        worm_tip_r = design.worm.tip_diameter_mm / 2
+        wheel_tip_r = design.wheel.tip_diameter_mm / 2
+
+        # For globoid: at the throat the pitch radius is reduced
+        throat_reduction = getattr(design.worm, 'throat_reduction_mm', None) or 0
+        if throat_reduction > 0:
+            effective_worm_pitch_r = worm_pitch_r - throat_reduction
+            effective_worm_tip_r = effective_worm_pitch_r + design.worm.addendum_mm
+        else:
+            effective_worm_pitch_r = worm_pitch_r
+            effective_worm_tip_r = worm_tip_r
+
+        # Where wheel pitch circle sits relative to worm axis
+        wheel_pitch_from_worm = cd - wheel_pitch_r
+        # Where worm pitch circle sits relative to wheel axis
+        worm_pitch_from_wheel = cd - effective_worm_pitch_r
+
+        # Worm tooth engagement: tip must reach past wheel pitch
+        worm_engagement = effective_worm_tip_r - wheel_pitch_from_worm
+        # Wheel tooth engagement: tip must reach past worm pitch
+        wheel_engagement = wheel_tip_r - worm_pitch_from_wheel
+
+        details = {
+            'cd': cd,
+            'worm_engagement_mm': worm_engagement,
+            'wheel_engagement_mm': wheel_engagement,
+            'throat_reduction_mm': throat_reduction,
+        }
+        return min(worm_engagement, wheel_engagement), details
+
+    def test_cylindrical_engagement(self):
+        """Cylindrical worm teeth engage at assembly CD."""
+        design = calculate_design_from_module(module=2.0, ratio=30)
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement: {details}"
+
+    def test_cylindrical_small_module_engagement(self):
+        """Small module cylindrical worm teeth engage."""
+        design = calculate_design_from_module(module=0.6, ratio=11)
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement: {details}"
+
+    def test_globoid_engagement(self):
+        """Globoid worm teeth engage at assembly CD (the Throat Diameter Trap test)."""
+        design = calculate_design_from_module(module=0.6, ratio=11, globoid=True)
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement at throat: {details}"
+        # Engagement should be meaningful, not just barely touching
+        assert engagement > design.worm.addendum_mm * 0.3, \
+            f"Engagement too shallow ({engagement:.3f}mm): {details}"
+
+    def test_globoid_explicit_throat_engagement(self):
+        """Globoid with explicit throat_reduction engages."""
+        design = calculate_design_from_module(
+            module=2.0, ratio=30, globoid=True, throat_reduction=0.1
+        )
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement: {details}"
+
+    def test_globoid_large_throat_still_engages(self):
+        """Globoid with larger throat_reduction still has positive engagement."""
+        design = calculate_design_from_module(
+            module=2.0, ratio=30, globoid=True, throat_reduction=0.5
+        )
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement with larger throat: {details}"
+
+    def test_profile_shifted_engagement(self):
+        """Profile-shifted design maintains engagement."""
+        design = calculate_design_from_module(
+            module=2.0, ratio=30, profile_shift=0.3
+        )
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement with profile shift: {details}"
+
+    def test_multi_start_engagement(self):
+        """Multi-start worm maintains engagement."""
+        design = calculate_design_from_module(
+            module=2.0, ratio=15, num_starts=2
+        )
+        engagement, details = self._check_engagement(design)
+        assert engagement > 0, f"No engagement with multi-start: {details}"
+
+    def test_cd_consistency(self):
+        """Assembly CD equals (effective_worm_pd + wheel_pd) / 2."""
+        # Cylindrical
+        d1 = calculate_design_from_module(module=2.0, ratio=30)
+        expected_cd = (d1.worm.pitch_diameter_mm + d1.wheel.pitch_diameter_mm) / 2
+        assert d1.assembly.centre_distance_mm == pytest.approx(expected_cd, rel=1e-6)
+
+        # Globoid: CD should use throat PD
+        d2 = calculate_design_from_module(module=2.0, ratio=30, globoid=True, throat_reduction=0.2)
+        throat_pd = d2.worm.pitch_diameter_mm - 2 * 0.2
+        expected_cd_globoid = (throat_pd + d2.wheel.pitch_diameter_mm) / 2
+        assert d2.assembly.centre_distance_mm == pytest.approx(expected_cd_globoid, rel=1e-6)
