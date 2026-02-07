@@ -293,9 +293,7 @@ class VirtualHobbingWheelGeometry:
 
     def _create_blank(self) -> Part:
         """Create the wheel blank - throated for globoid worms, flat cylinder otherwise."""
-        tip_radius = self.params.tip_diameter_mm / 2
-        if self.params.tip_reduction_mm is not None and self.params.tip_reduction_mm > 0:
-            tip_radius = tip_radius - self.params.tip_reduction_mm / 2
+        tip_radius = self.params.tip_diameter_mm / 2  # already includes tip_reduction
 
         is_globoid = (self.hob_geometry is not None or
                       (self.worm_params.throat_reduction_mm and

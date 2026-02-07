@@ -162,9 +162,7 @@ class WheelGeometry:
         """
         z = self.params.num_teeth
         m = self.params.module_mm
-        tip_radius = self.params.tip_diameter_mm / 2
-        if self.params.tip_reduction_mm is not None and self.params.tip_reduction_mm > 0:
-            tip_radius = tip_radius - self.params.tip_reduction_mm / 2
+        tip_radius = self.params.tip_diameter_mm / 2  # already includes tip_reduction
         root_radius = self.params.root_diameter_mm / 2
         pitch_radius = self.params.pitch_diameter_mm / 2
         pressure_angle = math.radians(self.assembly_params.pressure_angle_deg)
