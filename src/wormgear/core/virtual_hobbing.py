@@ -324,7 +324,12 @@ class VirtualHobbingWheelGeometry:
         cd = self.effective_centre_distance
         throat_reduction = self.worm_params.throat_reduction_mm or 0
         arc_r = self.worm_params.tip_diameter_mm / 2 - throat_reduction
-        margin = self.worm_params.addendum_mm
+        # Margin = clearance between worm tip envelope and blank surface.
+        # worm_addendum alone cancels algebraically, leaving zero addendum at
+        # the throat (blank_r = pitch_r). Adding 50% of wheel addendum ensures
+        # half-height teeth at the throat while preserving meaningful throating.
+        wheel_addendum = self.params.addendum_mm
+        margin = self.worm_params.addendum_mm + 0.5 * wheel_addendum
 
         # Calculate min radius at throat centre (z=0) for trim option
         centre_worm_dist = cd - arc_r

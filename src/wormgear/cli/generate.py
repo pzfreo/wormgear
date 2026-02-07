@@ -1046,7 +1046,8 @@ More info: https://wormgear.studio
             if use_globoid and design.worm.throat_reduction_mm:
                 arc_r = design.worm.tip_diameter_mm / 2 - design.worm.throat_reduction_mm
                 cd = design.assembly.centre_distance_mm
-                min_blank_r = cd - arc_r + design.worm.addendum_mm
+                margin = design.worm.addendum_mm + 0.5 * design.wheel.addendum_mm
+                min_blank_r = cd - arc_r + margin
                 tip_r = design.wheel.tip_diameter_mm / 2
                 throat_od = round(2 * min(tip_r, min_blank_r), 3)
                 analysis_data["throat_geometry"] = {
