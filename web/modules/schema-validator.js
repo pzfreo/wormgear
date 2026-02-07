@@ -197,8 +197,8 @@ export function validateCalculatorInputs(inputs) {
     if (inputs.use_standard_module !== undefined) {
         validated.use_standard_module = !!inputs.use_standard_module;
     }
-    if (inputs.wheel_max_od !== null && inputs.wheel_max_od !== undefined) {
-        validated.wheel_max_od = requireNumber(inputs.wheel_max_od, 'wheel_max_od');
+    if (inputs.wheel_tip_reduction !== null && inputs.wheel_tip_reduction !== undefined) {
+        validated.wheel_tip_reduction = requireNumber(inputs.wheel_tip_reduction, 'wheel_tip_reduction');
     }
     if (inputs.relief_groove !== null && inputs.relief_groove !== undefined) {
         const rg = inputs.relief_groove;

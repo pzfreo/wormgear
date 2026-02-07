@@ -238,10 +238,10 @@ More info: https://wormgear.studio
     )
 
     parser.add_argument(
-        '--wheel-max-od',
+        '--wheel-tip-reduction',
         type=float,
         default=None,
-        help='Maximum wheel outer diameter in mm (truncates tip to fit envelope)'
+        help='Reduce wheel tip diameter by this amount in mm (stub teeth)'
     )
 
     parser.add_argument(
@@ -520,11 +520,12 @@ More info: https://wormgear.studio
     use_worm_length = args.worm_length if args.worm_length != 40.0 else (json_mfg.worm_length_mm if json_mfg and json_mfg.worm_length_mm else 40.0)
     use_wheel_width = args.wheel_width if args.wheel_width is not None else (json_mfg.wheel_width_mm if json_mfg and json_mfg.wheel_width_mm else None)
 
-    # Wheel OD truncation: CLI arg > JSON value
-    if args.wheel_max_od is not None:
-        design.wheel.max_od_mm = args.wheel_max_od
-    if design.wheel.max_od_mm is not None and design.wheel.max_od_mm < design.wheel.tip_diameter_mm:
-        print(f"  Wheel OD truncated: {design.wheel.tip_diameter_mm:.2f}mm → {design.wheel.max_od_mm:.2f}mm")
+    # Wheel tip reduction (stub teeth): CLI arg > JSON value
+    if args.wheel_tip_reduction is not None:
+        design.wheel.tip_reduction_mm = args.wheel_tip_reduction
+    if design.wheel.tip_reduction_mm is not None and design.wheel.tip_reduction_mm > 0:
+        reduced_tip = design.wheel.tip_diameter_mm - design.wheel.tip_reduction_mm
+        print(f"  Wheel tip reduced: {design.wheel.tip_diameter_mm:.2f}mm → {reduced_tip:.2f}mm (stub teeth)")
 
     # Generate worm
     if generate_worm:

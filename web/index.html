@@ -211,13 +211,13 @@
 
                             <div class="checkbox-option">
                                 <input type="checkbox" id="limit-wheel-od">
-                                <label for="limit-wheel-od">Limit wheel outer diameter (OD truncation)</label>
+                                <label for="limit-wheel-od">Stub teeth (reduce wheel tip)</label>
                             </div>
 
                             <div id="wheel-max-od-group" style="display: none;">
-                                <label for="wheel-max-od">Maximum Wheel OD (mm):</label>
-                                <input type="number" id="wheel-max-od" value="60" step="0.1" min="5">
-                                <small class="hint">Truncates wheel tip to fit envelope; standard tooth geometry preserved</small>
+                                <label for="wheel-tip-reduction">Tip reduction (mm):</label>
+                                <input type="number" id="wheel-tip-reduction" value="0.2" step="0.05" min="0">
+                                <small class="hint">Reduces wheel tip diameter to create shorter teeth</small>
                             </div>
 
                             <div class="checkbox-option">

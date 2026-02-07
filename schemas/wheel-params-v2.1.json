@@ -34,7 +34,7 @@
       "title": "Profile Shift",
       "type": "number"
     },
-    "max_od_mm": {
+    "tip_reduction_mm": {
       "anyOf": [
         {
           "type": "number"
@@ -44,7 +44,7 @@
         }
       ],
       "default": null,
-      "title": "Max Od Mm"
+      "title": "Tip Reduction Mm"
     },
     "throat_diameter_mm": {
       "anyOf": [

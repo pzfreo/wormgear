@@ -306,8 +306,8 @@ class WheelParams(BaseModel):
     addendum_mm: float
     dedendum_mm: float
     profile_shift: float = 0.0
-    # OD truncation: if set, geometry uses min(tip_diameter_mm, max_od_mm)
-    max_od_mm: Optional[float] = None
+    # Stub tooth: reduce tip by this amount (mm) from natural tip diameter
+    tip_reduction_mm: Optional[float] = None
     # Informational fields (for markdown output, not used by generator)
     throat_diameter_mm: Optional[float] = None
     helix_angle_deg: Optional[float] = None
