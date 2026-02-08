@@ -458,7 +458,10 @@ tests/
 
 **Running tests:**
 ```bash
-# Run all tests
+# Fast tests only (~6s) - calculator, validation, IO, web
+pytest -m "not slow"
+
+# Run all tests (~8min) - includes geometry generation
 pytest
 
 # Run with coverage
@@ -1180,11 +1183,19 @@ wormgear/
 
 ### Running Tests
 ```bash
-pytest                              # All tests
+pytest -m "not slow"               # Fast tests only (~6s, 256 tests)
+pytest                              # All tests (~8min, 486 tests)
+pytest -m slow                     # Geometry tests only
 pytest --cov=wormgear              # With coverage
 pytest tests/test_calculator.py    # Specific file
 pytest -k "test_bore"              # Tests matching pattern
 ```
+
+**Slow test markers**: All test files that generate 3D geometry (build123d) are marked
+with `pytestmark = pytest.mark.slow`. Use `pytest -m "not slow"` for fast feedback on
+calculator/validation changes. The marked files are: `test_worm.py`, `test_wheel.py`,
+`test_globoid_worm.py`, `test_virtual_hobbing.py`, `test_integration.py`,
+`test_mesh_alignment.py`, `test_features.py`, `test_cli.py`, `test_rim_thickness.py`.
 
 ### Code Quality
 ```bash
