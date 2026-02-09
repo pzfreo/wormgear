@@ -527,12 +527,21 @@ More info: https://wormgear.studio
     use_wheel_width = args.wheel_width if args.wheel_width is not None else (json_mfg.wheel_width_mm if json_mfg and json_mfg.wheel_width_mm else None)
     use_trim_engagement = args.trim_to_min_engagement or (json_mfg.trim_to_min_engagement if json_mfg else False)
 
-    # Wheel tip reduction (stub teeth): CLI arg > JSON value
+    # Wheel tip reduction (stub teeth): CLI arg overrides JSON value
+    # NOTE: The JSON tip_diameter_mm is already reduced by the calculator.
+    # Only apply reduction here if the user provides a NEW value via CLI.
     if args.wheel_tip_reduction is not None:
+        # User is overriding: undo any existing reduction, then apply new one
+        if design.wheel.tip_reduction_mm and design.wheel.tip_reduction_mm > 0:
+            design.wheel.tip_diameter_mm += design.wheel.tip_reduction_mm
+            design.wheel.addendum_mm = (design.wheel.tip_diameter_mm - design.wheel.pitch_diameter_mm) / 2
         design.wheel.tip_reduction_mm = args.wheel_tip_reduction
+        if args.wheel_tip_reduction > 0:
+            design.wheel.tip_diameter_mm -= args.wheel_tip_reduction
+            design.wheel.addendum_mm = (design.wheel.tip_diameter_mm - design.wheel.pitch_diameter_mm) / 2
     if design.wheel.tip_reduction_mm is not None and design.wheel.tip_reduction_mm > 0:
-        reduced_tip = design.wheel.tip_diameter_mm - design.wheel.tip_reduction_mm
-        print(f"  Wheel tip reduced: {design.wheel.tip_diameter_mm:.2f}mm → {reduced_tip:.2f}mm (stub teeth)")
+        original_tip = design.wheel.tip_diameter_mm + design.wheel.tip_reduction_mm
+        print(f"  Wheel tip reduced: {original_tip:.2f}mm → {design.wheel.tip_diameter_mm:.2f}mm (stub teeth)")
     if use_trim_engagement and use_globoid:
         print(f"  Wheel OD trimmed to throat minimum (edges won't flare beyond engagement zone)")
 
