@@ -3,7 +3,7 @@
 **Author:** Claude (with Paul Fremantle)
 **Date:** 2026-02-10
 **Status:** Draft for Review
-**Branch:** TBD (separate from UI redesign)
+**Branch:** `claude/review-docs-sweep-plan-H1xfL`
 
 ---
 

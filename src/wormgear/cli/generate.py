@@ -308,6 +308,17 @@ More info: https://wormgear.studio
         help='Tooth profile type per DIN 3975: ZA=straight flanks/CNC (default), ZK=circular arc/3D print, ZI=involute/hobbing'
     )
 
+    # Experimental generation method
+    parser.add_argument(
+        '--generation-method',
+        type=str,
+        choices=['loft', 'sweep'],
+        default='loft',
+        help='EXPERIMENTAL: Worm thread generation method. '
+             '"loft" (default, proven) creates sections along helix and lofts. '
+             '"sweep" sweeps a single profile along helix for cleaner topology.'
+    )
+
     # Experimental virtual hobbing
     parser.add_argument(
         '--virtual-hobbing',
@@ -718,7 +729,8 @@ More info: https://wormgear.studio
                 ddcut=worm_ddcut,
                 set_screw=worm_set_screw,
                 relief_groove=worm_relief_groove,
-                profile=profile
+                profile=profile,
+                generation_method=args.generation_method,
             )
 
         worm = worm_geo.build()

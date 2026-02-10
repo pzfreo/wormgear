@@ -18,7 +18,7 @@ from OCP.TopoDS import TopoDS
 logger = logging.getLogger(__name__)
 from build123d import (
     Part, Cylinder, Box, Align, Pos, Axis, Vector, Plane,
-    BuildSketch, BuildLine, Line, Spline, make_face, loft, Helix,
+    BuildSketch, BuildLine, Line, Spline, make_face, loft, sweep, Helix,
     export_step, import_step,
 )
 from ..io.loaders import WormParams, AssemblyParams
@@ -40,6 +40,9 @@ class WormGeometry:
     then unioning with core cylinder. Optionally adds bore and keyway.
     """
 
+    # Valid generation methods for thread creation
+    GENERATION_METHODS = ("loft", "sweep")
+
     def __init__(
         self,
         params: WormParams,
@@ -51,7 +54,8 @@ class WormGeometry:
         ddcut: Optional['DDCutFeature'] = None,
         set_screw: Optional[SetScrewFeature] = None,
         relief_groove: Optional[ReliefGrooveFeature] = None,
-        profile: ProfileType = "ZA"
+        profile: ProfileType = "ZA",
+        generation_method: Literal["loft", "sweep"] = "loft"
     ):
         """
         Initialize worm geometry generator.
@@ -60,7 +64,8 @@ class WormGeometry:
             params: Worm parameters from calculator
             assembly_params: Assembly parameters (for pressure angle)
             length: Total worm length in mm (default: 40)
-            sections_per_turn: Number of loft sections per helix turn (default: 36)
+            sections_per_turn: Number of loft sections per helix turn (default: 36,
+                               only used by loft method)
             bore: Optional bore feature specification
             keyway: Optional keyway feature specification (requires bore, mutually exclusive with ddcut)
             ddcut: Optional double-D cut feature (requires bore, mutually exclusive with keyway)
@@ -70,6 +75,9 @@ class WormGeometry:
                      "ZA" - Straight flanks (trapezoidal) - best for CNC (default)
                      "ZK" - Slightly convex flanks - better for 3D printing
                      "ZI" - Involute (straight in axial section) - for hobbing
+            generation_method: Thread generation method:
+                     "loft" - Proven loft-based approach (default)
+                     "sweep" - Experimental sweep of single profile along helix
         """
         self.params = params
         self.assembly_params = assembly_params
@@ -81,6 +89,12 @@ class WormGeometry:
         self.set_screw = set_screw
         self.relief_groove = relief_groove
         self.profile = profile.upper() if isinstance(profile, str) else profile
+        self.generation_method = generation_method
+        if generation_method not in self.GENERATION_METHODS:
+            raise ValueError(
+                f"Unknown generation_method: {generation_method!r}. "
+                f"Must be one of {self.GENERATION_METHODS}"
+            )
 
         # Set keyway as shaft type if specified
         if self.keyway is not None:
@@ -378,11 +392,18 @@ class WormGeometry:
             return result
 
     def _create_single_thread(self, start_angle: float = 0) -> Part:
-        """
-        Create a single helical thread using sweep with auxiliary spine.
+        """Dispatch to loft or sweep thread creation method."""
+        if self.generation_method == "sweep":
+            return self._create_single_thread_sweep(start_angle)
+        return self._create_single_thread_loft(start_angle)
 
-        Uses the worm axis as an auxiliary spine to control profile orientation,
-        ensuring the profile stays aligned with the radial direction as it sweeps.
+    def _create_single_thread_loft(self, start_angle: float = 0) -> Part:
+        """
+        Create a single helical thread by lofting profiles along a helix.
+
+        Creates many cross-section profiles positioned along the helical path
+        and lofts between them with ruled=True for consistent geometry.
+        Proven approach with cosine-ramped taper at thread ends.
         """
         import math
 
@@ -600,6 +621,118 @@ class WormGeometry:
         logger.debug(f"Lofting {len(sections)} sections...")
         thread = loft(sections, ruled=True)
         logger.debug("Thread lofted successfully")
+
+        return thread
+
+    def _create_single_thread_sweep(self, start_angle: float = 0) -> Part:
+        """
+        Create a single helical thread by sweeping one profile along a helix.
+
+        Sweeps a single full-depth profile along the helical path using
+        build123d's sweep() with normal=(0,0,1) to keep the profile
+        radially oriented (profile plane always contains the Z axis).
+
+        This produces a continuous helical surface without loft seams,
+        resulting in cleaner topology and smaller STEP files.
+        """
+        pitch_radius = self.params.pitch_diameter_mm / 2
+        tip_radius = self.params.tip_diameter_mm / 2
+        root_radius = self.params.root_diameter_mm / 2
+        lead = self.params.lead_mm
+        is_right_hand = self.params.hand == Hand.RIGHT
+        logger.debug(f"Sweep thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, "
+                      f"root_r={root_radius:.2f}, lead={lead:.2f}mm")
+
+        # Thread profile dimensions
+        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
+        thread_half_width_pitch = self.params.thread_thickness_mm / 2
+
+        addendum = self.params.addendum_mm
+        dedendum = self.params.dedendum_mm
+        thread_half_width_root = thread_half_width_pitch + dedendum * math.tan(pressure_angle_rad)
+        thread_half_width_tip = max(0.1, thread_half_width_pitch - addendum * math.tan(pressure_angle_rad))
+
+        # Extend helix beyond worm length so trim-to-length removes thread ends
+        extended_length = self.length + 2 * lead
+
+        # Create helix path at pitch radius
+        helix = Helix(
+            pitch=lead if is_right_hand else -lead,
+            height=extended_length,
+            radius=pitch_radius,
+            center=(0, 0, -extended_length / 2),
+            direction=(0, 0, 1)
+        )
+
+        if start_angle != 0:
+            helix = helix.rotate(Axis.Z, start_angle)
+
+        # Get the start point and tangent of the helix to position the profile
+        start_point = helix @ 0
+        start_tangent = helix % 0
+
+        # Radial direction at helix start
+        angle = math.atan2(start_point.Y, start_point.X)
+        radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
+
+        # Profile plane: perpendicular to helix tangent, radial direction is x_dir
+        profile_plane = Plane(origin=start_point, x_dir=radial_dir, z_dir=start_tangent)
+
+        # Profile coordinates relative to pitch radius:
+        # x_dir = radial (inner_r to outer_r), y_dir = along-helix (width)
+        inner_r = -dedendum
+        outer_r = addendum
+
+        # Build the 2D profile on the profile plane
+        with BuildSketch(profile_plane) as sk:
+            with BuildLine():
+                if self.profile in (WormProfile.ZA, "ZA", WormProfile.ZI, "ZI"):
+                    # ZA/ZI: Straight trapezoidal flanks
+                    root_left = (inner_r, -thread_half_width_root)
+                    root_right = (inner_r, thread_half_width_root)
+                    tip_left = (outer_r, -thread_half_width_tip)
+                    tip_right = (outer_r, thread_half_width_tip)
+
+                    Line(root_left, tip_left)
+                    Line(tip_left, tip_right)
+                    Line(tip_right, root_right)
+                    Line(root_right, root_left)
+
+                elif self.profile in (WormProfile.ZK, "ZK"):
+                    # ZK: Circular arc flanks
+                    num_points = 9
+                    left_flank = []
+                    right_flank = []
+                    arc_radius = 0.45 * self.params.module_mm
+                    flank_height = outer_r - inner_r
+
+                    for j in range(num_points):
+                        t = j / (num_points - 1)
+                        r_pos = inner_r + t * flank_height
+                        linear_width = thread_half_width_root + t * (thread_half_width_tip - thread_half_width_root)
+                        arc_param = t * math.pi
+                        arc_bulge = arc_radius * 0.15 * math.sin(arc_param)
+                        width = linear_width + arc_bulge
+                        left_flank.append((r_pos, -width))
+                        right_flank.append((r_pos, width))
+
+                    Spline(left_flank)
+                    Line(left_flank[-1], right_flank[-1])
+                    Spline(list(reversed(right_flank)))
+                    Line(right_flank[0], left_flank[0])
+
+                else:
+                    raise ValueError(f"Unknown profile type: {self.profile}")
+            make_face()
+
+        profile_face = sk.sketch.faces()[0]
+
+        # Sweep the profile along the helix
+        # normal=(0,0,1) locks the Z direction in the profile frame, keeping
+        # the profile radially oriented as it follows the helical path
+        logger.debug("Sweeping profile along helix...")
+        thread = sweep(profile_face, path=helix, normal=(0, 0, 1))
+        logger.debug("Sweep completed successfully")
 
         return thread
 
