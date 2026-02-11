@@ -55,7 +55,7 @@ class WormGeometry:
         set_screw: Optional[SetScrewFeature] = None,
         relief_groove: Optional[ReliefGrooveFeature] = None,
         profile: ProfileType = "ZA",
-        generation_method: Literal["loft", "sweep"] = "loft"
+        generation_method: Literal["loft", "sweep"] = "sweep"
     ):
         """
         Initialize worm geometry generator.
