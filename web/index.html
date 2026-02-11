@@ -25,8 +25,7 @@
             <div class="tab-group">
                 <span class="tab-group-label">DESIGN</span>
                 <div class="tab-group-buttons">
-                    <button class="tab active" data-tab="cylindrical">Cylindrical</button>
-                    <button class="tab" data-tab="globoid">Globoid</button>
+                    <button class="tab active" data-tab="design">Design</button>
                 </div>
             </div>
             <span class="tab-separator"></span>
@@ -47,6 +46,13 @@
                     <!-- ====== Step 1: Core Design (always visible) ====== -->
                     <div id="step-1-core" class="step-section">
                         <h2 class="step-header">Step 1: Core Design</h2>
+
+                        <label for="worm-type">Worm Type:</label>
+                        <select id="worm-type">
+                            <option value="cylindrical" selected>Cylindrical</option>
+                            <option value="globoid">Globoid</option>
+                        </select>
+                        <small class="hint">Cylindrical: standard, easy to manufacture. Globoid: hourglass shape, more contact area.</small>
 
                         <label for="mode">Design Mode:</label>
                         <select id="mode">
