@@ -16,6 +16,19 @@ console.log('[Bore Calculator] Module loaded - VERSION: 2025-01-28-python-source
 let recommendedWormBore = null;
 let recommendedWheelBore = null;
 
+// Loading guard: when true, suppress auto-fill of bore diameters
+// and auto-selection of anti-rotation defaults.
+// Set by loadDesignIntoDesignTab() during JSON round-trip loading.
+let _isLoading = false;
+
+/**
+ * Set loading state to suppress auto-fill and auto-select during JSON round-trip.
+ * @param {boolean} loading - true to suppress, false to restore normal behavior
+ */
+export function setLoadingState(loading) {
+    _isLoading = loading;
+}
+
 /**
  * Get current recommended bore values (from Python)
  * @returns {{worm: number|null, wheel: number|null}}
@@ -153,17 +166,21 @@ function updateAntiRotationForPart(partName, recommendedBore) {
     }
 
     // Auto-select sensible default
+    // Always enforce hard constraint: DIN6885 requires bore >= 6mm
     if (antiRotSelect.value === 'DIN6885' && effectiveBore < 6.0) {
         console.log(`[Anti-Rotation] ${partName}: switching from DIN6885 to ddcut (bore too small)`);
         antiRotSelect.value = 'ddcut'; // Switch to ddcut for small bores
-    } else if (effectiveBore >= 6.0 && antiRotSelect.value === 'none') {
-        // Default to DIN 6885 for bores >= 6mm (engineers expect a keyed bore)
-        console.log(`[Anti-Rotation] ${partName}: setting default to DIN6885 (bore ${effectiveBore}mm)`);
-        antiRotSelect.value = 'DIN6885';
-    } else if (effectiveBore < 6.0 && (antiRotSelect.value === '' || antiRotSelect.value === 'none')) {
-        // Default to ddcut for small bores
-        console.log(`[Anti-Rotation] ${partName}: setting default to ddcut (bore ${effectiveBore}mm)`);
-        antiRotSelect.value = 'ddcut';
+    } else if (!_isLoading) {
+        // Only auto-select defaults during normal user interaction, not during JSON loading
+        if (effectiveBore >= 6.0 && antiRotSelect.value === 'none') {
+            // Default to DIN 6885 for bores >= 6mm (engineers expect a keyed bore)
+            console.log(`[Anti-Rotation] ${partName}: setting default to DIN6885 (bore ${effectiveBore}mm)`);
+            antiRotSelect.value = 'DIN6885';
+        } else if (effectiveBore < 6.0 && (antiRotSelect.value === '' || antiRotSelect.value === 'none')) {
+            // Default to ddcut for small bores
+            console.log(`[Anti-Rotation] ${partName}: setting default to ddcut (bore ${effectiveBore}mm)`);
+            antiRotSelect.value = 'ddcut';
+        }
     }
 }
 
@@ -177,7 +194,8 @@ export function setupBoreEventListeners() {
         customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
 
         // Set custom bore to recommended value when switching to custom
-        if (e.target.value === 'custom' && recommendedWormBore?.diameter_mm) {
+        // (skip during JSON loading to preserve loaded values)
+        if (e.target.value === 'custom' && recommendedWormBore?.diameter_mm && !_isLoading) {
             document.getElementById('worm-bore-diameter').value = recommendedWormBore.diameter_mm.toFixed(1);
         }
 
@@ -189,7 +207,7 @@ export function setupBoreEventListeners() {
         const customDiv = document.getElementById('wheel-bore-custom');
         customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
 
-        if (e.target.value === 'custom' && recommendedWheelBore?.diameter_mm) {
+        if (e.target.value === 'custom' && recommendedWheelBore?.diameter_mm && !_isLoading) {
             document.getElementById('wheel-bore-diameter').value = recommendedWheelBore.diameter_mm.toFixed(1);
         }
 
