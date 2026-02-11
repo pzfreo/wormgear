@@ -1046,14 +1046,11 @@ async function generateGeometry(type) {
         // Read generation parameters from GENERATOR TAB UI (not from design JSON)
         const genWheelGeneration = document.getElementById('gen-wheel-generation');
         const genHobbingPrecision = document.getElementById('gen-hobbing-precision');
-        const genSectionsPerTurn = document.getElementById('gen-sections-per-turn');
 
         const virtualHobbing = genWheelGeneration ? genWheelGeneration.value === 'virtual-hobbing' : false;
 
         const hobbingPrecisionMap = { 'preview': 36, 'balanced': 72, 'high': 144 };
         const hobbingSteps = genHobbingPrecision ? (hobbingPrecisionMap[genHobbingPrecision.value] || 72) : 72;
-
-        const sectionsPerTurn = genSectionsPerTurn ? parseInt(genSectionsPerTurn.value) : 36;
 
         // Get profile from design JSON (it's a design concern, stays in calculator output)
         const manufacturing = designData.manufacturing || {};
@@ -1079,7 +1076,7 @@ async function generateGeometry(type) {
         isGenerating = true;
 
         appendToConsole('Starting geometry generation...');
-        appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}, Sections/Turn: ${sectionsPerTurn}`);
+        appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
 
         // Show and reset progress indicator
         const progressContainer = document.getElementById('generation-progress');
@@ -1110,8 +1107,7 @@ async function generateGeometry(type) {
                 hobbingSteps: effectiveHobbingSteps,
                 profile,
                 wormLength,
-                wheelWidth,
-                sectionsPerTurn
+                wheelWidth
             }
         });
 
@@ -1158,11 +1154,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isVirtualHobbing = e.target.value === 'virtual-hobbing';
         document.getElementById('gen-hobbing-precision-group').style.display = isVirtualHobbing ? 'block' : 'none';
         updateThroatingNote();
-    });
-
-    // Generator tab: sections per turn slider value display
-    document.getElementById('gen-sections-per-turn').addEventListener('input', (e) => {
-        document.getElementById('gen-sections-per-turn-value').textContent = e.target.value;
     });
 
     // Update design summary when JSON is pasted or edited

@@ -399,12 +399,16 @@
                                         Design specifies non-throated wheel. Virtual hobbing will produce throated geometry regardless.
                                     </div>
 
-                                    <label for="gen-sections-per-turn">Sections per Turn:</label>
-                                    <div class="slider-group">
-                                        <input type="range" id="gen-sections-per-turn" min="18" max="72" step="18" value="36" class="slider">
-                                        <span id="gen-sections-per-turn-value" class="slider-value">36</span>
+                                    <!-- Sections per turn: hidden - sweep method ignores it for cylindrical worms.
+                                         Kept in DOM for globoid loft (hardcoded to 36 in worker). -->
+                                    <div id="gen-sections-per-turn-group" style="display: none;">
+                                        <label for="gen-sections-per-turn">Sections per Turn:</label>
+                                        <div class="slider-group">
+                                            <input type="range" id="gen-sections-per-turn" min="18" max="72" step="18" value="36" class="slider">
+                                            <span id="gen-sections-per-turn-value" class="slider-value">36</span>
+                                        </div>
+                                        <small class="hint">Worm thread smoothness. 36 = 10 deg per section, good for most uses. 72 for high quality.</small>
                                     </div>
-                                    <small class="hint">Worm thread smoothness. 36 = 10 deg per section, good for most uses. 72 for high quality.</small>
                                 </div>
 
                                 <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
