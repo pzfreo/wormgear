@@ -518,26 +518,26 @@ the JSON for reproducibility when saving the complete package).
 
 ### Phase 1: Tab Structure and Step Flow (This PR)
 
-- [ ] Split into Cylindrical / Globoid / Generator tabs
-- [ ] Implement 3-step form layout within design tabs
-- [ ] Move virtual hobbing controls to generator tab
-- [ ] Change defaults (From Module, backlash 0.05, DIN 6885 keyways)
-- [ ] Add inline hint text to all parameters
-- [ ] Ensure all existing functionality still works
+- [x] Split into Cylindrical / Globoid / Generator tabs
+- [x] Implement 3-step form layout within design tabs
+- [x] Move virtual hobbing controls to generator tab
+- [x] Change defaults (From Module, backlash 0.05, DIN 6885 keyways)
+- [x] Add inline hint text to all parameters
+- [x] Ensure all existing functionality still works
 
 ### Phase 2: Specification Sheet (Follow-up)
 
-- [ ] Replace `<pre>` results with formatted HTML specification table
-- [ ] Structured sections: Overview, Worm, Wheel, Assembly, Shaft Interface
-- [ ] Validation messages rendered inline with affected sections
-- [ ] "Open in 3D Generator" button
+- [x] Replace `<pre>` results with formatted HTML specification table
+- [x] Structured sections: Overview, Worm, Wheel, Assembly, Shaft Interface
+- [x] Validation messages rendered inline with affected sections
+- [x] "Open in 3D Generator" button
 
 ### Phase 3: Polish (Follow-up)
 
-- [ ] Responsive layout for mobile (steps stack vertically)
-- [ ] Print-friendly specification sheet
-- [ ] Share link compatibility with tab routing
-- [ ] Help/educational mode with expanded explanations
+- [x] Responsive layout for mobile (steps stack vertically)
+- [x] Print-friendly specification sheet
+- [x] Share link compatibility with tab routing
+- [x] Help/educational mode with expanded explanations
 
 ---
 

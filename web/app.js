@@ -38,8 +38,238 @@ function debounce(func, wait) {
 // UI HELPERS
 // ============================================================================
 
+/**
+ * Get the active worm type from the design tab's data attribute.
+ * @returns {string} 'cylindrical' or 'globoid'
+ */
+function getActiveWormType() {
+    return document.getElementById('design-tab')?.dataset.wormType || 'cylindrical';
+}
+
+/**
+ * Show/hide the throating note in the generator tab.
+ * Shown when virtual hobbing is selected but design has throated_wheel: false.
+ */
+function updateThroatingNote() {
+    const note = document.getElementById('gen-throating-note');
+    if (!note) return;
+    const isVirtualHobbing = document.getElementById('gen-wheel-generation')?.value === 'virtual-hobbing';
+    const isThroated = currentDesign?.manufacturing?.throated_wheel;
+    note.style.display = (isVirtualHobbing && !isThroated) ? 'block' : 'none';
+}
+
+/**
+ * Map a validation message code to a spec sheet section name.
+ * Returns the section title where the message should appear inline.
+ */
+function getMessageSection(code) {
+    if (!code) return 'General';
+
+    // Overview section
+    if (code.startsWith('MODULE_') || code.startsWith('PROFILE_') || code.startsWith('PRESSURE_ANGLE'))
+        return 'Overview';
+
+    // Worm section
+    if (code.startsWith('LEAD_ANGLE') || code.startsWith('WORM_IMPOSSIBLE') ||
+        code.startsWith('WORM_ZERO') || code.startsWith('WORM_ROOT_EXCEEDS') ||
+        code.startsWith('WORM_TOO_THIN') || code.startsWith('WORM_TOO_THICK') ||
+        code.startsWith('WORM_LENGTH') || code.startsWith('WORM_TYPE') ||
+        code.startsWith('THROAT_REDUCTION'))
+        return 'Worm';
+
+    // Wheel section
+    if (code.startsWith('WHEEL_IMPOSSIBLE') || code.startsWith('WHEEL_ZERO') ||
+        code.startsWith('WHEEL_ROOT_EXCEEDS') || code.startsWith('WHEEL_TIP_REDUCTION') ||
+        code.startsWith('TEETH_'))
+        return 'Wheel';
+
+    // Assembly section
+    if (code.startsWith('EFFICIENCY') || code.startsWith('CLEARANCE') ||
+        code.startsWith('GEOMETRIC_') || code.startsWith('CENTRE_DISTANCE'))
+        return 'Assembly';
+
+    // Shaft Interface section
+    if (code.includes('BORE') || code.includes('DDCUT'))
+        return 'Shaft Interface';
+
+    return 'General';
+}
+
+/**
+ * Render inline validation messages for a given section.
+ * @param {Array} messages - All validation messages
+ * @param {string} sectionName - Section to filter for
+ * @returns {string} HTML string of inline messages
+ */
+function renderInlineMessages(messages, sectionName) {
+    const sectionMsgs = messages.filter(m => getMessageSection(m.code) === sectionName);
+    if (sectionMsgs.length === 0) return '';
+
+    let html = '<div class="spec-messages">';
+    for (const msg of sectionMsgs) {
+        html += `<div class="spec-msg spec-msg-${msg.severity}">`;
+        html += `<span class="spec-msg-text">${msg.message}</span>`;
+        if (msg.suggestion) {
+            html += `<span class="spec-msg-suggestion">${msg.suggestion}</span>`;
+        }
+        html += '</div>';
+    }
+    html += '</div>';
+    return html;
+}
+
+/**
+ * Render a structured specification sheet from the design JSON.
+ * Replaces the old plain-text <pre> output with formatted HTML tables.
+ * Validation messages are rendered inline within each section.
+ *
+ * @param {object} design - The full design JSON object
+ * @param {object} output - The calculator output (for recommended bore info)
+ * @param {Array} [messages] - Validation messages to render inline
+ */
+function renderSpecSheet(design, output, messages = []) {
+    const container = document.getElementById('spec-sheet');
+    if (!container || !design) {
+        container.innerHTML = '<p class="spec-sheet-placeholder">Enter parameters to calculate design</p>';
+        return;
+    }
+
+    const worm = design.worm || {};
+    const wheel = design.wheel || {};
+    const asm = design.assembly || {};
+    const mfg = design.manufacturing || {};
+    const features = design.features || {};
+
+    const wormType = worm.type || 'cylindrical';
+    const profileLabels = { 'ZA': 'ZA (straight flanks)', 'ZK': 'ZK (convex flanks)', 'ZI': 'ZI (involute)' };
+    const profileLabel = profileLabels[mfg.profile] || mfg.profile || 'ZA';
+
+    // Helper: format number to fixed decimals, or dash if missing
+    const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : '\u2014';
+    const fmtMm = (val, decimals = 2) => val != null ? `${Number(val).toFixed(decimals)} mm` : '\u2014';
+    const fmtDeg = (val, decimals = 1) => val != null ? `${Number(val).toFixed(decimals)}\u00b0` : '\u2014';
+
+    // Helper: build a table section with inline validation messages
+    function section(title, rows) {
+        let html = `<div class="spec-section"><h3 class="spec-section-title">${title}</h3><table class="spec-table">`;
+        for (const [label, value] of rows) {
+            if (value === undefined || value === null) continue;
+            html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
+        }
+        html += '</table>';
+        html += renderInlineMessages(messages, title);
+        html += '</div>';
+        return html;
+    }
+
+    let html = '';
+
+    // OVERVIEW
+    html += section('Overview', [
+        ['Ratio', `${asm.ratio}:1`],
+        ['Module', fmtMm(worm.module_mm, 3)],
+        ['Centre Distance', fmtMm(asm.centre_distance_mm)],
+        ['Hand', (asm.hand || 'right').charAt(0).toUpperCase() + (asm.hand || 'right').slice(1).toLowerCase()],
+        ['Profile', profileLabel],
+        wormType === 'globoid' ? ['Worm Type', 'Globoid'] : null,
+    ].filter(Boolean));
+
+    // WORM
+    const wormRows = [
+        ['Tip Diameter', fmtMm(worm.tip_diameter_mm)],
+        ['Pitch Diameter', fmtMm(worm.pitch_diameter_mm)],
+        ['Root Diameter', fmtMm(worm.root_diameter_mm)],
+        ['Lead', fmtMm(worm.lead_mm, 3)],
+        ['Lead Angle', fmtDeg(worm.lead_angle_deg)],
+        ['Starts', worm.num_starts],
+    ];
+    if (mfg.worm_length_mm) {
+        wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm <span class="spec-note">(recommended)</span>`]);
+    }
+    if (wormType === 'globoid' && worm.throat_curvature_radius_mm) {
+        wormRows.push(['Throat Pitch Radius', fmtMm(worm.throat_curvature_radius_mm)]);
+    }
+    if (wormType === 'globoid' && worm.throat_reduction_mm) {
+        wormRows.push(['Throat Reduction', fmtMm(worm.throat_reduction_mm)]);
+    }
+    html += section('Worm', wormRows);
+
+    // WHEEL
+    const wheelRows = [
+        ['Tip Diameter', fmtMm(wheel.tip_diameter_mm)],
+        ['Pitch Diameter', fmtMm(wheel.pitch_diameter_mm)],
+        ['Root Diameter', fmtMm(wheel.root_diameter_mm)],
+        ['Teeth', wheel.num_teeth],
+    ];
+    if (mfg.wheel_width_mm) {
+        wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm <span class="spec-note">(recommended)</span>`]);
+    }
+    if (wheel.helix_angle_deg) {
+        wheelRows.push(['Helix Angle', fmtDeg(wheel.helix_angle_deg)]);
+    }
+    wheelRows.push(['Throated', mfg.throated_wheel ? 'Yes' : 'No']);
+
+    // Show min OD at throat for globoid
+    if (wormType === 'globoid' && worm.throat_reduction_mm) {
+        const arcR = worm.tip_diameter_mm / 2 - worm.throat_reduction_mm;
+        const margin = worm.addendum_mm + 0.5 * wheel.addendum_mm;
+        const minBlankR = asm.centre_distance_mm - arcR + margin;
+        const throatOD = 2 * Math.min(wheel.tip_diameter_mm / 2, minBlankR);
+        wheelRows.push(['Min OD at Throat', fmtMm(throatOD)]);
+    }
+    html += section('Wheel', wheelRows);
+
+    // ASSEMBLY
+    html += section('Assembly', [
+        ['Pressure Angle', fmtDeg(asm.pressure_angle_deg)],
+        ['Backlash', fmtMm(asm.backlash_mm, 3)],
+        ['Efficiency', asm.efficiency_percent != null ? `~${Math.round(asm.efficiency_percent)}%` : '\u2014'],
+        ['Self-Locking', asm.self_locking ? 'Yes' : 'No'],
+    ]);
+
+    // SHAFT INTERFACE
+    const shaftRows = [];
+    const wormFeatures = features.worm || {};
+    const wheelFeatures = features.wheel || {};
+
+    if (wormFeatures.bore_type === 'custom' && wormFeatures.bore_diameter_mm) {
+        let wormBoreStr = `${fmt(wormFeatures.bore_diameter_mm, 1)} mm`;
+        if (wormFeatures.anti_rotation === 'DIN6885') {
+            wormBoreStr += ' + DIN 6885 keyway';
+        } else if (wormFeatures.anti_rotation === 'ddcut') {
+            wormBoreStr += ' + DD-cut';
+        }
+        shaftRows.push(['Worm Bore', wormBoreStr]);
+    } else if (wormFeatures.bore_type === 'none') {
+        shaftRows.push(['Worm Bore', 'Solid (no bore)']);
+    }
+
+    if (wheelFeatures.bore_type === 'custom' && wheelFeatures.bore_diameter_mm) {
+        let wheelBoreStr = `${fmt(wheelFeatures.bore_diameter_mm, 1)} mm`;
+        if (wheelFeatures.anti_rotation === 'DIN6885') {
+            wheelBoreStr += ' + DIN 6885 keyway';
+        } else if (wheelFeatures.anti_rotation === 'ddcut') {
+            wheelBoreStr += ' + DD-cut';
+        }
+        shaftRows.push(['Wheel Bore', wheelBoreStr]);
+    } else if (wheelFeatures.bore_type === 'none') {
+        shaftRows.push(['Wheel Bore', 'Solid (no bore)']);
+    }
+
+    if (shaftRows.length > 0) {
+        html += section('Shaft Interface', shaftRows);
+    }
+
+    // Render any "General" messages that don't map to a specific section
+    const generalHtml = renderInlineMessages(messages, 'General');
+    if (generalHtml) {
+        html += `<div class="spec-section">${generalHtml}</div>`;
+    }
+
+    container.innerHTML = html;
+}
+
 // Update throat reduction auto hint based on geometry
-// Correct formula: throat_reduction = worm_pitch_radius - (center_distance - wheel_pitch_radius)
 function updateThroatReductionAutoHint() {
     const hint = document.getElementById('throat-reduction-auto-value');
     if (!hint) return;
@@ -55,7 +285,7 @@ function updateThroatReductionAutoHint() {
             throatReduction = currentDesign.worm.pitch_diameter_mm * 0.02; // fallback
         }
 
-        hint.textContent = `≈ ${throatReduction.toFixed(2)}mm (geometric: worm_r - (CD - wheel_r))`;
+        hint.textContent = `\u2248 ${throatReduction.toFixed(2)}mm (geometric: worm_r - (CD - wheel_r))`;
     } else {
         hint.textContent = `Calculated from worm/wheel geometry`;
     }
@@ -67,37 +297,46 @@ function updateThroatReductionAutoHint() {
 
 function initTabs() {
     const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
+    const designTab = document.getElementById('design-tab');
+    const generatorTab = document.getElementById('generator-tab');
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetTab = tab.dataset.tab;
 
-            // Update active tab
+            // Update active tab button
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
-            // Update active content
-            tabContents.forEach(content => content.classList.remove('active'));
-            document.getElementById(`${targetTab}-tab`).classList.add('active');
+            if (targetTab === 'cylindrical' || targetTab === 'globoid') {
+                // Both design tabs show the same #design-tab content
+                designTab.classList.add('active');
+                generatorTab.classList.remove('active');
 
-            // Lazy load calculator if needed
-            if (targetTab === 'calculator' && !getCalculatorPyodide()) {
-                initCalculatorTab();
-            }
+                // Set worm type on the design tab container
+                designTab.dataset.wormType = targetTab;
 
-            // Generator tab actions
-            if (targetTab === 'generator') {
-                // Hide progress indicator on tab switch (will be shown again when generation starts)
+                // Lazy load calculator if needed
+                if (!getCalculatorPyodide()) {
+                    initCalculatorTab();
+                } else {
+                    // Recalculate with new worm type
+                    calculate();
+                }
+            } else if (targetTab === 'generator') {
+                // Show generator tab
+                designTab.classList.remove('active');
+                generatorTab.classList.add('active');
+
+                // Hide progress indicator on tab switch
                 const progressContainer = document.getElementById('generation-progress');
                 if (progressContainer) {
                     progressContainer.style.display = 'none';
                 }
 
-                // Generator should already be loading in background (started after calculator ready)
-                // If not ready yet, start it without modal - user will see status in the tab
+                // Generator should already be loading in background
                 if (!getGeneratorWorker()) {
-                    initGeneratorTab(false);  // false = no modal, load in background
+                    initGeneratorTab(false);
                 }
 
                 // Auto-load from calculator on first visit
@@ -136,9 +375,10 @@ async function calculate() {
 
     try {
         const mode = document.getElementById('mode').value;
+        const wormType = getActiveWormType();
 
         // Get validated inputs (throws if invalid)
-        const inputs = getInputs(mode);
+        const inputs = getInputs(mode, wormType);
 
         // Serialize to JSON for Python
         const inputJson = JSON.stringify(inputs);
@@ -167,8 +407,18 @@ calculate(input_json)
         // Update UI - pass Python's bore recommendations
         updateBoreDisplaysAndDefaults(currentDesign, output.recommended_worm_bore, output.recommended_wheel_bore);
         updateThroatReductionAutoHint();
-        document.getElementById('results-text').textContent = output.summary;
-        updateValidationUI(output.valid, output.messages);
+        renderSpecSheet(currentDesign, output, output.messages || []);
+        updateValidationUI(output.valid, output.messages || []);
+
+        // Enable all export buttons after successful calculation
+        // Validation errors are shown prominently but don't block exports —
+        // the user may know better than the validator
+        document.getElementById('copy-json').disabled = false;
+        document.getElementById('download-json').disabled = false;
+        document.getElementById('download-pdf').disabled = false;
+        document.getElementById('download-design-package').disabled = false;
+        document.getElementById('copy-link').disabled = false;
+        document.getElementById('open-in-generator').disabled = false;
 
         // Keep generator JSON in sync if user has visited that tab
         if (generatorTabVisited) {
@@ -177,7 +427,7 @@ calculate(input_json)
 
     } catch (error) {
         console.error('Calculation error:', error);
-        document.getElementById('results-text').textContent = `Error: ${error.message}`;
+        document.getElementById('spec-sheet').innerHTML = `<p class="spec-sheet-placeholder" style="color: var(--color-error);">Error: ${error.message}</p>`;
     }
 }
 
@@ -193,9 +443,20 @@ function loadFromUrl() {
             group.style.display = group.dataset.mode === mode ? 'block' : 'none';
         });
 
+        // Handle worm_type from URL - switch to correct tab
+        if (params.has('worm_type')) {
+            const wormType = params.get('worm_type');
+            if (wormType === 'globoid') {
+                // Activate the globoid tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelector('.tab[data-tab="globoid"]').classList.add('active');
+                document.getElementById('design-tab').dataset.wormType = 'globoid';
+            }
+        }
+
         // Set inputs based on mode
         params.forEach((value, key) => {
-            if (key === 'mode') return;
+            if (key === 'mode' || key === 'worm_type') return;
 
             // Handle checkbox states
             if (key === 'use_standard_module') {
@@ -255,7 +516,7 @@ function getDesignFilename() {
 function copyJSON() {
     if (!currentDesign) return;
     navigator.clipboard.writeText(JSON.stringify(currentDesign, null, 2));
-    alert('JSON copied to clipboard!');
+    showNotification('JSON copied to clipboard!');
 }
 
 function downloadJSON() {
@@ -269,26 +530,285 @@ function downloadJSON() {
     URL.revokeObjectURL(url);
 }
 
-function downloadMarkdown() {
-    if (!currentMarkdown) {
+/**
+ * Build a jsPDF document from the current design data.
+ * @returns {object|null} jsPDF document instance, or null if unavailable
+ */
+function buildPDFDocument() {
+    if (!currentDesign || !window.jspdf) return null;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    const design = currentDesign;
+    const worm = design.worm || {};
+    const wheel = design.wheel || {};
+    const asm = design.assembly || {};
+    const mfg = design.manufacturing || {};
+    const features = design.features || {};
+    const wormType = worm.type || 'cylindrical';
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const contentW = pageW - 2 * margin;
+    let y = margin;
+
+    // Colours
+    const black = [30, 41, 59];
+    const muted = [100, 116, 139];
+    const sectionBg = [241, 245, 249];
+    const borderCol = [226, 232, 240];
+
+    // Helpers
+    const fmt = (val, d = 2) => val != null ? Number(val).toFixed(d) : '\u2014';
+
+    function drawTitle(text) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(...black);
+        doc.text(text, margin, y);
+        y += 5;
+        doc.setDrawColor(...black);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, margin + contentW, y);
+        y += 6;
+    }
+
+    function drawSectionHeader(text) {
+        doc.setFillColor(...sectionBg);
+        doc.setDrawColor(...borderCol);
+        doc.rect(margin, y, contentW, 5.5, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...muted);
+        doc.text(text.toUpperCase(), margin + 2, y + 3.8);
+        y += 5.5;
+    }
+
+    function drawRow(label, value, isLast = false) {
+        const rowH = 5.5;
+        doc.setDrawColor(...borderCol);
+        // Left and right borders
+        doc.line(margin, y, margin, y + rowH);
+        doc.line(margin + contentW, y, margin + contentW, y + rowH);
+        // Bottom border
+        if (isLast) {
+            doc.line(margin, y + rowH, margin + contentW, y + rowH);
+        } else {
+            doc.setDrawColor(235, 235, 235);
+            doc.line(margin, y + rowH, margin + contentW, y + rowH);
+        }
+
+        // Label
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...muted);
+        doc.text(label, margin + 2, y + 3.8);
+
+        // Value — strip any HTML tags (like <span class="spec-note">)
+        const cleanValue = String(value).replace(/<[^>]*>/g, '').trim();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...black);
+        doc.text(cleanValue, margin + contentW - 2, y + 3.8, { align: 'right' });
+
+        y += rowH;
+    }
+
+    function drawSection(title, rows) {
+        // Check if section fits on page (header + rows)
+        const sectionH = 5.5 + rows.length * 5.5 + 4;
+        if (y + sectionH > 280) {
+            doc.addPage();
+            y = margin;
+        }
+        drawSectionHeader(title);
+        rows.forEach((row, i) => drawRow(row[0], row[1], i === rows.length - 1));
+        y += 4;
+    }
+
+    // --- Build the PDF ---
+
+    // Header
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(...black);
+    doc.text('WORMGEAR.STUDIO', margin, y);
+    y += 8;
+    drawTitle('Specification Sheet');
+
+    // Profile labels
+    const profileLabels = { 'ZA': 'ZA (straight flanks)', 'ZK': 'ZK (convex flanks)', 'ZI': 'ZI (involute)' };
+
+    // OVERVIEW
+    const overviewRows = [
+        ['Ratio', `${asm.ratio}:1`],
+        ['Module', `${fmt(worm.module_mm, 3)} mm`],
+        ['Centre Distance', `${fmt(asm.centre_distance_mm)} mm`],
+        ['Hand', (asm.hand || 'right').charAt(0).toUpperCase() + (asm.hand || 'right').slice(1).toLowerCase()],
+        ['Profile', profileLabels[mfg.profile] || mfg.profile || 'ZA'],
+    ];
+    if (wormType === 'globoid') overviewRows.push(['Worm Type', 'Globoid']);
+    drawSection('Overview', overviewRows);
+
+    // WORM
+    const wormRows = [
+        ['Tip Diameter', `${fmt(worm.tip_diameter_mm)} mm`],
+        ['Pitch Diameter', `${fmt(worm.pitch_diameter_mm)} mm`],
+        ['Root Diameter', `${fmt(worm.root_diameter_mm)} mm`],
+        ['Lead', `${fmt(worm.lead_mm, 3)} mm`],
+        ['Lead Angle', `${fmt(worm.lead_angle_deg, 1)}\u00b0`],
+        ['Starts', `${worm.num_starts}`],
+    ];
+    if (mfg.worm_length_mm) wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm (recommended)`]);
+    if (wormType === 'globoid' && worm.throat_curvature_radius_mm) {
+        wormRows.push(['Throat Pitch Radius', `${fmt(worm.throat_curvature_radius_mm)} mm`]);
+    }
+    if (wormType === 'globoid' && worm.throat_reduction_mm) {
+        wormRows.push(['Throat Reduction', `${fmt(worm.throat_reduction_mm)} mm`]);
+    }
+    drawSection('Worm', wormRows);
+
+    // WHEEL
+    const wheelRows = [
+        ['Tip Diameter', `${fmt(wheel.tip_diameter_mm)} mm`],
+        ['Pitch Diameter', `${fmt(wheel.pitch_diameter_mm)} mm`],
+        ['Root Diameter', `${fmt(wheel.root_diameter_mm)} mm`],
+        ['Teeth', `${wheel.num_teeth}`],
+    ];
+    if (mfg.wheel_width_mm) wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm (recommended)`]);
+    if (wheel.helix_angle_deg) wheelRows.push(['Helix Angle', `${fmt(wheel.helix_angle_deg, 1)}\u00b0`]);
+    wheelRows.push(['Throated', mfg.throated_wheel ? 'Yes' : 'No']);
+    if (wormType === 'globoid' && worm.throat_reduction_mm) {
+        const arcR = worm.tip_diameter_mm / 2 - worm.throat_reduction_mm;
+        const mg = worm.addendum_mm + 0.5 * wheel.addendum_mm;
+        const minBlankR = asm.centre_distance_mm - arcR + mg;
+        const throatOD = 2 * Math.min(wheel.tip_diameter_mm / 2, minBlankR);
+        wheelRows.push(['Min OD at Throat', `${fmt(throatOD)} mm`]);
+    }
+    drawSection('Wheel', wheelRows);
+
+    // ASSEMBLY
+    drawSection('Assembly', [
+        ['Pressure Angle', `${fmt(asm.pressure_angle_deg, 1)}\u00b0`],
+        ['Backlash', `${fmt(asm.backlash_mm, 3)} mm`],
+        ['Efficiency', asm.efficiency_percent != null ? `~${Math.round(asm.efficiency_percent)}%` : '\u2014'],
+        ['Self-Locking', asm.self_locking ? 'Yes' : 'No'],
+    ]);
+
+    // SHAFT INTERFACE
+    const shaftRows = [];
+    const wormF = features.worm || {};
+    const wheelF = features.wheel || {};
+    if (wormF.bore_type === 'custom' && wormF.bore_diameter_mm) {
+        let s = `${fmt(wormF.bore_diameter_mm, 1)} mm`;
+        if (wormF.anti_rotation === 'DIN6885') s += ' + DIN 6885 keyway';
+        else if (wormF.anti_rotation === 'ddcut') s += ' + DD-cut';
+        shaftRows.push(['Worm Bore', s]);
+    } else if (wormF.bore_type === 'none') {
+        shaftRows.push(['Worm Bore', 'Solid (no bore)']);
+    }
+    if (wheelF.bore_type === 'custom' && wheelF.bore_diameter_mm) {
+        let s = `${fmt(wheelF.bore_diameter_mm, 1)} mm`;
+        if (wheelF.anti_rotation === 'DIN6885') s += ' + DIN 6885 keyway';
+        else if (wheelF.anti_rotation === 'ddcut') s += ' + DD-cut';
+        shaftRows.push(['Wheel Bore', s]);
+    } else if (wheelF.bore_type === 'none') {
+        shaftRows.push(['Wheel Bore', 'Solid (no bore)']);
+    }
+    if (shaftRows.length > 0) drawSection('Shaft Interface', shaftRows);
+
+    // Footer
+    y += 4;
+    doc.setDrawColor(...borderCol);
+    doc.line(margin, y, margin + contentW, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...muted);
+    doc.text(`Generated by WORMGEAR.STUDIO \u2014 ${new Date().toLocaleDateString()}`, margin, y);
+
+    return doc;
+}
+
+/**
+ * Generate PDF bytes for embedding in a ZIP.
+ * @returns {ArrayBuffer|null}
+ */
+function generatePDFBytes() {
+    const doc = buildPDFDocument();
+    return doc ? doc.output('arraybuffer') : null;
+}
+
+/**
+ * Generate and download a PDF specification sheet.
+ */
+function downloadPDF() {
+    if (!currentDesign) {
         alert('No design calculated yet');
         return;
     }
-    const blob = new Blob([currentMarkdown], { type: 'text/markdown' });
+    if (!window.jspdf) {
+        alert('jsPDF library not loaded');
+        return;
+    }
+    const doc = buildPDFDocument();
+    if (doc) doc.save(getDesignFilename() + '.pdf');
+}
+
+/**
+ * Download a design package (ZIP with JSON, Markdown, and PDF spec sheet).
+ */
+async function downloadDesignPackage() {
+    if (!currentDesign) {
+        alert('No design calculated yet');
+        return;
+    }
+
+    if (!window.JSZip) {
+        alert('JSZip library not loaded');
+        return;
+    }
+
+    const zip = new JSZip();
+    const filename = getDesignFilename();
+
+    // Add JSON
+    zip.file('design.json', JSON.stringify(currentDesign, null, 2));
+
+    // Add Markdown
+    if (currentMarkdown) {
+        zip.file('design.md', currentMarkdown);
+    }
+
+    // Add PDF spec sheet (generated via jsPDF)
+    if (window.jspdf) {
+        const pdfBytes = generatePDFBytes();
+        if (pdfBytes) {
+            zip.file('spec-sheet.pdf', pdfBytes);
+        }
+    }
+
+    // Generate and download
+    const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = getDesignFilename() + '.md';
+    a.download = `${filename}.zip`;
     a.click();
     URL.revokeObjectURL(url);
+
+    showNotification('Design package downloaded');
 }
 
 function copyLink() {
     const mode = document.getElementById('mode').value;
-    const inputs = getInputs();
+    const wormType = getActiveWormType();
+    const inputs = getInputs(mode, wormType);
     const params = new URLSearchParams();
 
     params.set('mode', mode);
+    params.set('worm_type', wormType);
 
     // Add calculator inputs
     Object.entries(inputs.calculator || {}).forEach(([key, value]) => {
@@ -313,6 +833,48 @@ function copyLink() {
             console.error('Failed to copy:', err);
             showNotification('Failed to copy link', true);
         });
+}
+
+/**
+ * Switch to generator tab with the current design pre-loaded.
+ */
+function openInGenerator() {
+    if (!currentDesign) {
+        alert('No design calculated yet.');
+        return;
+    }
+
+    // Load design into generator
+    document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
+    updateDesignSummary(currentDesign);
+    updateThroatingNote();
+
+    // Switch to generator tab
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    document.querySelector('.tab[data-tab="generator"]').classList.add('active');
+
+    document.getElementById('design-tab').classList.remove('active');
+    document.getElementById('generator-tab').classList.add('active');
+
+    // Mark as visited so auto-load doesn't overwrite
+    generatorTabVisited = true;
+
+    // Hide progress indicator
+    const progressContainer = document.getElementById('generation-progress');
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+    }
+
+    // Start generator if not already running
+    if (!getGeneratorWorker()) {
+        initGeneratorTab(false);
+    }
+
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    appendToConsole('Loaded design from calculator');
 }
 
 // Show temporary notification
@@ -348,7 +910,6 @@ function setupWorkerMessageHandler(worker) {
 
         switch (type) {
             case 'INIT_COMPLETE':
-                // Generator initialization complete
                 console.log('[Generator] Initialization complete');
                 const statusEl = document.getElementById('generator-loading-status');
                 if (statusEl) {
@@ -359,7 +920,6 @@ function setupWorkerMessageHandler(worker) {
                 if (btn) btn.disabled = false;
                 break;
             case 'INIT_ERROR':
-                // Generator initialization failed
                 console.error('[Generator] Initialization failed:', error);
                 const statusElError = document.getElementById('generator-loading-status');
                 if (statusElError) {
@@ -368,19 +928,22 @@ function setupWorkerMessageHandler(worker) {
                 }
                 break;
             case 'LOG':
-                // Only show LOG messages if generation is active
                 if (isGenerating) {
                     handleProgress(message, null);
+                } else {
+                    // During init, show worker progress in the status element
+                    const initStatus = document.getElementById('generator-loading-status');
+                    if (initStatus && initStatus.textContent !== 'Generator ready') {
+                        initStatus.textContent = message;
+                    }
                 }
                 break;
             case 'PROGRESS':
-                // Only show PROGRESS messages if generation is active
                 if (isGenerating) {
                     handleProgress(message, percent);
                 }
                 break;
             case 'GENERATE_COMPLETE':
-                // Only process completion if generation is still active (not cancelled)
                 if (isGenerating) {
                     isGenerating = false;
                     handleGenerateComplete(e.data);
@@ -389,10 +952,9 @@ function setupWorkerMessageHandler(worker) {
                 }
                 break;
             case 'GENERATE_ERROR':
-                // Only show error if generation is still active (not cancelled)
                 if (isGenerating) {
                     isGenerating = false;
-                    appendToConsole(`✗ Generation error: ${error}`);
+                    appendToConsole(`\u2717 Generation error: ${error}`);
                     if (stack) console.error('Worker error stack:', stack);
                     hideProgressIndicator();
                 } else {
@@ -404,7 +966,7 @@ function setupWorkerMessageHandler(worker) {
 
     worker.onerror = (error) => {
         console.error('Worker error:', error);
-        appendToConsole(`✗ Worker error: ${error.message}`);
+        appendToConsole(`\u2717 Worker error: ${error.message}`);
     };
 }
 
@@ -414,20 +976,10 @@ function loadFromCalculator() {
         return;
     }
 
-    // Debug: Log what's being loaded
-    console.log('[DEBUG] Loading from calculator:', {
-        manufacturing: currentDesign.manufacturing,
-        features: currentDesign.features
-    });
-
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    updateThroatingNote();
     appendToConsole('Loaded design from calculator');
-
-    // Also log to generator console
-    if (currentDesign.manufacturing) {
-        appendToConsole(`Manufacturing: Virtual Hobbing: ${currentDesign.manufacturing.virtual_hobbing || false}, Steps: ${currentDesign.manufacturing.hobbing_steps || 72}`);
-    }
 }
 
 function loadJSONFile() {
@@ -454,26 +1006,18 @@ function handleFileUpload(event) {
 
 /**
  * Cancel ongoing generation
- *
- * Note: We don't terminate the worker because that would require reloading
- * Pyodide from scratch (several minutes). Instead, we just:
- * 1. Increment the generation ID so we ignore results from the cancelled generation
- * 2. Reset the UI
- * 3. The worker continues running in the background but results are ignored
  */
 async function cancelGeneration() {
     if (!isGenerating) {
         return;
     }
 
-    // Increment generation ID - results from previous generation will be ignored
     currentGenerationId++;
     isGenerating = false;
 
-    appendToConsole('⚠️ Generation cancelled by user');
+    appendToConsole('Generation cancelled by user');
     appendToConsole('(Background process may continue - results will be ignored)');
 
-    // Hide progress and reset UI
     hideProgressIndicator();
 }
 
@@ -499,13 +1043,23 @@ async function generateGeometry(type) {
             return;
         }
 
-        // Extract generation parameters from design
+        // Read generation parameters from GENERATOR TAB UI (not from design JSON)
+        const genWheelGeneration = document.getElementById('gen-wheel-generation');
+        const genHobbingPrecision = document.getElementById('gen-hobbing-precision');
+        const genSectionsPerTurn = document.getElementById('gen-sections-per-turn');
+
+        const virtualHobbing = genWheelGeneration ? genWheelGeneration.value === 'virtual-hobbing' : false;
+
+        const hobbingPrecisionMap = { 'preview': 36, 'balanced': 72, 'high': 144 };
+        const hobbingSteps = genHobbingPrecision ? (hobbingPrecisionMap[genHobbingPrecision.value] || 72) : 72;
+
+        const sectionsPerTurn = genSectionsPerTurn ? parseInt(genSectionsPerTurn.value) : 36;
+
+        // Get profile from design JSON (it's a design concern, stays in calculator output)
         const manufacturing = designData.manufacturing || {};
-        const virtualHobbing = manufacturing.virtual_hobbing || false;
-        const hobbingSteps = manufacturing.hobbing_steps || 72;
         const profile = manufacturing.profile || 'ZA';
 
-        // Auto-reduce hobbing steps for globoid worms (complex geometry is 3-5x slower)
+        // Auto-reduce hobbing steps for globoid worms
         const isGloboid = designData.worm?.type === 'globoid' ||
                           (designData.worm?.throat_curvature_radius_mm && designData.worm?.throat_curvature_radius_mm > 0);
         const GLOBOID_HOB_MAX_STEPS = 36;
@@ -516,24 +1070,16 @@ async function generateGeometry(type) {
             effectiveHobbingSteps = GLOBOID_HOB_MAX_STEPS;
         }
 
-        // Debug: Log what's being read from JSON
-        console.log('[DEBUG] Generator reading from JSON:', {
-            manufacturing: designData.manufacturing,
-            virtualHobbing,
-            hobbingSteps,
-            profile
-        });
-
-        // Use canonical field names from schema v2.0 - no legacy fallbacks
+        // Use canonical field names from schema v2.0
         let wormLength = manufacturing.worm_length_mm || 40;
         let wheelWidth = manufacturing.wheel_width_mm || null;
 
-        // Start new generation - increment ID and set flag
+        // Start new generation
         currentGenerationId++;
         isGenerating = true;
 
         appendToConsole('Starting geometry generation...');
-        appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
+        appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}, Sections/Turn: ${sectionsPerTurn}`);
 
         // Show and reset progress indicator
         const progressContainer = document.getElementById('generation-progress');
@@ -564,7 +1110,8 @@ async function generateGeometry(type) {
                 hobbingSteps: effectiveHobbingSteps,
                 profile,
                 wormLength,
-                wheelWidth
+                wheelWidth,
+                sectionsPerTurn
             }
         });
 
@@ -578,14 +1125,26 @@ async function generateGeometry(type) {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Check SharedArrayBuffer support (needed for generator WASM threading)
+    if (!crossOriginIsolated) {
+        console.warn('[Init] crossOriginIsolated is false — generator WASM may fail. Check COOP/COEP headers.');
+    }
+
     initTabs();
     setupBoreEventListeners();
 
-    // Setup event listeners for calculator (no explicit calculate button - auto-recalculates on input change)
+    // Learn mode toggle
+    document.getElementById('learn-mode-toggle').addEventListener('change', (e) => {
+        document.getElementById('app').classList.toggle('learn-mode', e.target.checked);
+    });
+
+    // Setup event listeners for calculator exports
     document.getElementById('copy-json').addEventListener('click', copyJSON);
     document.getElementById('download-json').addEventListener('click', downloadJSON);
-    document.getElementById('download-md').addEventListener('click', downloadMarkdown);
+    document.getElementById('download-pdf').addEventListener('click', downloadPDF);
+    document.getElementById('download-design-package').addEventListener('click', downloadDesignPackage);
     document.getElementById('copy-link').addEventListener('click', copyLink);
+    document.getElementById('open-in-generator').addEventListener('click', openInGenerator);
 
     // Setup event listeners for generator
     document.getElementById('load-from-calculator').addEventListener('click', loadFromCalculator);
@@ -593,6 +1152,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
     document.getElementById('generate-btn').addEventListener('click', () => generateGeometry('both'));
     document.getElementById('cancel-generate-btn').addEventListener('click', cancelGeneration);
+
+    // Generator tab: wheel generation method switching (show/hide hobbing precision + throating note)
+    document.getElementById('gen-wheel-generation').addEventListener('change', (e) => {
+        const isVirtualHobbing = e.target.value === 'virtual-hobbing';
+        document.getElementById('gen-hobbing-precision-group').style.display = isVirtualHobbing ? 'block' : 'none';
+        updateThroatingNote();
+    });
+
+    // Generator tab: sections per turn slider value display
+    document.getElementById('gen-sections-per-turn').addEventListener('input', (e) => {
+        document.getElementById('gen-sections-per-turn-value').textContent = e.target.value;
+    });
 
     // Update design summary when JSON is pasted or edited
     const jsonInput = document.getElementById('json-input');
@@ -615,35 +1186,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Helper to update throat reduction visibility (globoid + helical only)
-    function updateThroatReductionVisibility() {
-        const isGloboid = document.getElementById('worm-type')?.value === 'globoid';
-        const isHelical = document.getElementById('wheel-generation')?.value === 'helical';
-        const throatReductionGroup = document.getElementById('throat-reduction-group');
-
-        // Only show throat reduction for globoid worm with helical wheel generation
-        const shouldShow = isGloboid && isHelical;
-        throatReductionGroup.style.display = shouldShow ? 'block' : 'none';
-
-        // Show trim-to-min-engagement for any globoid worm
-        const trimGroup = document.getElementById('trim-engagement-group');
-        if (trimGroup) {
-            trimGroup.style.display = isGloboid ? 'block' : 'none';
-            if (!isGloboid) {
-                document.getElementById('trim-to-min-engagement').checked = false;
-            }
-        }
-
-        if (shouldShow) {
-            updateThroatReductionAutoHint();
-        }
-    }
-
-    // Worm type switching
-    document.getElementById('worm-type').addEventListener('change', () => {
-        updateThroatReductionVisibility();
-    });
-
     // Throat reduction mode switching (auto vs custom)
     document.getElementById('throat-reduction-mode')?.addEventListener('change', (e) => {
         const isCustom = e.target.value === 'custom';
@@ -663,27 +1205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Wheel generation method switching (helical vs virtual hobbing)
-    document.getElementById('wheel-generation').addEventListener('change', (e) => {
-        const isVirtualHobbing = e.target.value === 'virtual-hobbing';
-        const precisionGroup = document.getElementById('hobbing-precision-group');
-        const throatOptionGroup = document.getElementById('throat-option-group');
-
-        // Show hobbing precision controls when virtual hobbing selected
-        precisionGroup.style.display = isVirtualHobbing ? 'block' : 'none';
-
-        // Hide throat option when virtual hobbing (it's automatic)
-        if (isVirtualHobbing) {
-            throatOptionGroup.style.display = 'none';
-            document.getElementById('wheel-throated').checked = false; // Virtual hobbing handles this
-        } else {
-            throatOptionGroup.style.display = 'block';
-        }
-
-        // Update throat reduction visibility (only for globoid + helical)
-        updateThroatReductionVisibility();
-    });
-
     // Use recommended dimensions toggle
     document.getElementById('use-recommended-dims').addEventListener('change', (e) => {
         const customDims = document.getElementById('custom-dims-group');
@@ -693,7 +1214,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Populate with recommended values when toggling to custom
         if (!e.target.checked && currentDesign && currentDesign.manufacturing) {
-            // Use canonical field names from schema v2.0 - no legacy fallbacks
             document.getElementById('worm-length').value = currentDesign.manufacturing.worm_length_mm || 40;
             document.getElementById('wheel-width').value = currentDesign.manufacturing.wheel_width_mm || 10;
         }
@@ -723,38 +1243,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Auto-recalculate on input changes
-    const inputs = document.querySelectorAll('input, select');
-    inputs.forEach(input => {
+    // Auto-recalculate on input changes — scoped to #design-tab only
+    // (generator controls should NOT trigger calculate())
+    const designTab = document.getElementById('design-tab');
+    const designInputs = designTab.querySelectorAll('input, select');
+    designInputs.forEach(input => {
         input.addEventListener('change', () => {
             if (getCalculatorPyodide()) calculate();
         });
     });
 
-    // Trigger initial UI state updates for all dynamic controls
+    // Trigger initial UI state updates
     const wormBoreType = document.getElementById('worm-bore-type');
     const wheelBoreType = document.getElementById('wheel-bore-type');
-    const wormType = document.getElementById('worm-type');
-    const wheelGeneration = document.getElementById('wheel-generation');
 
     if (wormBoreType) wormBoreType.dispatchEvent(new Event('change'));
     if (wheelBoreType) wheelBoreType.dispatchEvent(new Event('change'));
-    if (wormType) wormType.dispatchEvent(new Event('change'));
-    if (wheelGeneration) wheelGeneration.dispatchEvent(new Event('change'));
 
     // Calculator tab is active by default, so initialize it
     initCalculatorTab();
-
-    // Generator tab is now lazy-loaded when user clicks on it (not pre-loaded in background)
 });
 
 // Expose functions globally for HTML onclick handlers
 window.calculate = calculate;
 window.copyJSON = copyJSON;
 window.downloadJSON = downloadJSON;
-window.downloadMarkdown = downloadMarkdown;
+window.downloadPDF = downloadPDF;
+window.downloadDesignPackage = downloadDesignPackage;
 window.copyLink = copyLink;
 window.loadFromCalculator = loadFromCalculator;
 window.loadJSONFile = loadJSONFile;
 window.generateGeometry = generateGeometry;
 window.initGeneratorTab = initGeneratorTab;
+window.openInGenerator = openInGenerator;

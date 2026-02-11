@@ -156,11 +156,14 @@ function updateAntiRotationForPart(partName, recommendedBore) {
     if (antiRotSelect.value === 'DIN6885' && effectiveBore < 6.0) {
         console.log(`[Anti-Rotation] ${partName}: switching from DIN6885 to ddcut (bore too small)`);
         antiRotSelect.value = 'ddcut'; // Switch to ddcut for small bores
-    } else if (antiRotSelect.value === '' || antiRotSelect.value === 'none') {
-        // Set initial default based on bore size
-        const newValue = effectiveBore < 6.0 ? 'ddcut' : 'DIN6885';
-        console.log(`[Anti-Rotation] ${partName}: setting default to ${newValue} (bore ${effectiveBore}mm)`);
-        antiRotSelect.value = newValue;
+    } else if (effectiveBore >= 6.0 && antiRotSelect.value === 'none') {
+        // Default to DIN 6885 for bores >= 6mm (engineers expect a keyed bore)
+        console.log(`[Anti-Rotation] ${partName}: setting default to DIN6885 (bore ${effectiveBore}mm)`);
+        antiRotSelect.value = 'DIN6885';
+    } else if (effectiveBore < 6.0 && (antiRotSelect.value === '' || antiRotSelect.value === 'none')) {
+        // Default to ddcut for small bores
+        console.log(`[Anti-Rotation] ${partName}: setting default to ddcut (bore ${effectiveBore}mm)`);
+        antiRotSelect.value = 'ddcut';
     }
 }
 

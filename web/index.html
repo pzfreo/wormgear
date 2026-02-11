@@ -6,208 +6,186 @@
     <title>WORMGEAR.STUDIO</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;600&display=swap" rel="stylesheet" crossorigin="anonymous">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css">
-    <style>
-        /* Tab styling */
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #e0e0e0;
-            background: #f8f9fa;
-            margin: 0;
-        }
-
-        .tab {
-            padding: 15px 30px;
-            cursor: pointer;
-            border: none;
-            background: transparent;
-            font-size: 1em;
-            font-weight: 500;
-            color: #666;
-            transition: all 0.3s;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
-        }
-
-        .tab:hover {
-            background: rgba(102, 126, 234, 0.1);
-            color: #667eea;
-        }
-
-        .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-            background: white;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .lazy-load-notice {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        .lazy-load-notice h3 {
-            color: #856404;
-            margin-bottom: 10px;
-        }
-
-        .lazy-load-notice p {
-            color: #856404;
-            margin-bottom: 15px;
-        }
-
-        .lazy-load-notice button {
-            background: #ffc107;
-            color: #000;
-        }
-
-        /* Calculator two-column layout */
-        .calculator-layout {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-
-        .calculator-layout #inputs-section {
-            grid-column: 1;
-            grid-row: 1 / 4;
-        }
-
-        .calculator-layout #results-section {
-            grid-column: 2;
-            grid-row: 1;
-        }
-
-        .calculator-layout #validation-section {
-            grid-column: 2;
-            grid-row: 2;
-        }
-
-        .calculator-layout #export-section {
-            grid-column: 2;
-            grid-row: 3;
-        }
-
-        @media (max-width: 768px) {
-            .calculator-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .calculator-layout #inputs-section {
-                grid-row: auto;
-            }
-        }
-    </style>
 </head>
 <body>
     <div id="app">
         <header>
             <h1 class="site-title"><span class="title-bold">WORMGEAR</span><span class="title-light">.STUDIO</span></h1>
+            <label class="learn-toggle" title="Show expanded explanations for all parameters">
+                <input type="checkbox" id="learn-mode-toggle">
+                <span class="learn-toggle-label">Detailed descriptions</span>
+            </label>
         </header>
 
-        <!-- Tab Navigation -->
+        <!-- Tab Navigation: Design tabs | Generator tab -->
         <div class="tabs">
-            <button class="tab active" data-tab="calculator">Calculator</button>
-            <button class="tab" data-tab="generator">3D Generator</button>
+            <div class="tab-group">
+                <span class="tab-group-label">DESIGN</span>
+                <div class="tab-group-buttons">
+                    <button class="tab active" data-tab="cylindrical">Cylindrical</button>
+                    <button class="tab" data-tab="globoid">Globoid</button>
+                </div>
+            </div>
+            <span class="tab-separator"></span>
+            <div class="tab-group">
+                <span class="tab-group-label">BUILD</span>
+                <div class="tab-group-buttons">
+                    <button class="tab" data-tab="generator">3D Generator</button>
+                </div>
+            </div>
         </div>
 
         <main>
-            <!-- Calculator Tab -->
-            <div id="calculator-tab" class="tab-content active">
+            <!-- Design Tab (shared by Cylindrical and Globoid) -->
+            <div id="design-tab" class="tab-content active" data-worm-type="cylindrical">
                 <div class="calculator-layout">
                 <section id="inputs-section">
-                    <h2>Inputs</h2>
 
-                    <label for="mode">Design Mode:</label>
-                    <select id="mode">
-                        <option value="envelope">Envelope (both ODs)</option>
-                        <option value="from-wheel">From Wheel OD</option>
-                        <option value="from-module">From Module</option>
-                        <option value="from-centre-distance">From Centre Distance</option>
-                    </select>
+                    <!-- ====== Step 1: Core Design (always visible) ====== -->
+                    <div id="step-1-core" class="step-section">
+                        <h2 class="step-header">Step 1: Core Design</h2>
 
-                    <div id="mode-inputs">
-                        <!-- Envelope mode inputs (default) -->
-                        <div class="input-group" data-mode="envelope">
-                            <label for="worm-od">Worm OD (mm):</label>
-                            <input type="number" id="worm-od" value="20" step="0.1">
+                        <label for="mode">Design Mode:</label>
+                        <select id="mode">
+                            <option value="from-module" selected>From Module</option>
+                            <option value="from-centre-distance">From Centre Distance</option>
+                            <option value="from-wheel">From Wheel OD</option>
+                            <option value="envelope">Envelope (both ODs)</option>
+                        </select>
+                        <small class="hint">Choose how to define your gear pair. "From Module" is the most common starting point.</small>
+                        <small class="hint-expanded"><strong>From Module</strong> is the standard starting point when you know the tooth size you need. <strong>From Centre Distance</strong> is useful when your shafts are already positioned. <strong>From Wheel OD</strong> constrains the wheel to fit a specific space. <strong>Envelope</strong> constrains both parts to fit within given outer diameters.</small>
 
-                            <label for="wheel-od">Wheel OD (mm):</label>
-                            <input type="number" id="wheel-od" value="65" step="0.1">
+                        <div id="mode-inputs">
+                            <!-- From module mode inputs (default) -->
+                            <div class="input-group" data-mode="from-module">
+                                <label for="module">Module (mm):</label>
+                                <input type="number" id="module" value="2.0" step="0.01">
+                                <small class="hint">Tooth size. Standard modules: 0.5, 0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0</small>
+                                <small class="hint-expanded">The module is the fundamental tooth size in metric gearing: it equals the pitch diameter divided by the number of teeth. Larger modules mean bigger, stronger teeth but a larger overall gear. Standard modules (ISO 54) ensure tooling availability. For 3D printing, modules below 1.0 mm are difficult to print accurately with FDM.</small>
 
-                            <label for="ratio">Ratio:</label>
-                            <input type="number" id="ratio" value="30" step="1">
+                                <label for="ratio-fm">Ratio:</label>
+                                <input type="number" id="ratio-fm" value="30" step="1">
+                                <small class="hint">Wheel teeth per worm start. Higher = more reduction.</small>
+                                <small class="hint-expanded">The ratio determines speed reduction and torque multiplication. A 30:1 ratio means the wheel turns once for every 30 worm revolutions. Typical values: 10-20 for power transmission, 30-60 for positioning mechanisms, 60-100 for precision instruments. The ratio also equals the number of wheel teeth divided by the number of worm starts.</small>
+                            </div>
 
-                            <div class="checkbox-option" style="margin-top: 0.5rem;">
-                                <input type="checkbox" id="od-as-maximum">
-                                <label for="od-as-maximum">Treat ODs as maximum constraints (find largest standard module that fits)</label>
+                            <!-- From centre distance mode inputs -->
+                            <div class="input-group" data-mode="from-centre-distance" style="display: none;">
+                                <label for="centre-distance">Centre Distance (mm):</label>
+                                <input type="number" id="centre-distance" value="40" step="0.1">
+                                <small class="hint">Fixed shaft spacing between worm and wheel axes.</small>
+
+                                <label for="ratio-fcd">Ratio:</label>
+                                <input type="number" id="ratio-fcd" value="30" step="1">
+                                <small class="hint">Wheel teeth per worm start. Higher = more reduction.</small>
+                            </div>
+
+                            <!-- From wheel mode inputs -->
+                            <div class="input-group" data-mode="from-wheel" style="display: none;">
+                                <label for="wheel-od-fw">Wheel OD (mm):</label>
+                                <input type="number" id="wheel-od-fw" value="65" step="0.1">
+                                <small class="hint">Maximum outer diameter of the wheel.</small>
+
+                                <label for="ratio-fw">Ratio:</label>
+                                <input type="number" id="ratio-fw" value="30" step="1">
+                                <small class="hint">Wheel teeth per worm start. Higher = more reduction.</small>
+
+                                <label for="target-lead-angle">Target Lead Angle (degrees):</label>
+                                <input type="number" id="target-lead-angle" value="8" step="0.1">
+                                <small class="hint">Lead angle affects efficiency. Below 3 deg = self-locking but low efficiency.</small>
+                            </div>
+
+                            <!-- Envelope mode inputs -->
+                            <div class="input-group" data-mode="envelope" style="display: none;">
+                                <label for="worm-od">Worm OD (mm):</label>
+                                <input type="number" id="worm-od" value="20" step="0.1">
+                                <small class="hint">Maximum outer diameter of the worm.</small>
+
+                                <label for="wheel-od">Wheel OD (mm):</label>
+                                <input type="number" id="wheel-od" value="65" step="0.1">
+                                <small class="hint">Maximum outer diameter of the wheel.</small>
+
+                                <label for="ratio">Ratio:</label>
+                                <input type="number" id="ratio" value="30" step="1">
+                                <small class="hint">Wheel teeth per worm start. Higher = more reduction.</small>
+
+                                <div class="checkbox-option" style="margin-top: 0.5rem;">
+                                    <input type="checkbox" id="od-as-maximum">
+                                    <label for="od-as-maximum">Treat ODs as maximum constraints (find largest standard module that fits)</label>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- From wheel mode inputs -->
-                        <div class="input-group" data-mode="from-wheel" style="display: none;">
-                            <label for="wheel-od-fw">Wheel OD (mm):</label>
-                            <input type="number" id="wheel-od-fw" value="65" step="0.1">
+                        <!-- Common parameters (all modes) -->
+                        <label for="ratio-common" style="display: none;">Ratio:</label>
 
-                            <label for="ratio-fw">Ratio:</label>
-                            <input type="number" id="ratio-fw" value="30" step="1">
+                        <label for="num-starts">Number of Starts:</label>
+                        <input type="number" id="num-starts" value="1" step="1" min="1" max="4">
+                        <small class="hint">1 = self-locking at low lead angles. 2-4 = higher speed, no self-locking.</small>
+                        <small class="hint-expanded">The number of starts (threads) on the worm controls the lead angle and self-locking behaviour. A single-start worm has the lowest lead angle and is most likely to be self-locking &mdash; meaning the wheel cannot back-drive the worm, useful for lifting applications. Multi-start worms (2-4) have steeper lead angles, higher efficiency (less friction), but lose self-locking. The number of wheel teeth must be divisible by the number of starts.</small>
 
-                            <label for="target-lead-angle">Target Lead Angle (degrees):</label>
-                            <input type="number" id="target-lead-angle" value="8" step="0.1">
-                        </div>
+                        <label for="pressure-angle">Pressure Angle (degrees):</label>
+                        <input type="number" id="pressure-angle" value="20" step="0.1">
+                        <small class="hint">20 deg is standard (DIN 3975). 14.5 deg for legacy, 25 deg for high strength.</small>
+                        <small class="hint-expanded">The pressure angle defines the slope of the tooth flanks. It affects the direction of force between meshing teeth. 20&deg; is the modern standard (DIN 3975) and gives a good balance of strength and smooth running. 14.5&deg; was the historical standard and produces smoother, quieter operation but weaker teeth. 25&deg; creates stronger teeth that can carry more load but increase bearing forces and noise.</small>
 
-                        <!-- From module mode inputs -->
-                        <div class="input-group" data-mode="from-module" style="display: none;">
-                            <label for="module">Module (mm):</label>
-                            <input type="number" id="module" value="2.0" step="0.01">
+                        <label for="hand">Hand:</label>
+                        <select id="hand">
+                            <option value="RIGHT">Right</option>
+                            <option value="LEFT">Left</option>
+                        </select>
+                        <small class="hint">Right-hand is standard. Left-hand for special arrangements.</small>
+                        <small class="hint-expanded">A right-hand worm has threads that spiral clockwise when viewed from the end, like a standard screw. This is the convention for most worm gears. Left-hand worms are used when the direction of output rotation matters, or in paired arrangements where opposing hands cancel axial thrust forces on the worm shaft bearings.</small>
 
-                            <label for="ratio-fm">Ratio:</label>
-                            <input type="number" id="ratio-fm" value="30" step="1">
-                        </div>
-
-                        <!-- From centre distance mode inputs -->
-                        <div class="input-group" data-mode="from-centre-distance" style="display: none;">
-                            <label for="centre-distance">Centre Distance (mm):</label>
-                            <input type="number" id="centre-distance" value="40" step="0.1">
-
-                            <label for="ratio-fcd">Ratio:</label>
-                            <input type="number" id="ratio-fcd" value="30" step="1">
+                        <!-- Globoid-only: Throat reduction (in Step 1 per design decision) -->
+                        <div id="throat-reduction-group" class="globoid-only" style="display: none;">
+                            <label for="throat-reduction-mode">Throat Reduction:</label>
+                            <select id="throat-reduction-mode">
+                                <option value="auto" selected>Auto (geometric)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <small class="hint">Controls hourglass depth. Auto calculates from pitch geometry.</small>
+                            <small class="hint-expanded">A globoid (hourglass) worm has a concave profile that wraps around the wheel, creating more simultaneous tooth contact than a cylindrical worm. The throat reduction controls how deep this concavity is. Auto-calculation uses the geometric relationship between worm and wheel pitch surfaces to determine the optimal depth. A deeper throat increases contact area and load capacity but makes the worm harder to manufacture and more sensitive to alignment errors.</small>
+                            <div id="throat-reduction-custom" style="display: none;">
+                                <input type="number" id="throat-reduction" value="0.3" step="0.1" min="0.01" max="5">
+                                <small class="hint">mm - Deeper throat = more contact area but harder to manufacture.</small>
+                            </div>
+                            <div id="throat-reduction-auto-hint">
+                                <small class="hint" id="throat-reduction-auto-value">Calculated from worm/wheel geometry</small>
+                            </div>
                         </div>
                     </div>
 
-                    <details open>
-                        <summary>Options</summary>
-                        <div id="options-inputs">
-                            <label for="pressure-angle">Pressure Angle (degrees):</label>
-                            <input type="number" id="pressure-angle" value="20" step="0.1">
+                    <!-- ====== Step 2: Advanced Gear Options (collapsed) ====== -->
+                    <details id="step-2-advanced" class="step-details">
+                        <summary class="step-header">Step 2: Advanced Gear Options</summary>
+                        <div class="step-content">
+                            <label for="profile">Tooth Profile (DIN 3975):</label>
+                            <select id="profile">
+                                <option value="ZA" selected>ZA - Straight (CNC machining)</option>
+                                <option value="ZK">ZK - Convex (3D printing)</option>
+                                <option value="ZI">ZI - Involute (high precision)</option>
+                            </select>
+                            <small class="hint">ZA: straight flanks, standard for CNC. ZK: convex flanks, better for 3D printing. ZI: involute, high precision hobbing.</small>
+                            <small class="hint-expanded">The tooth profile defines the cross-sectional shape of the worm thread. <strong>ZA (straight/trapezoidal)</strong> has straight flanks in the axial section &mdash; standard for CNC machining because it can be cut with a lathe tool. <strong>ZK (convex)</strong> has slightly curved flanks that reduce stress concentrations at the tooth root, making it better for 3D printing where layer adhesion and fatigue life matter. <strong>ZI (involute)</strong> is the highest precision profile, typically produced by hobbing machines and matching a standard involute gear cutter.</small>
 
                             <label for="backlash">Backlash (mm):</label>
-                            <input type="number" id="backlash" value="0" step="0.01">
-
-                            <label for="num-starts">Number of Starts:</label>
-                            <input type="number" id="num-starts" value="1" step="1" min="1">
-
-                            <label for="hand">Hand:</label>
-                            <select id="hand">
-                                <option value="RIGHT">Right</option>
-                                <option value="LEFT">Left</option>
-                            </select>
+                            <input type="number" id="backlash" value="0.05" step="0.01">
+                            <small class="hint">Clearance between meshing teeth. 0.05 mm typical for precision. 0.1-0.2 mm for 3D printed parts.</small>
+                            <small class="hint-expanded">Backlash is the intentional gap between meshing teeth when there is no load. It compensates for thermal expansion, manufacturing tolerances, and provides space for lubricant. Zero backlash sounds ideal but causes binding, excessive wear, and heat buildup. 0.05 mm suits precision CNC-machined gears with good surface finish. 3D printed gears typically need 0.1-0.2 mm due to layer roughness and dimensional accuracy limits of FDM/SLA processes.</small>
 
                             <label for="profile-shift">Profile Shift Coefficient:</label>
                             <input type="number" id="profile-shift" value="0" step="0.01" min="-0.5" max="0.8">
+                            <small class="hint">Adjusts tooth depth to prevent undercut on low tooth counts. Positive = thicker teeth.</small>
+                            <small class="hint-expanded">Profile shift modifies the tooth proportions by shifting the cutting tool position relative to the gear blank. A positive shift produces thicker, stronger teeth and avoids undercut on gears with few teeth (typically below 17 teeth for 20&deg; pressure angle). A negative shift produces thinner teeth with deeper roots. For most worm gears, zero profile shift is standard. Only adjust this if the calculator warns about undercut or if you need to fine-tune the centre distance.</small>
+
+                            <div class="checkbox-option">
+                                <input type="checkbox" id="use-standard-module" checked>
+                                <label for="use-standard-module">Round to nearest standard module (ISO 54)</label>
+                            </div>
 
                             <div class="checkbox-option">
                                 <input type="checkbox" id="limit-wheel-od">
@@ -217,79 +195,16 @@
                             <div id="wheel-max-od-group" style="display: none;">
                                 <label for="wheel-tip-reduction">Tip reduction (mm):</label>
                                 <input type="number" id="wheel-tip-reduction" value="0.2" step="0.05" min="0">
-                                <small class="hint">Reduces wheel tip diameter to create shorter teeth</small>
-                            </div>
-
-                            <div class="checkbox-option">
-                                <input type="checkbox" id="use-standard-module" checked>
-                                <label for="use-standard-module">Round to nearest standard module (ISO 54)</label>
-                            </div>
-                        </div>
-                    </details>
-
-                    <details>
-                        <summary>Manufacturing Options</summary>
-                        <div id="manufacturing-inputs">
-                            <label for="profile">Tooth Profile (DIN 3975):</label>
-                            <select id="profile">
-                                <option value="ZA" selected>ZA - Straight (CNC machining)</option>
-                                <option value="ZK">ZK - Convex (3D printing)</option>
-                                <option value="ZI">ZI - Involute (high precision)</option>
-                            </select>
-
-                            <label for="worm-type">Worm Type:</label>
-                            <select id="worm-type">
-                                <option value="cylindrical" selected>Cylindrical (standard)</option>
-                                <option value="globoid">Globoid (hourglass - better contact)</option>
-                            </select>
-
-                            <label for="wheel-generation">Wheel Tooth Generation:</label>
-                            <select id="wheel-generation">
-                                <option value="helical" selected>Helical (simple, fast)</option>
-                                <option value="virtual-hobbing">Virtual Hobbing (accurate throating)</option>
-                            </select>
-
-                            <div id="hobbing-precision-group" style="display: none;">
-                                <label for="hobbing-precision">Virtual Hobbing Precision:</label>
-                                <select id="hobbing-precision">
-                                    <option value="preview">Preview (36 steps, 8-15 min)</option>
-                                    <option value="balanced" selected>Balanced (72 steps, 20-40 min)</option>
-                                    <option value="high">High (144 steps, 1-2 hours)</option>
-                                </select>
-                                <small class="hint">Times shown for WASM in browser</small>
-                            </div>
-
-                            <div id="throat-reduction-group" style="display: none;">
-                                <label for="throat-reduction-mode">Throat Reduction:</label>
-                                <select id="throat-reduction-mode">
-                                    <option value="auto" selected>Auto (geometric)</option>
-                                    <option value="custom">Custom</option>
-                                </select>
-                                <div id="throat-reduction-custom" style="display: none;">
-                                    <input type="number" id="throat-reduction" value="0.3" step="0.1" min="0.01" max="5">
-                                    <small class="hint">mm - Controls hourglass depth (~2x this value)</small>
-                                </div>
-                                <div id="throat-reduction-auto-hint">
-                                    <small class="hint" id="throat-reduction-auto-value">Calculated from worm/wheel geometry</small>
-                                </div>
+                                <small class="hint">Reduces wheel tip diameter to create shorter teeth for compact assemblies.</small>
                             </div>
 
                             <div id="throat-option-group">
                                 <div class="checkbox-option">
                                     <input type="checkbox" id="wheel-throated">
                                     <label for="wheel-throated">Throated wheel teeth (better contact)</label>
-                                    <small class="hint" style="display: block; margin-left: 1.5rem;">Note: Virtual hobbing automatically creates throated teeth</small>
                                 </div>
-                            </div>
-
-                            <div id="trim-engagement-group" style="display: none;">
-                                <div class="checkbox-option">
-                                    <input type="checkbox" id="trim-to-min-engagement">
-                                    <label for="trim-to-min-engagement">Trim wheel OD to throat minimum</label>
-                                    <small class="hint" style="display: block; margin-left: 1.5rem;">
-                                        Removes flared edges — wheel OD becomes uniform at engagement zone diameter
-                                    </small>
-                                </div>
+                                <small class="hint">Shape wheel teeth to match worm curvature. Better contact area, requires hobbing or 5-axis machining.</small>
+                                <small class="hint-expanded">A throated wheel has teeth that wrap around the worm, creating a larger contact area and spreading the load across more teeth simultaneously. This increases load capacity significantly but requires more complex manufacturing: either a hobbing machine with the correct hob, or 5-axis CNC machining. Non-throated (spur/helical) wheels only contact the worm at a single point, limiting load capacity but simplifying manufacturing.</small>
                             </div>
 
                             <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Worm Length and Wheel Width</h3>
@@ -302,21 +217,41 @@
                             <div id="custom-dims-group" style="display: none;">
                                 <label for="worm-length">Worm Length (mm):</label>
                                 <input type="number" id="worm-length" value="40" step="1" min="5">
+                                <small class="hint">Auto-calculated from contact geometry. Override for custom length.</small>
 
                                 <label for="wheel-width">Wheel Width (mm):</label>
                                 <input type="number" id="wheel-width" value="10" step="1" min="5">
+                                <small class="hint">Auto-calculated face width. Override for custom width.</small>
                             </div>
 
-                            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Bores & Keyways</h3>
+                            <!-- Globoid-only: Trim to min engagement -->
+                            <div id="trim-engagement-group" class="globoid-only" style="display: none;">
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="trim-to-min-engagement">
+                                    <label for="trim-to-min-engagement">Trim wheel OD to throat minimum</label>
+                                </div>
+                                <small class="hint">Removes flared edges. Wheel OD becomes uniform at engagement zone diameter.</small>
+                            </div>
+                        </div>
+                    </details>
 
-                            <label for="worm-bore-type">Worm Bore:</label>
+                    <!-- ====== Step 3: Bore & Shaft Interface (collapsed) ====== -->
+                    <details id="step-3-bore" class="step-details">
+                        <summary class="step-header">Step 3: Bore & Shaft Interface</summary>
+                        <div class="step-content">
+
+                            <!-- Worm bore section -->
+                            <h3 class="bore-part-header">Worm Shaft</h3>
+
+                            <label for="worm-bore-type">Bore:</label>
                             <select id="worm-bore-type">
                                 <option value="none">Solid (no bore)</option>
                                 <option value="auto" selected>Auto-calculated</option>
                                 <option value="custom">Custom diameter</option>
                             </select>
+                            <small class="hint">Auto sizes bore to ~25% of pitch diameter with standard rounding.</small>
+                            <small class="hint-expanded">The bore is the central hole through the gear for mounting on a shaft. Auto-calculation sizes it to approximately 25% of the pitch diameter, then rounds to a standard shaft size. The bore must be smaller than the root diameter to leave enough material for the teeth. Solid (no bore) is useful for prototyping or when you plan to machine the bore separately.</small>
 
-                            <!-- Always show recommended bore as reference -->
                             <div id="worm-bore-info" style="font-size: 0.85em; color: #666; margin-top: 0.25rem;">
                                 Recommended: <span id="worm-bore-recommended">--</span>
                             </div>
@@ -324,25 +259,31 @@
                             <div id="worm-bore-custom" style="display: none; margin-top: 0.5rem;">
                                 <label for="worm-bore-diameter">Custom Bore Diameter (mm):</label>
                                 <input type="number" id="worm-bore-diameter" value="8" step="0.5" min="2">
+                                <small class="hint">Must be smaller than root diameter.</small>
                             </div>
 
                             <div id="worm-anti-rotation-group" style="display: none; margin-top: 0.5rem;">
-                                <label for="worm-anti-rotation">Worm Anti-Rotation:</label>
+                                <label for="worm-anti-rotation">Anti-Rotation:</label>
                                 <select id="worm-anti-rotation">
                                     <option value="none">None</option>
-                                    <option value="DIN6885">DIN 6885 Keyway</option>
+                                    <option value="DIN6885" selected>DIN 6885 Keyway</option>
                                     <option value="ddcut">DD-Cut (flat sides)</option>
                                 </select>
+                                <small class="hint">DIN 6885: standard parallel keyway (bores >= 6mm). DD-Cut: double-D flat for small shafts.</small>
+                                <small class="hint-expanded"><strong>DIN 6885 keyway</strong> is a rectangular slot cut into the bore and shaft. A matching key transmits torque and prevents the gear from spinning on the shaft. This is the standard method for bores 6 mm and above. <strong>DD-cut</strong> (double-D or flat) removes two opposing flat surfaces from the bore to match a shaft with matching flats. This is simpler to manufacture for small shafts below 6 mm where keyways are impractical.</small>
                             </div>
 
-                            <label for="wheel-bore-type">Wheel Bore:</label>
+                            <!-- Wheel bore section -->
+                            <h3 class="bore-part-header" style="margin-top: 1.5rem;">Wheel Shaft</h3>
+
+                            <label for="wheel-bore-type">Bore:</label>
                             <select id="wheel-bore-type">
                                 <option value="none">Solid (no bore)</option>
                                 <option value="auto" selected>Auto-calculated</option>
                                 <option value="custom">Custom diameter</option>
                             </select>
+                            <small class="hint">Auto sizes bore to ~25% of pitch diameter with standard rounding.</small>
 
-                            <!-- Always show recommended bore as reference -->
                             <div id="wheel-bore-info" style="font-size: 0.85em; color: #666; margin-top: 0.25rem;">
                                 Recommended: <span id="wheel-bore-recommended">--</span>
                             </div>
@@ -350,29 +291,33 @@
                             <div id="wheel-bore-custom" style="display: none; margin-top: 0.5rem;">
                                 <label for="wheel-bore-diameter">Custom Bore Diameter (mm):</label>
                                 <input type="number" id="wheel-bore-diameter" value="12" step="0.5" min="2">
+                                <small class="hint">Must be smaller than root diameter.</small>
                             </div>
 
                             <div id="wheel-anti-rotation-group" style="display: none; margin-top: 0.5rem;">
-                                <label for="wheel-anti-rotation">Wheel Anti-Rotation:</label>
+                                <label for="wheel-anti-rotation">Anti-Rotation:</label>
                                 <select id="wheel-anti-rotation">
                                     <option value="none">None</option>
-                                    <option value="DIN6885">DIN 6885 Keyway</option>
+                                    <option value="DIN6885" selected>DIN 6885 Keyway</option>
                                     <option value="ddcut">DD-Cut (flat sides)</option>
                                 </select>
+                                <small class="hint">DIN 6885: standard parallel keyway (bores >= 6mm). DD-Cut: double-D flat for small shafts.</small>
                             </div>
 
+                            <!-- Relief grooves (worm only) -->
                             <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1rem;">Relief Grooves</h3>
 
                             <div class="checkbox-option">
                                 <input type="checkbox" id="relief-groove">
                                 <label for="relief-groove">Add relief grooves at worm thread ends</label>
                             </div>
+                            <small class="hint">Undercuts at worm thread ends for manufacturing clearance.</small>
 
                             <div id="relief-groove-group" style="display: none;">
                                 <label for="groove-type">Groove Type:</label>
                                 <select id="groove-type">
                                     <option value="din76" selected>DIN 76 (standard undercut)</option>
-                                    <option value="full-radius">Full radius (semicircular)</option>
+                                    <option value="full-radius">Full radius (semicircular, lower stress)</option>
                                 </select>
 
                                 <div id="din76-options">
@@ -391,26 +336,28 @@
                             </div>
                         </div>
                     </details>
+
                 </section>
 
                 <section id="results-section">
-                    <h2>Results</h2>
-                    <pre id="results-text">Enter parameters and click Calculate</pre>
-                </section>
-
-                <section id="validation-section">
-                    <h2>Validation</h2>
                     <div id="validation-status" class="status-pending">Waiting for calculation...</div>
                     <div id="module-info" class="module-info" style="display: none;"></div>
-                    <ul id="validation-messages"></ul>
+                    <div id="spec-sheet">
+                        <p class="spec-sheet-placeholder">Enter parameters to calculate design</p>
+                    </div>
                 </section>
 
                 <section id="export-section">
-                    <h2>Export</h2>
-                    <button id="copy-json" disabled>Copy JSON</button>
-                    <button id="download-json" disabled>Download JSON</button>
-                    <button id="download-md" disabled>Download Markdown</button>
-                    <button id="copy-link" disabled>Copy Share Link</button>
+                    <button id="open-in-generator" disabled class="btn-generator">Open in 3D Generator</button>
+                    <div class="export-group">
+                        <button id="download-design-package" disabled class="btn-primary-export">Download Package</button>
+                        <button id="download-pdf" disabled>PDF</button>
+                        <button id="download-json" disabled>JSON</button>
+                    </div>
+                    <div class="export-group">
+                        <button id="copy-json" disabled>Copy JSON</button>
+                        <button id="copy-link" disabled>Copy Link</button>
+                    </div>
                 </section>
                 </div><!-- end calculator-layout -->
             </div>
@@ -422,11 +369,45 @@
                         <!-- Left column: Controls -->
                         <div class="generator-controls">
                             <section class="generator-section compact">
+                                <div id="gen-design-banner" class="gen-design-banner" style="display: none;">
+                                    No design loaded
+                                </div>
                                 <div id="generator-loading-status" style="color: #666; font-size: 0.9em; margin-bottom: 0.75rem;">
                                     Loading generator...
                                 </div>
 
-                                <div style="display: flex; gap: 0.5rem;">
+                                <!-- Generation Options (moved from calculator) -->
+                                <div class="gen-options">
+                                    <label for="gen-wheel-generation">Wheel Generation Method:</label>
+                                    <select id="gen-wheel-generation">
+                                        <option value="helical" selected>Helical (simple, fast)</option>
+                                        <option value="virtual-hobbing">Virtual Hobbing (accurate throating)</option>
+                                    </select>
+                                    <small class="hint">Helical: fast, simple geometry. Virtual Hobbing: simulates real hobbing for accurate tooth throating. Much slower.</small>
+
+                                    <div id="gen-hobbing-precision-group" style="display: none;">
+                                        <label for="gen-hobbing-precision">Hobbing Precision:</label>
+                                        <select id="gen-hobbing-precision">
+                                            <option value="preview">Preview (36 steps, 8-15 min)</option>
+                                            <option value="balanced" selected>Balanced (72 steps, 20-40 min)</option>
+                                            <option value="high">High (144 steps, 1-2 hours)</option>
+                                        </select>
+                                        <small class="hint">Higher = more accurate but slower. Times are for WASM in browser.</small>
+                                    </div>
+
+                                    <div id="gen-throating-note" class="gen-note" style="display: none;">
+                                        Design specifies non-throated wheel. Virtual hobbing will produce throated geometry regardless.
+                                    </div>
+
+                                    <label for="gen-sections-per-turn">Sections per Turn:</label>
+                                    <div class="slider-group">
+                                        <input type="range" id="gen-sections-per-turn" min="18" max="72" step="18" value="36" class="slider">
+                                        <span id="gen-sections-per-turn-value" class="slider-value">36</span>
+                                    </div>
+                                    <small class="hint">Worm thread smoothness. 36 = 10 deg per section, good for most uses. 72 for high quality.</small>
+                                </div>
+
+                                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
                                     <button id="generate-btn" disabled style="flex: 1; padding: 0.75rem; font-size: 1rem; font-weight: 600;">
                                         Generate 3D Models
                                     </button>
@@ -484,14 +465,14 @@
                             <section class="generator-section compact" id="design-summary-section">
                                 <h2>Design Summary</h2>
                                 <div id="gen-design-summary">
-                                    <p>No design loaded. Use Calculator tab or upload JSON.</p>
+                                    <p>No design loaded. Use a Design tab or upload JSON.</p>
                                 </div>
                             </section>
 
                             <details class="generator-section compact">
                                 <summary style="cursor: pointer; font-weight: 600; font-size: 1.25rem; margin-bottom: 1rem; color: var(--color-text);">Advanced: JSON Input</summary>
                                 <div class="json-input-area">
-                                    <textarea id="json-input" placeholder="Paste JSON here or use Calculator tab..."></textarea>
+                                    <textarea id="json-input" placeholder="Paste JSON here or use a Design tab..."></textarea>
                                     <div style="margin-top: 10px;">
                                         <button id="load-from-calculator">Load from Calculator</button>
                                         <input type="file" id="json-file-input" accept=".json" style="display: none;">
@@ -537,8 +518,9 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" crossorigin="anonymous"></script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

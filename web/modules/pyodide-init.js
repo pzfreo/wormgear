@@ -173,7 +173,8 @@ import wormgear.calculator as wormcalc
         // Enable export buttons
         document.getElementById('copy-json').disabled = false;
         document.getElementById('download-json').disabled = false;
-        document.getElementById('download-md').disabled = false;
+        document.getElementById('download-pdf').disabled = false;
+        document.getElementById('download-design-package').disabled = false;
         document.getElementById('copy-link').disabled = false;
 
         if (onComplete) onComplete();

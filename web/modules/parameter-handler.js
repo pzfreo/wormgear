@@ -52,21 +52,14 @@ function getChecked(id) {
  * Returns data in the format expected by the Python js_bridge.calculate() function.
  *
  * @param {string} mode - Calculation mode
+ * @param {string} wormType - Worm type from active tab ('cylindrical' or 'globoid')
  * @returns {object} Validated inputs ready for JSON serialization
  */
-export function getInputs(mode) {
+export function getInputs(mode, wormType = 'cylindrical') {
     // Collect bore settings
     // Map UI "auto" to "custom" with null diameter (schema only has 'none' and 'custom')
     const wormBoreType = getValue('worm-bore-type');
     const wheelBoreType = getValue('wheel-bore-type');
-
-    // Debug: Log raw bore type values
-    console.log('[DEBUG] Bore settings from UI:', {
-        wormBoreType_raw: wormBoreType,
-        wheelBoreType_raw: wheelBoreType,
-        wormBoreEl: document.getElementById('worm-bore-type'),
-        wormBoreElValue: document.getElementById('worm-bore-type')?.value
-    });
 
     const bore = {
         worm_bore_type: wormBoreType === 'auto' ? 'custom' : wormBoreType,
@@ -77,21 +70,8 @@ export function getInputs(mode) {
         wheel_keyway: getValue('wheel-anti-rotation')
     };
 
-    // Debug: Log processed bore settings
-    console.log('[DEBUG] Bore settings for Python:', bore);
-
-    // Collect manufacturing settings
-    const wheelGeneration = getValue('wheel-generation');
-    const hobbingPrecision = getValue('hobbing-precision');
-    const hobbingStepsMap = {
-        'preview': 36,
-        'balanced': 72,
-        'high': 144
-    };
-
+    // Collect manufacturing settings (no longer includes virtual_hobbing/hobbing_steps - those are in generator tab)
     const manufacturing = {
-        virtual_hobbing: wheelGeneration === 'virtual-hobbing',
-        hobbing_steps: hobbingStepsMap[hobbingPrecision] || 72,
         use_recommended_dims: getChecked('use-recommended-dims'),
         worm_length_mm: safeParseFloat(getValue('worm-length')),
         wheel_width_mm: safeParseFloat(getValue('wheel-width')),
@@ -107,7 +87,7 @@ export function getInputs(mode) {
         hand: getValue('hand'),
         profile_shift: safeParseFloat(getValue('profile-shift')) || 0,
         profile: getValue('profile'),
-        worm_type: getValue('worm-type'),
+        worm_type: wormType,  // From active tab, not a DOM element
         throat_reduction: getValue('throat-reduction-mode') === 'custom'
             ? safeParseFloat(getValue('throat-reduction')) || 0
             : 0,  // 0 = auto (Python calculates 15% of module)

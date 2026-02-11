@@ -490,12 +490,21 @@ def _validate_clearance(design: DesignInput) -> List[ValidationMessage]:
     # At centre distance, worm tip should not reach wheel root
     clearance = centre_distance - effective_worm_tip_radius - wheel_root_radius
 
-    if clearance < 0:
+    if clearance < -0.1:
+        # Clearly impossible geometry - significant overlap
         messages.append(ValidationMessage(
             severity=Severity.ERROR,
             code="GEOMETRIC_INTERFERENCE",
             message=f"Worm and wheel geometries interfere (clearance: {clearance:.2f}mm)",
-            suggestion="Check calculator inputs - this geometry is impossible"
+            suggestion="Reduce worm tip diameter, increase centre distance, or adjust profile shift"
+        ))
+    elif clearance < 0:
+        # Marginal overlap - may be within tolerances, especially with profile shift
+        messages.append(ValidationMessage(
+            severity=Severity.WARNING,
+            code="CLEARANCE_MARGINAL",
+            message=f"Marginal clearance ({clearance:.2f}mm) between worm tip and wheel root",
+            suggestion="Verify manufacturing tolerances can accommodate this fit"
         ))
     elif clearance < 0.05:
         messages.append(ValidationMessage(

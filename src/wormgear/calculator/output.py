@@ -53,26 +53,18 @@ def to_json(
     # mode='json' automatically handles enum serialization
     design_dict = _model_to_dict(design)
 
-    # Remove informational fields that don't belong in actionable JSON
-    # These are for display only (in markdown/summary) - generator doesn't need them
-    if 'assembly' in design_dict:
-        design_dict['assembly'].pop('efficiency_percent', None)
-        design_dict['assembly'].pop('self_locking', None)
-
+    # Remove duplicate/redundant fields from JSON output
     if 'worm' in design_dict:
         design_dict['worm'].pop('axial_pitch_mm', None)  # Same as lead_mm for single-start
         design_dict['worm'].pop('length_mm', None)  # Comes from manufacturing settings
 
     if 'wheel' in design_dict:
-        design_dict['wheel'].pop('throat_diameter_mm', None)  # Informational only
-        design_dict['wheel'].pop('helix_angle_deg', None)  # Informational only
         design_dict['wheel'].pop('width_mm', None)  # Comes from manufacturing settings
 
     if 'manufacturing' in design_dict:
         design_dict['manufacturing'].pop('worm_type', None)  # Duplicates worm.type
         design_dict['manufacturing'].pop('worm_features', None)  # In features section
         design_dict['manufacturing'].pop('wheel_features', None)  # In features section
-        design_dict['manufacturing'].pop('throated_wheel', None)  # UI setting
         design_dict['manufacturing'].pop('sections_per_turn', None)  # Hardcoded in generator
 
     # Add schema version for compatibility

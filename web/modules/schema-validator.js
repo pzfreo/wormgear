@@ -134,21 +134,27 @@ export function validateBoreSettings(bore) {
  */
 export function validateManufacturingSettings(mfg) {
     if (!mfg) return {
-        virtual_hobbing: false,
-        hobbing_steps: 72,
         use_recommended_dims: true,
         worm_length_mm: null,
         wheel_width_mm: null
     };
 
-    return {
-        virtual_hobbing: typeof mfg.virtual_hobbing === 'boolean' ? mfg.virtual_hobbing : false,
-        hobbing_steps: typeof mfg.hobbing_steps === 'number' ? mfg.hobbing_steps : 72,
+    const result = {
         use_recommended_dims: typeof mfg.use_recommended_dims === 'boolean' ? mfg.use_recommended_dims : true,
         worm_length_mm: optionalNumber(mfg.worm_length_mm, 'worm_length_mm'),
         wheel_width_mm: optionalNumber(mfg.wheel_width_mm, 'wheel_width_mm'),
         trim_to_min_engagement: typeof mfg.trim_to_min_engagement === 'boolean' ? mfg.trim_to_min_engagement : false
     };
+
+    // virtual_hobbing and hobbing_steps are optional (may come from older share links)
+    if (mfg.virtual_hobbing !== undefined) {
+        result.virtual_hobbing = typeof mfg.virtual_hobbing === 'boolean' ? mfg.virtual_hobbing : false;
+    }
+    if (mfg.hobbing_steps !== undefined) {
+        result.hobbing_steps = typeof mfg.hobbing_steps === 'number' ? mfg.hobbing_steps : 72;
+    }
+
+    return result;
 }
 
 /**
