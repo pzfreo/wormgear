@@ -218,13 +218,51 @@ def measure_thread_thickness_at_z(solid, z: float, pitch_radius: float,
     return sum(extents) / len(extents) if extents else None
 
 
+def _cluster_tip_angles(tip_points: List[Tuple[float, float]],
+                        min_gap_rad: float = 0.3) -> List[float]:
+    """
+    Cluster tip points by angular proximity, return mean angle of each cluster.
+
+    For a multi-start worm, there are N tip regions per cross-section.  We group
+    nearby points into clusters and return the mean angle of each cluster.
+    """
+    if not tip_points:
+        return []
+
+    # Sort by angle
+    angles = sorted(a for a, _ in tip_points)
+
+    clusters: List[List[float]] = [[angles[0]]]
+    for a in angles[1:]:
+        if a - clusters[-1][-1] < min_gap_rad:
+            clusters[-1].append(a)
+        else:
+            clusters.append([a])
+
+    # Check wraparound: first and last cluster may be the same thread
+    if len(clusters) > 1:
+        wrap_gap = (2 * math.pi) - clusters[-1][-1] + clusters[0][0]
+        if wrap_gap < min_gap_rad:
+            clusters[0] = clusters[-1] + clusters[0]
+            clusters.pop()
+
+    # Mean angle of each cluster (circular mean)
+    means = []
+    for cluster in clusters:
+        sc = sum(math.cos(a) for a in cluster)
+        ss = sum(math.sin(a) for a in cluster)
+        means.append(math.atan2(ss, sc))
+    return means
+
+
 def measure_lead(solid, pitch_radius: float, worm_length: float) -> Optional[float]:
     """
-    Measure the actual lead by intersecting the solid with an axial half-plane
-    and finding the helical pitch.
+    Measure the actual lead by tracking one thread's angular progression
+    along the Z axis.
 
-    Uses the XZ half-plane (X > 0) to find thread tip points at various Z,
-    then measures the Z distance between corresponding features.
+    At each Z slice, finds all thread-tip clusters (one per start) and
+    follows the cluster nearest to the previous measurement, so multi-start
+    worms are handled correctly.
 
     Args:
         solid: Worm solid
@@ -234,12 +272,11 @@ def measure_lead(solid, pitch_radius: float, worm_length: float) -> Optional[flo
     Returns:
         Measured lead in mm, or None if measurement fails.
     """
-    # Sample cross-sections at many Z positions along the worm
-    # and track the angular position of the thread peak
     half_length = worm_length / 2
     n_slices = 60
     z_values = []
     peak_angles = []
+    prev_angle = None
 
     for i in range(n_slices):
         z = -half_length * 0.8 + (half_length * 1.6) * i / (n_slices - 1)
@@ -248,11 +285,9 @@ def measure_lead(solid, pitch_radius: float, worm_length: float) -> Optional[flo
         if profile["max_radius"] < pitch_radius * 0.5:
             continue
 
-        # Find angle of maximum radius (thread tip)
         if not profile["points"]:
             continue
 
-        # Find all points near tip radius
         max_r = profile["max_radius"]
         tip_points = [(a, r) for a, r in profile["points"]
                       if r > max_r * 0.95]
@@ -260,13 +295,27 @@ def measure_lead(solid, pitch_radius: float, worm_length: float) -> Optional[flo
         if not tip_points:
             continue
 
-        # Average angle of tip points (handle wraparound with atan2 of unit vectors)
-        sum_cos = sum(math.cos(a) for a, _ in tip_points)
-        sum_sin = sum(math.sin(a) for a, _ in tip_points)
-        avg_angle = math.atan2(sum_sin, sum_cos)
+        cluster_means = _cluster_tip_angles(tip_points)
+        if not cluster_means:
+            continue
 
+        if prev_angle is None:
+            # First slice — pick the cluster closest to 0
+            chosen = min(cluster_means, key=lambda a: abs(a))
+        else:
+            # Pick the cluster nearest to the previous angle (track one thread)
+            def _angle_dist(a):
+                d = a - prev_angle
+                while d > math.pi:
+                    d -= 2 * math.pi
+                while d < -math.pi:
+                    d += 2 * math.pi
+                return abs(d)
+            chosen = min(cluster_means, key=_angle_dist)
+
+        prev_angle = chosen
         z_values.append(z)
-        peak_angles.append(avg_angle)
+        peak_angles.append(chosen)
 
     if len(z_values) < 10:
         return None

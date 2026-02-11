@@ -12,7 +12,7 @@ from OCP.ShapeFix import ShapeFix_Shape, ShapeFix_Solid
 from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Sewing, BRepBuilderAPI_MakeSolid
 from OCP.TopExp import TopExp_Explorer
-from OCP.TopAbs import TopAbs_SHELL, TopAbs_FACE
+from OCP.TopAbs import TopAbs_SHELL, TopAbs_FACE, TopAbs_EDGE
 from OCP.TopoDS import TopoDS
 
 logger = logging.getLogger(__name__)
@@ -114,6 +114,12 @@ class WormGeometry:
         if self._part is not None:
             return self._part
 
+        # Multi-start sweep uses per-start build to avoid complex boolean
+        # failures (pipe shell topology doesn't survive composite fuse+cut).
+        if (self.generation_method == "sweep"
+                and self.params.num_starts > 1):
+            return self._build_sweep_multi_start()
+
         root_radius = self.params.root_diameter_mm / 2
         tip_radius = self.params.tip_diameter_mm / 2
         lead = self.params.lead_mm
@@ -129,9 +135,12 @@ class WormGeometry:
         # Create core slightly longer than final worm to match extended threads
         # We'll trim to exact length after union
         extended_length = self.length + 2 * lead  # Add lead on each end
-        logger.info(f"Creating core cylinder (radius={root_radius:.2f}mm, height={extended_length:.2f}mm)...")
+        # Sweep threads touch core exactly at root_r (zero overlap) causing
+        # OCC Fuse to produce disjoint solids.  A tiny overlap forces merge.
+        core_radius_adj = root_radius + (0.05 if self.generation_method == "sweep" else 0)
+        logger.info(f"Creating core cylinder (radius={core_radius_adj:.2f}mm, height={extended_length:.2f}mm)...")
         core = Cylinder(
-            radius=root_radius,
+            radius=core_radius_adj,
             height=extended_length,
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
@@ -224,13 +233,15 @@ class WormGeometry:
         # Repair geometry after complex boolean operations
         worm = self._repair_geometry(worm)
 
-        # Ensure we have a single Solid for proper display in ocp_vscode
+        # Ensure we have a single Solid for proper display and volume.
+        # Repair may return a Compound wrapping one valid solid (volume=0 on
+        # the Compound but correct on the inner Solid), and boolean trim may
+        # split geometry into multiple solids.
         if hasattr(worm, 'solids'):
             solids = list(worm.solids())
             if len(solids) == 1:
                 worm = solids[0]
             elif len(solids) > 1:
-                # Return the largest solid (should be the worm)
                 worm = max(solids, key=lambda s: s.volume)
 
         # Cut relief grooves at thread termination points (before bore features)
@@ -260,6 +271,132 @@ class WormGeometry:
 
         logger.debug(f"Final worm volume: {worm.volume:.2f} mm³")
         # Cache the built geometry
+        self._part = worm
+        return worm
+
+    def _build_sweep_multi_start(self) -> Part:
+        """Build multi-start sweep worm by fusing all threads with a shared core.
+
+        Pipe shell solids touch the core cylinder exactly at root_r (zero
+        overlap), which causes OCC Fuse to create a compound of disjoint
+        solids instead of merging them.  A tiny core radius increase (0.05 mm)
+        forces genuine overlap so Fuse produces a single merged solid that
+        trims and repairs cleanly.
+        """
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse, BRepAlgoAPI_Cut
+
+        root_radius = self.params.root_diameter_mm / 2
+        tip_radius = self.params.tip_diameter_mm / 2
+        lead = self.params.lead_mm
+        extended_length = self.length + 2 * lead
+        trim_diameter = tip_radius * 4
+        half_length = self.length / 2
+
+        # Build all threads
+        threads = []
+        for start_index in range(self.params.num_starts):
+            angle_offset = (360 / self.params.num_starts) * start_index
+            logger.info(f"Building sweep start {start_index} (angle={angle_offset:.0f}°)...")
+            thread = self._create_single_thread_sweep(angle_offset)
+            if thread is not None:
+                threads.append(thread)
+                logger.debug(f"Thread {start_index}: volume={thread.volume:.1f}")
+
+        if not threads:
+            logger.error("No threads created")
+            core = Cylinder(
+                radius=root_radius, height=self.length,
+                align=(Align.CENTER, Align.CENTER, Align.CENTER)
+            )
+            self._part = core
+            return core
+
+        # Core with 0.05mm overlap so fuse merges into one solid
+        core = Cylinder(
+            radius=root_radius + 0.05,
+            height=extended_length,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        )
+
+        # Fuse core + all threads sequentially
+        logger.info("Fusing core with threads...")
+        worm_shape = core.wrapped
+        for thread in threads:
+            fuse = BRepAlgoAPI_Fuse(worm_shape, thread.wrapped)
+            fuse.Build()
+            if fuse.IsDone():
+                worm_shape = fuse.Shape()
+            else:
+                logger.warning("Thread fuse failed")
+
+        # Trim to length
+        logger.info(f"Trimming to {self.length:.1f}mm...")
+        top_box = Box(
+            length=trim_diameter, width=trim_diameter,
+            height=extended_length,
+            align=(Align.CENTER, Align.CENTER, Align.MIN)
+        )
+        top_box = Pos(0, 0, half_length) * top_box
+        cut = BRepAlgoAPI_Cut(worm_shape, top_box.wrapped)
+        cut.Build()
+        if cut.IsDone():
+            worm_shape = cut.Shape()
+
+        bottom_box = Box(
+            length=trim_diameter, width=trim_diameter,
+            height=extended_length,
+            align=(Align.CENTER, Align.CENTER, Align.MAX)
+        )
+        bottom_box = Pos(0, 0, -half_length) * bottom_box
+        cut = BRepAlgoAPI_Cut(worm_shape, bottom_box.wrapped)
+        cut.Build()
+        if cut.IsDone():
+            worm_shape = cut.Shape()
+
+        worm = Part(worm_shape)
+
+        # Remove degenerate zero-volume solids
+        if hasattr(worm, 'solids'):
+            solids = list(worm.solids())
+            real = [s for s in solids if s.volume > 0.01]
+            if len(real) == 1:
+                worm = real[0]
+            elif len(real) > 1 and len(real) < len(solids):
+                shape = real[0].wrapped
+                for s in real[1:]:
+                    f = BRepAlgoAPI_Fuse(shape, s.wrapped)
+                    f.Build()
+                    if f.IsDone():
+                        shape = f.Shape()
+                worm = Part(shape)
+
+        worm = self._repair_geometry(worm)
+
+        # Add features (bore, keyway, etc.)
+        if self.relief_groove is not None:
+            axial_pitch = self.params.lead_mm / self.params.num_starts
+            worm = create_relief_groove(
+                worm,
+                root_diameter_mm=self.params.root_diameter_mm,
+                tip_diameter_mm=self.params.tip_diameter_mm,
+                axial_pitch_mm=axial_pitch,
+                part_length=self.length,
+                groove=self.relief_groove,
+                axis=Axis.Z
+            )
+
+        if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:
+            worm = add_bore_and_keyway(
+                worm,
+                part_length=self.length,
+                bore=self.bore,
+                keyway=self.keyway,
+                ddcut=self.ddcut,
+                set_screw=self.set_screw,
+                axis=Axis.Z
+            )
+
+        logger.debug(f"Final multi-start worm volume: {worm.volume:.2f} mm³")
         self._part = worm
         return worm
 
@@ -386,10 +523,22 @@ class WormGeometry:
         elif len(threads) == 1:
             return threads[0]
         else:
-            result = threads[0]
+            # Use OCC fuse directly — build123d's + operator can fail on
+            # STEP-roundtripped Solids (incompatible Compound/Solid types).
+            from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse as _ThreadFuse
+            result_shape = threads[0].wrapped
             for thread in threads[1:]:
-                result = result + thread
-            return result
+                fuse = _ThreadFuse(result_shape, thread.wrapped)
+                fuse.Build()
+                if fuse.IsDone():
+                    result_shape = fuse.Shape()
+                else:
+                    logger.warning("Thread union failed, using build123d fallback")
+                    result = threads[0]
+                    for t in threads[1:]:
+                        result = result + t
+                    return result
+            return Part(result_shape)
 
     def _create_single_thread(self, start_angle: float = 0) -> Part:
         """Dispatch to loft or sweep thread creation method."""
@@ -628,20 +777,24 @@ class WormGeometry:
         """
         Create a single helical thread by sweeping one profile along a helix.
 
-        Sweeps a single full-depth profile along the helical path using
-        build123d's sweep() with normal=(0,0,1) to keep the profile
-        radially oriented (profile plane always contains the Z axis).
+        Uses OCC's BRepOffsetAPI_MakePipeShell directly with a Z-axis auxiliary
+        direction to keep the profile radially oriented. This produces a
+        continuous helical surface without loft seams, resulting in cleaner
+        topology and smaller STEP files.
 
-        This produces a continuous helical surface without loft seams,
-        resulting in cleaner topology and smaller STEP files.
+        The direct OCC approach (vs build123d's sweep wrapper) gives:
+        - Consistent radial dimensions at all Z positions
+        - Correct volume matching loft within 0.5%
+        - Proper solid creation via STEP roundtrip normalization
         """
+        from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
+        from OCP.gp import gp_Dir
+
         pitch_radius = self.params.pitch_diameter_mm / 2
-        tip_radius = self.params.tip_diameter_mm / 2
-        root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
         is_right_hand = self.params.hand == Hand.RIGHT
-        logger.debug(f"Sweep thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, "
-                      f"root_r={root_radius:.2f}, lead={lead:.2f}mm")
+        logger.debug(f"Sweep thread: pitch_r={pitch_radius:.2f}, lead={lead:.2f}mm")
 
         # Thread profile dimensions
         pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
@@ -667,19 +820,14 @@ class WormGeometry:
         if start_angle != 0:
             helix = helix.rotate(Axis.Z, start_angle)
 
-        # Get the start point and tangent of the helix to position the profile
+        # Position profile at helix start, perpendicular to tangent
         start_point = helix @ 0
         start_tangent = helix % 0
-
-        # Radial direction at helix start
         angle = math.atan2(start_point.Y, start_point.X)
         radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
 
-        # Profile plane: perpendicular to helix tangent, radial direction is x_dir
         profile_plane = Plane(origin=start_point, x_dir=radial_dir, z_dir=start_tangent)
 
-        # Profile coordinates relative to pitch radius:
-        # x_dir = radial (inner_r to outer_r), y_dir = along-helix (width)
         inner_r = -dedendum
         outer_r = addendum
 
@@ -687,19 +835,12 @@ class WormGeometry:
         with BuildSketch(profile_plane) as sk:
             with BuildLine():
                 if self.profile in (WormProfile.ZA, "ZA", WormProfile.ZI, "ZI"):
-                    # ZA/ZI: Straight trapezoidal flanks
-                    root_left = (inner_r, -thread_half_width_root)
-                    root_right = (inner_r, thread_half_width_root)
-                    tip_left = (outer_r, -thread_half_width_tip)
-                    tip_right = (outer_r, thread_half_width_tip)
-
-                    Line(root_left, tip_left)
-                    Line(tip_left, tip_right)
-                    Line(tip_right, root_right)
-                    Line(root_right, root_left)
+                    Line((inner_r, -thread_half_width_root), (outer_r, -thread_half_width_tip))
+                    Line((outer_r, -thread_half_width_tip), (outer_r, thread_half_width_tip))
+                    Line((outer_r, thread_half_width_tip), (inner_r, thread_half_width_root))
+                    Line((inner_r, thread_half_width_root), (inner_r, -thread_half_width_root))
 
                 elif self.profile in (WormProfile.ZK, "ZK"):
-                    # ZK: Circular arc flanks
                     num_points = 9
                     left_flank = []
                     right_flank = []
@@ -727,12 +868,52 @@ class WormGeometry:
 
         profile_face = sk.sketch.faces()[0]
 
-        # Sweep the profile along the helix
-        # normal=(0,0,1) locks the Z direction in the profile frame, keeping
-        # the profile radially oriented as it follows the helical path
-        logger.debug("Sweeping profile along helix...")
-        thread = sweep(profile_face, path=helix, normal=(0, 0, 1))
-        logger.debug("Sweep completed successfully")
+        # Build helix wire for OCC pipe shell
+        wire_maker = BRepBuilderAPI_MakeWire()
+        explorer = TopExp_Explorer(helix.wrapped, TopAbs_EDGE)
+        while explorer.More():
+            wire_maker.Add(TopoDS.Edge_s(explorer.Current()))
+            explorer.Next()
+        helix_wire = wire_maker.Wire()
+
+        # Create pipe shell with Z-axis auxiliary direction.
+        # SetMode(gp_Dir(0,0,1)) constrains the profile frame so the radial
+        # direction always points away from the Z axis as the profile sweeps
+        # along the helix — producing constant tip/root radii at all Z.
+        logger.debug("Sweeping profile along helix (OCC MakePipeShell)...")
+        pipe = BRepOffsetAPI_MakePipeShell(helix_wire)
+        pipe.SetMode(gp_Dir(0, 0, 1))
+        pipe.Add(profile_face.outer_wire().wrapped)
+        pipe.Build()
+
+        if not pipe.IsDone():
+            raise RuntimeError("OCC MakePipeShell failed to build")
+
+        pipe.MakeSolid()
+
+        # STEP roundtrip normalizes the pipe shell topology so that:
+        # - Part.volume reports correctly (raw pipe shell returns 0)
+        # - Boolean fuse/cut operations work reliably (multi-start union)
+        # This adds ~0.5s overhead but avoids multiple downstream issues.
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.NamedTemporaryFile(suffix='.step', delete=False) as f:
+            step_path = Path(f.name)
+
+        try:
+            export_step(Part(pipe.Shape()), str(step_path))
+            imported = import_step(str(step_path))
+            # import_step returns a Compound; extract the single Solid so that
+            # downstream BRepAlgoAPI_Fuse gets a TopoDS_Solid, not a Compound.
+            solids = list(imported.solids())
+            if len(solids) == 1:
+                thread = solids[0]
+            else:
+                thread = max(solids, key=lambda s: s.volume)
+            logger.debug(f"Sweep completed: volume={thread.volume:.1f}")
+        finally:
+            step_path.unlink(missing_ok=True)
 
         return thread
 
