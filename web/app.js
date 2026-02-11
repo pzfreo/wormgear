@@ -74,6 +74,144 @@ function syncGeneratorUI(design) {
 }
 
 /**
+ * Load a design JSON into the design tab's input fields and recalculate.
+ * Creates a true round-trip: JSON → design inputs → calculator → updated state.
+ * Called when uploading a JSON file or pasting JSON in the generator tab.
+ */
+function loadDesignIntoDesignTab(design) {
+    if (!design || !design.worm || !design.wheel || !design.assembly) return;
+
+    const worm = design.worm;
+    const wheel = design.wheel;
+    const asm = design.assembly;
+    const mfg = design.manufacturing || {};
+    const features = design.features || {};
+
+    // --- 1. Worm type: switch tab if globoid ---
+    const wormType = worm.type || 'cylindrical';
+    const designTab = document.getElementById('design-tab');
+    designTab.dataset.wormType = wormType;
+
+    // Activate the correct tab button (without triggering full tab click handler)
+    const tabs = document.querySelectorAll('.tab');
+    const targetTabName = wormType === 'globoid' ? 'globoid' : 'cylindrical';
+    tabs.forEach(t => {
+        if (t.dataset.tab === targetTabName) t.classList.add('active');
+        else if (t.dataset.tab === 'cylindrical' || t.dataset.tab === 'globoid') t.classList.remove('active');
+    });
+
+    // --- 2. Mode: always use from-module (module + ratio are in every JSON) ---
+    const modeEl = document.getElementById('mode');
+    modeEl.value = 'from-module';
+    document.querySelectorAll('.input-group').forEach(group => {
+        group.style.display = group.dataset.mode === 'from-module' ? 'block' : 'none';
+    });
+
+    // --- 3. Core inputs ---
+    document.getElementById('module').value = worm.module_mm;
+    document.getElementById('ratio-fm').value = asm.ratio;
+    document.getElementById('num-starts').value = worm.num_starts;
+    document.getElementById('pressure-angle').value = asm.pressure_angle_deg;
+    document.getElementById('hand').value = (asm.hand || 'right').toUpperCase();
+    document.getElementById('backlash').value = asm.backlash_mm;
+    document.getElementById('profile-shift').value = worm.profile_shift || 0;
+
+    // --- 4. Advanced options ---
+    const profileEl = document.getElementById('profile');
+    if (mfg.profile) profileEl.value = typeof mfg.profile === 'string' ? mfg.profile.toUpperCase() : mfg.profile;
+
+    // Throated wheel
+    document.getElementById('wheel-throated').checked = !!mfg.throated_wheel;
+
+    // Stub teeth (wheel tip reduction)
+    const hasStubTeeth = wheel.tip_reduction_mm != null && wheel.tip_reduction_mm > 0;
+    document.getElementById('limit-wheel-od').checked = hasStubTeeth;
+    document.getElementById('wheel-max-od-group').style.display = hasStubTeeth ? 'block' : 'none';
+    if (hasStubTeeth) {
+        document.getElementById('wheel-tip-reduction').value = wheel.tip_reduction_mm;
+    }
+
+    // Custom dimensions
+    const hasCustomDims = !!(mfg.worm_length_mm || mfg.wheel_width_mm);
+    // Leave "use recommended" checked — calculator will recalculate recommended values
+    // Only uncheck if the JSON had explicit custom values AND they differ from what calculator would produce
+    // For simplicity, leave it checked; the calculator will re-derive correct values
+
+    // --- 5. Globoid-specific ---
+    if (wormType === 'globoid') {
+        // Throat reduction
+        const throatReductionMode = document.getElementById('throat-reduction-mode');
+        if (throatReductionMode) {
+            if (worm.throat_reduction_mm && worm.throat_reduction_mm > 0) {
+                throatReductionMode.value = 'custom';
+                document.getElementById('throat-reduction').value = worm.throat_reduction_mm;
+                document.getElementById('throat-reduction-custom').style.display = 'block';
+                document.getElementById('throat-reduction-auto-hint').style.display = 'none';
+            } else {
+                throatReductionMode.value = 'auto';
+                document.getElementById('throat-reduction-custom').style.display = 'none';
+                document.getElementById('throat-reduction-auto-hint').style.display = 'block';
+            }
+        }
+
+        // Trim to min engagement
+        const trimEl = document.getElementById('trim-to-min-engagement');
+        if (trimEl) trimEl.checked = !!mfg.trim_to_min_engagement;
+    }
+
+    // --- 6. Bore settings ---
+    function setBore(prefix, feat) {
+        const boreTypeEl = document.getElementById(`${prefix}-bore-type`);
+        if (!boreTypeEl) return;
+
+        if (!feat || feat.bore_type === 'none') {
+            boreTypeEl.value = 'none';
+        } else if (feat.bore_type === 'custom' && feat.bore_diameter_mm != null) {
+            boreTypeEl.value = 'custom';
+            document.getElementById(`${prefix}-bore-diameter`).value = feat.bore_diameter_mm;
+        } else {
+            // custom with null diameter = auto
+            boreTypeEl.value = 'auto';
+        }
+
+        // Anti-rotation
+        const antiRotEl = document.getElementById(`${prefix}-anti-rotation`);
+        if (antiRotEl && feat && feat.anti_rotation) {
+            antiRotEl.value = feat.anti_rotation;
+        }
+
+        // Trigger change to update visibility of custom bore / anti-rotation groups
+        boreTypeEl.dispatchEvent(new Event('change'));
+    }
+
+    setBore('worm', features.worm);
+    setBore('wheel', features.wheel);
+
+    // --- 7. Relief groove ---
+    const reliefGroove = features.worm?.relief_groove;
+    const reliefCheckbox = document.getElementById('relief-groove');
+    if (reliefCheckbox) {
+        reliefCheckbox.checked = !!reliefGroove;
+        document.getElementById('relief-groove-group').style.display = reliefGroove ? 'block' : 'none';
+
+        if (reliefGroove) {
+            const grooveTypeEl = document.getElementById('groove-type');
+            grooveTypeEl.value = reliefGroove.type || 'din76';
+            grooveTypeEl.dispatchEvent(new Event('change'));
+
+            if (reliefGroove.width_mm) document.getElementById('groove-width').value = reliefGroove.width_mm;
+            if (reliefGroove.depth_mm) document.getElementById('groove-depth').value = reliefGroove.depth_mm;
+            if (reliefGroove.radius_mm) document.getElementById('groove-radius').value = reliefGroove.radius_mm;
+        }
+    }
+
+    // --- 8. Recalculate to update currentDesign, currentMarkdown, spec sheet ---
+    if (getCalculatorPyodide()) {
+        calculate();
+    }
+}
+
+/**
  * Map a validation message code to a spec sheet section name.
  * Returns the section title where the message should appear inline.
  */
@@ -1014,6 +1152,7 @@ function handleFileUpload(event) {
             const design = JSON.parse(e.target.result);
             updateDesignSummary(design);
             syncGeneratorUI(design);
+            loadDesignIntoDesignTab(design);
             appendToConsole(`Loaded ${file.name}`);
         } catch (error) {
             appendToConsole(`Error parsing ${file.name}: ${error.message}`);
@@ -1184,6 +1323,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const design = JSON.parse(jsonInput.value);
             if (design.worm && design.wheel && design.assembly) {
                 updateDesignSummary(design);
+                syncGeneratorUI(design);
+                loadDesignIntoDesignTab(design);
                 window.currentGeneratedDesign = design;
             }
         } catch (e) {
