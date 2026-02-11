@@ -68,7 +68,7 @@ export function updateDesignSummary(design) {
 
     function section(title, rows, open = false) {
         const openAttr = open ? ' open' : '';
-        let html = `<details class="gen-spec-details"${openAttr}><summary class="spec-section-title gen-spec-toggle">${title}</summary><table class="spec-table">`;
+        let html = `<details class="gen-spec-details"${openAttr}><summary class="gen-spec-toggle">${title}</summary><table class="spec-table">`;
         for (const [label, value] of rows) {
             if (value === undefined || value === null) continue;
             html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
