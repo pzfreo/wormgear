@@ -230,6 +230,10 @@ class ManufacturingParams(BaseModel):
     throated_wheel: bool = Field(default=False, alias='wheel_throated')
     trim_to_min_engagement: bool = False
     sections_per_turn: int = 36
+    generation_method: Optional[str] = Field(
+        default=None,
+        description="Worm generation method: 'sweep' (fast, default for cylindrical) or 'loft' (proven, used for globoid). None = auto-select based on worm type."
+    )
     worm_length_mm: Optional[float] = Field(default=None, alias='worm_length')
     wheel_width_mm: Optional[float] = Field(default=None, alias='wheel_width')
 

@@ -310,7 +310,7 @@ small.hint-expanded {
 
 /* Show globoid-only fields when worm type is globoid */
 #design-tab[data-worm-type="globoid"] .globoid-only {
-    display: block;
+    display: block !important;
 }
 
 /* ============================================================================

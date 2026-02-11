@@ -213,7 +213,7 @@ async function generateGeometry(data) {
             virtualHobbing,
             hobbingSteps,
             generateType,
-            sectionsPerTurn = 36
+            generationMethod = 'sweep'
         } = data;
 
         self.postMessage({ type: 'LOG', message: '⏳ Starting geometry generation...' });
@@ -246,7 +246,7 @@ progress_callback
         pyodide.globals.set('virtual_hobbing_val', virtualHobbing);
         pyodide.globals.set('hobbing_steps_val', hobbingSteps);
         pyodide.globals.set('generate_type', generateType);
-        pyodide.globals.set('sections_per_turn_val', sectionsPerTurn);
+        pyodide.globals.set('generation_method_val', generationMethod);
         pyodide.globals.set('progress_callback_fn', progressCallback);
 
         // Run generation
@@ -284,12 +284,9 @@ except (TypeError, ValueError):
 print(f"Wheel width: {wheel_width if wheel_width else 'auto-calculated'}")
 print(f"Worm length (from JS): {worm_length}")
 
-# Parse sections_per_turn from generator UI
-try:
-    sections_per_turn = int(sections_per_turn_val) if sections_per_turn_val else 36
-except (TypeError, ValueError):
-    sections_per_turn = 36
-print(f"Sections per turn: {sections_per_turn}")
+# Sections per turn: only relevant for globoid loft method (hardcoded to 36)
+# Cylindrical worms use sweep by default, which ignores sections_per_turn
+sections_per_turn = 36
 
 # Parse features section for bores and keyways
 features = design_data.get('features', {}) or {}  # Handle None case
@@ -406,10 +403,10 @@ if generate_type in ['worm', 'both']:
                 params=worm_params,
                 assembly_params=assembly_params,
                 length=worm_length,
-                sections_per_turn=sections_per_turn,
                 bore=worm_bore,
                 keyway=worm_keyway,
-                ddcut=worm_ddcut
+                ddcut=worm_ddcut,
+                generation_method=generation_method_val
             )
         print("  Building 3D model...")
         worm = worm_geo.build()

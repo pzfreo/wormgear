@@ -537,6 +537,8 @@ More info: https://wormgear.studio
     use_worm_length = args.worm_length if args.worm_length != 40.0 else (json_mfg.worm_length_mm if json_mfg and json_mfg.worm_length_mm else 40.0)
     use_wheel_width = args.wheel_width if args.wheel_width is not None else (json_mfg.wheel_width_mm if json_mfg and json_mfg.wheel_width_mm else None)
     use_trim_engagement = args.trim_to_min_engagement or (json_mfg.trim_to_min_engagement if json_mfg else False)
+    # Generation method: CLI arg overrides JSON value; default 'sweep' for cylindrical
+    use_generation_method = args.generation_method if args.generation_method != 'sweep' else (json_mfg.generation_method if json_mfg and json_mfg.generation_method else 'sweep')
 
     # Wheel tip reduction (stub teeth): CLI arg overrides JSON value
     # NOTE: The JSON tip_diameter_mm is already reduced by the calculator.
@@ -730,7 +732,7 @@ More info: https://wormgear.studio
                 set_screw=worm_set_screw,
                 relief_groove=worm_relief_groove,
                 profile=profile,
-                generation_method=args.generation_method,
+                generation_method=use_generation_method,
             )
 
         worm = worm_geo.build()

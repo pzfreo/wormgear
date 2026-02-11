@@ -1,7 +1,7 @@
 // Wormgear Complete Design System - Browser Application
 // Clean modular architecture with validated JS<->Python bridge
 
-import { calculateBoreSize, getCalculatedBores, updateBoreDisplaysAndDefaults, updateAntiRotationOptions, setupBoreEventListeners } from './modules/bore-calculator.js';
+import { calculateBoreSize, getCalculatedBores, updateBoreDisplaysAndDefaults, updateAntiRotationOptions, setupBoreEventListeners, setLoadingState } from './modules/bore-calculator.js';
 import { updateValidationUI } from './modules/validation-ui.js';
 import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
@@ -15,6 +15,7 @@ let currentMarkdown = null;
 let generatorTabVisited = false;
 let currentGenerationId = 0;  // Track generation to ignore cancelled results
 let isGenerating = false;  // Track if generation is in progress
+let isLoadingDesign = false;  // Suppress auto-recalculate during JSON round-trip loading
 
 // ============================================================================
 // UTILITIES
@@ -56,6 +57,174 @@ function updateThroatingNote() {
     const isVirtualHobbing = document.getElementById('gen-wheel-generation')?.value === 'virtual-hobbing';
     const isThroated = currentDesign?.manufacturing?.throated_wheel;
     note.style.display = (isVirtualHobbing && !isThroated) ? 'block' : 'none';
+}
+
+/**
+ * Sync generator UI controls from a loaded design's manufacturing settings.
+ * Called when loading JSON from calculator, file upload, or "Open in Generator".
+ */
+function syncGeneratorUI(design) {
+    if (!design) return;
+    const mfg = design.manufacturing || {};
+
+    // Worm generation method
+    const genWormEl = document.getElementById('gen-worm-generation');
+    if (genWormEl && mfg.generation_method) {
+        genWormEl.value = mfg.generation_method;
+    }
+}
+
+/**
+ * Load a design JSON into the design tab's input fields and recalculate.
+ * Creates a true round-trip: JSON → design inputs → calculator → updated state.
+ * Called when uploading a JSON file or pasting JSON in the generator tab.
+ */
+function loadDesignIntoDesignTab(design) {
+    if (!design || !design.worm || !design.wheel || !design.assembly) return;
+
+    // Suppress auto-recalculate and bore auto-fill during loading
+    isLoadingDesign = true;
+    setLoadingState(true);
+
+    try {
+        const worm = design.worm;
+        const wheel = design.wheel;
+        const asm = design.assembly;
+        const mfg = design.manufacturing || {};
+        const features = design.features || {};
+
+        // --- 1. Worm type: switch tab if globoid ---
+        const wormType = worm.type || 'cylindrical';
+        const designTab = document.getElementById('design-tab');
+        designTab.dataset.wormType = wormType;
+
+        // Activate the correct tab button (without triggering full tab click handler)
+        const tabs = document.querySelectorAll('.tab');
+        const targetTabName = wormType === 'globoid' ? 'globoid' : 'cylindrical';
+        tabs.forEach(t => {
+            if (t.dataset.tab === targetTabName) t.classList.add('active');
+            else if (t.dataset.tab === 'cylindrical' || t.dataset.tab === 'globoid') t.classList.remove('active');
+        });
+
+        // --- 2. Mode: always use from-module (module + ratio are in every JSON) ---
+        const modeEl = document.getElementById('mode');
+        modeEl.value = 'from-module';
+        document.querySelectorAll('.input-group').forEach(group => {
+            group.style.display = group.dataset.mode === 'from-module' ? 'block' : 'none';
+        });
+
+        // --- 3. Core inputs ---
+        document.getElementById('module').value = worm.module_mm;
+        document.getElementById('ratio-fm').value = asm.ratio;
+        document.getElementById('num-starts').value = worm.num_starts;
+        document.getElementById('pressure-angle').value = asm.pressure_angle_deg;
+        document.getElementById('hand').value = (asm.hand || 'right').toUpperCase();
+        document.getElementById('backlash').value = asm.backlash_mm;
+        // Profile shift: the user input maps to wheel profile shift (worm is always 0)
+        document.getElementById('profile-shift').value = wheel.profile_shift || worm.profile_shift || 0;
+
+        // Uncheck "use standard module" to preserve the exact module from JSON
+        document.getElementById('use-standard-module').checked = false;
+
+        // --- 4. Advanced options ---
+        const profileEl = document.getElementById('profile');
+        if (mfg.profile) profileEl.value = typeof mfg.profile === 'string' ? mfg.profile.toUpperCase() : mfg.profile;
+
+        // Throated wheel
+        document.getElementById('wheel-throated').checked = !!mfg.throated_wheel;
+
+        // Stub teeth (wheel tip reduction)
+        const hasStubTeeth = wheel.tip_reduction_mm != null && wheel.tip_reduction_mm > 0;
+        document.getElementById('limit-wheel-od').checked = hasStubTeeth;
+        document.getElementById('wheel-max-od-group').style.display = hasStubTeeth ? 'block' : 'none';
+        if (hasStubTeeth) {
+            document.getElementById('wheel-tip-reduction').value = wheel.tip_reduction_mm;
+        }
+
+        // --- 5. Globoid-specific ---
+        if (wormType === 'globoid') {
+            // Throat reduction
+            const throatReductionMode = document.getElementById('throat-reduction-mode');
+            if (throatReductionMode) {
+                if (worm.throat_reduction_mm && worm.throat_reduction_mm > 0) {
+                    throatReductionMode.value = 'custom';
+                    document.getElementById('throat-reduction').value = worm.throat_reduction_mm;
+                    document.getElementById('throat-reduction-custom').style.display = 'block';
+                    document.getElementById('throat-reduction-auto-hint').style.display = 'none';
+                } else {
+                    throatReductionMode.value = 'auto';
+                    document.getElementById('throat-reduction-custom').style.display = 'none';
+                    document.getElementById('throat-reduction-auto-hint').style.display = 'block';
+                }
+            }
+
+            // Trim to min engagement
+            const trimEl = document.getElementById('trim-to-min-engagement');
+            if (trimEl) trimEl.checked = !!mfg.trim_to_min_engagement;
+        }
+
+        // --- 6. Bore settings ---
+        function setBore(prefix, feat) {
+            const boreTypeEl = document.getElementById(`${prefix}-bore-type`);
+            if (!boreTypeEl) return;
+
+            if (!feat || feat.bore_type === 'none') {
+                boreTypeEl.value = 'none';
+            } else if (feat.bore_type === 'custom' && feat.bore_diameter_mm != null) {
+                boreTypeEl.value = 'custom';
+                document.getElementById(`${prefix}-bore-diameter`).value = feat.bore_diameter_mm;
+            } else {
+                // custom with null diameter = auto
+                boreTypeEl.value = 'auto';
+            }
+
+            // Anti-rotation
+            const antiRotEl = document.getElementById(`${prefix}-anti-rotation`);
+            if (antiRotEl && feat && feat.anti_rotation) {
+                antiRotEl.value = feat.anti_rotation;
+            }
+
+            // Trigger change to update visibility of custom bore / anti-rotation groups
+            // (auto-fill and auto-select suppressed by _isLoading flag)
+            boreTypeEl.dispatchEvent(new Event('change'));
+        }
+
+        setBore('worm', features.worm);
+        setBore('wheel', features.wheel);
+
+        // --- 7. Relief groove ---
+        const reliefGroove = features.worm?.relief_groove;
+        const reliefCheckbox = document.getElementById('relief-groove');
+        if (reliefCheckbox) {
+            reliefCheckbox.checked = !!reliefGroove;
+            document.getElementById('relief-groove-group').style.display = reliefGroove ? 'block' : 'none';
+
+            if (reliefGroove) {
+                const grooveTypeEl = document.getElementById('groove-type');
+                grooveTypeEl.value = reliefGroove.type || 'din76';
+                grooveTypeEl.dispatchEvent(new Event('change'));
+
+                // Set values where present, clear where null (shows placeholder "auto")
+                document.getElementById('groove-width').value = reliefGroove.width_mm ?? '';
+                document.getElementById('groove-depth').value = reliefGroove.depth_mm ?? '';
+                document.getElementById('groove-radius').value = reliefGroove.radius_mm ?? '';
+            } else {
+                // Clear stale relief groove values from any previous design
+                document.getElementById('groove-type').value = 'din76';
+                document.getElementById('groove-width').value = '';
+                document.getElementById('groove-depth').value = '';
+                document.getElementById('groove-radius').value = '';
+            }
+        }
+
+        // --- 8. Recalculate to update currentDesign, currentMarkdown, spec sheet ---
+        if (getCalculatorPyodide()) {
+            calculate();
+        }
+    } finally {
+        isLoadingDesign = false;
+        setLoadingState(false);
+    }
 }
 
 /**
@@ -847,6 +1016,7 @@ function openInGenerator() {
     // Load design into generator
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    syncGeneratorUI(currentDesign);
     updateThroatingNote();
 
     // Switch to generator tab
@@ -978,6 +1148,7 @@ function loadFromCalculator() {
 
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    syncGeneratorUI(currentDesign);
     updateThroatingNote();
     appendToConsole('Loaded design from calculator');
 }
@@ -996,12 +1167,49 @@ function handleFileUpload(event) {
         try {
             const design = JSON.parse(e.target.result);
             updateDesignSummary(design);
+            syncGeneratorUI(design);
+            loadDesignIntoDesignTab(design);
             appendToConsole(`Loaded ${file.name}`);
         } catch (error) {
             appendToConsole(`Error parsing ${file.name}: ${error.message}`);
         }
     };
     reader.readAsText(file);
+}
+
+/**
+ * Load a JSON design file directly into the design tab.
+ * Called from the "Load Definition" button on the design tab.
+ */
+function handleDesignFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const design = JSON.parse(e.target.result);
+            if (!design.worm || !design.wheel || !design.assembly) {
+                showNotification('Invalid JSON: missing worm, wheel, or assembly', true);
+                return;
+            }
+            loadDesignIntoDesignTab(design);
+
+            // Also update generator tab if visited
+            if (generatorTabVisited) {
+                document.getElementById('json-input').value = JSON.stringify(design, null, 2);
+                updateDesignSummary(design);
+                syncGeneratorUI(design);
+            }
+
+            showNotification(`Loaded ${file.name}`);
+        } catch (error) {
+            showNotification(`Error: ${error.message}`, true);
+        }
+    };
+    reader.readAsText(file);
+    // Reset input so the same file can be loaded again
+    event.target.value = '';
 }
 
 /**
@@ -1044,16 +1252,15 @@ async function generateGeometry(type) {
         }
 
         // Read generation parameters from GENERATOR TAB UI (not from design JSON)
+        const genWormGeneration = document.getElementById('gen-worm-generation');
         const genWheelGeneration = document.getElementById('gen-wheel-generation');
         const genHobbingPrecision = document.getElementById('gen-hobbing-precision');
-        const genSectionsPerTurn = document.getElementById('gen-sections-per-turn');
 
+        const generationMethod = genWormGeneration ? genWormGeneration.value : 'sweep';
         const virtualHobbing = genWheelGeneration ? genWheelGeneration.value === 'virtual-hobbing' : false;
 
         const hobbingPrecisionMap = { 'preview': 36, 'balanced': 72, 'high': 144 };
         const hobbingSteps = genHobbingPrecision ? (hobbingPrecisionMap[genHobbingPrecision.value] || 72) : 72;
-
-        const sectionsPerTurn = genSectionsPerTurn ? parseInt(genSectionsPerTurn.value) : 36;
 
         // Get profile from design JSON (it's a design concern, stays in calculator output)
         const manufacturing = designData.manufacturing || {};
@@ -1079,7 +1286,7 @@ async function generateGeometry(type) {
         isGenerating = true;
 
         appendToConsole('Starting geometry generation...');
-        appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}, Sections/Turn: ${sectionsPerTurn}`);
+        appendToConsole(`Parameters: ${type}, Worm: ${generationMethod}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
 
         // Show and reset progress indicator
         const progressContainer = document.getElementById('generation-progress');
@@ -1106,12 +1313,12 @@ async function generateGeometry(type) {
             data: {
                 designData,
                 generateType: type,
+                generationMethod,
                 virtualHobbing,
                 hobbingSteps: effectiveHobbingSteps,
                 profile,
                 wormLength,
-                wheelWidth,
-                sectionsPerTurn
+                wheelWidth
             }
         });
 
@@ -1146,6 +1353,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('copy-link').addEventListener('click', copyLink);
     document.getElementById('open-in-generator').addEventListener('click', openInGenerator);
 
+    // Setup event listeners for design tab file loading
+    document.getElementById('load-design-json').addEventListener('click', () => {
+        document.getElementById('design-json-file-input').click();
+    });
+    document.getElementById('design-json-file-input').addEventListener('change', handleDesignFileUpload);
+
     // Setup event listeners for generator
     document.getElementById('load-from-calculator').addEventListener('click', loadFromCalculator);
     document.getElementById('load-json-file').addEventListener('click', loadJSONFile);
@@ -1160,11 +1373,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThroatingNote();
     });
 
-    // Generator tab: sections per turn slider value display
-    document.getElementById('gen-sections-per-turn').addEventListener('input', (e) => {
-        document.getElementById('gen-sections-per-turn-value').textContent = e.target.value;
-    });
-
     // Update design summary when JSON is pasted or edited
     const jsonInput = document.getElementById('json-input');
     jsonInput.addEventListener('input', debounce(() => {
@@ -1172,6 +1380,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const design = JSON.parse(jsonInput.value);
             if (design.worm && design.wheel && design.assembly) {
                 updateDesignSummary(design);
+                syncGeneratorUI(design);
+                loadDesignIntoDesignTab(design);
                 window.currentGeneratedDesign = design;
             }
         } catch (e) {
@@ -1245,11 +1455,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-recalculate on input changes — scoped to #design-tab only
     // (generator controls should NOT trigger calculate())
+    // Skip during JSON loading to prevent redundant intermediate calculations
     const designTab = document.getElementById('design-tab');
     const designInputs = designTab.querySelectorAll('input, select');
     designInputs.forEach(input => {
         input.addEventListener('change', () => {
-            if (getCalculatorPyodide()) calculate();
+            if (getCalculatorPyodide() && !isLoadingDesign) calculate();
         });
     });
 

@@ -106,6 +106,10 @@ export type HobbingSteps = number;
 export type ThroatedWheel = boolean;
 export type TrimToMinEngagement = boolean;
 export type SectionsPerTurn = number;
+/**
+ * Worm generation method: 'sweep' (fast, default for cylindrical) or 'loft' (proven, used for globoid). None = auto-select based on worm type.
+ */
+export type GenerationMethod = string | null;
 export type WormLengthMm = number | null;
 export type WheelWidthMm = number | null;
 /**
@@ -302,6 +306,7 @@ export interface ManufacturingParams {
   throated_wheel?: ThroatedWheel;
   trim_to_min_engagement?: TrimToMinEngagement;
   sections_per_turn?: SectionsPerTurn;
+  generation_method?: GenerationMethod;
   worm_length_mm?: WormLengthMm;
   wheel_width_mm?: WheelWidthMm;
 }
