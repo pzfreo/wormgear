@@ -159,6 +159,8 @@ if '/home/pyodide' not in sys.path:
         { path: 'wormgear/core/globoid_worm.py', pyPath: '/home/pyodide/wormgear/core/globoid_worm.py' },
         { path: 'wormgear/core/virtual_hobbing.py', pyPath: '/home/pyodide/wormgear/core/virtual_hobbing.py' },
         { path: 'wormgear/core/bore_sizing.py', pyPath: '/home/pyodide/wormgear/core/bore_sizing.py' },
+        { path: 'wormgear/core/mesh_alignment.py', pyPath: '/home/pyodide/wormgear/core/mesh_alignment.py' },
+        { path: 'wormgear/core/rim_thickness.py', pyPath: '/home/pyodide/wormgear/core/rim_thickness.py' },
         { path: 'wormgear/io/__init__.py', pyPath: '/home/pyodide/wormgear/io/__init__.py' },
         { path: 'wormgear/io/loaders.py', pyPath: '/home/pyodide/wormgear/io/loaders.py' },
         { path: 'wormgear/io/schema.py', pyPath: '/home/pyodide/wormgear/io/schema.py' },
@@ -210,7 +212,8 @@ async function generateGeometry(data) {
             wheelWidth,
             virtualHobbing,
             hobbingSteps,
-            generateType
+            generateType,
+            sectionsPerTurn = 36
         } = data;
 
         self.postMessage({ type: 'LOG', message: '⏳ Starting geometry generation...' });
@@ -243,6 +246,7 @@ progress_callback
         pyodide.globals.set('virtual_hobbing_val', virtualHobbing);
         pyodide.globals.set('hobbing_steps_val', hobbingSteps);
         pyodide.globals.set('generate_type', generateType);
+        pyodide.globals.set('sections_per_turn_val', sectionsPerTurn);
         pyodide.globals.set('progress_callback_fn', progressCallback);
 
         // Run generation
@@ -279,6 +283,13 @@ except (TypeError, ValueError):
     wheel_width = None
 print(f"Wheel width: {wheel_width if wheel_width else 'auto-calculated'}")
 print(f"Worm length (from JS): {worm_length}")
+
+# Parse sections_per_turn from generator UI
+try:
+    sections_per_turn = int(sections_per_turn_val) if sections_per_turn_val else 36
+except (TypeError, ValueError):
+    sections_per_turn = 36
+print(f"Sections per turn: {sections_per_turn}")
 
 # Parse features section for bores and keyways
 features = design_data.get('features', {}) or {}  # Handle None case
@@ -385,7 +396,7 @@ if generate_type in ['worm', 'both']:
                 assembly_params=assembly_params,
                 wheel_pitch_diameter=wheel_params.pitch_diameter_mm,
                 length=worm_length,
-                sections_per_turn=36,
+                sections_per_turn=sections_per_turn,
                 bore=worm_bore,
                 keyway=worm_keyway,
                 ddcut=worm_ddcut
@@ -395,7 +406,7 @@ if generate_type in ['worm', 'both']:
                 params=worm_params,
                 assembly_params=assembly_params,
                 length=worm_length,
-                sections_per_turn=36,
+                sections_per_turn=sections_per_turn,
                 bore=worm_bore,
                 keyway=worm_keyway,
                 ddcut=worm_ddcut

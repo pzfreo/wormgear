@@ -66,11 +66,16 @@ class BoreSettings(BaseModel):
 
 
 class ManufacturingSettings(BaseModel):
-    """Manufacturing settings from UI."""
+    """Manufacturing settings from UI.
+
+    virtual_hobbing and hobbing_steps are Optional because they've moved
+    to the generator tab. The calculator doesn't need them, but they may
+    still arrive from older share links or saved designs.
+    """
     model_config = ConfigDict(extra='ignore')
 
-    virtual_hobbing: bool = False
-    hobbing_steps: int = 72
+    virtual_hobbing: Optional[bool] = False
+    hobbing_steps: Optional[int] = 72
     use_recommended_dims: bool = True
     worm_length_mm: Optional[float] = None
     wheel_width_mm: Optional[float] = None
@@ -202,10 +207,12 @@ def calculate(input_json: str) -> str:
         # Note: throat_reduction is auto-calculated in core.py for globoid worms
         design = _call_design_function(inputs.mode, inputs, kwargs)
 
-        # Update manufacturing params from UI settings
+        # Update manufacturing params from UI settings (if provided)
         if design.manufacturing:
-            design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
-            design.manufacturing.hobbing_steps = inputs.manufacturing.hobbing_steps
+            if inputs.manufacturing.virtual_hobbing is not None:
+                design.manufacturing.virtual_hobbing = inputs.manufacturing.virtual_hobbing
+            if inputs.manufacturing.hobbing_steps is not None:
+                design.manufacturing.hobbing_steps = inputs.manufacturing.hobbing_steps
 
         # Convert bore settings to dict for validation and output
         bore_dict = inputs.bore.model_dump() if inputs.bore else None

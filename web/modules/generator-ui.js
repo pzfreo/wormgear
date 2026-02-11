@@ -36,25 +36,53 @@ export function appendToConsole(message) {
  */
 export function updateDesignSummary(design) {
     const summary = document.getElementById('gen-design-summary');
+    const banner = document.getElementById('gen-design-banner');
+
     if (!design || !design.worm || !design.wheel) {
-        summary.innerHTML = '<p>No design loaded. Use Calculator tab or upload JSON.</p>';
+        summary.innerHTML = '<p>No design loaded. Use a Design tab or upload JSON.</p>';
+        if (banner) banner.style.display = 'none';
         return;
     }
 
     const manufacturing = design.manufacturing || {};
-    summary.innerHTML = `
-        <table style="width: 100%; font-size: 0.9em;">
-            <tr><td><strong>Module:</strong></td><td>${design.worm.module_mm} mm</td></tr>
-            <tr><td><strong>Ratio:</strong></td><td>${design.assembly.ratio}:1</td></tr>
-            <tr><td><strong>Profile:</strong></td><td>${manufacturing.profile || 'ZA'} (${manufacturing.profile === 'ZK' ? '3D printing' : 'CNC machining'})</td></tr>
-            <tr><td><strong>Worm Type:</strong></td><td>${design.worm.throat_curvature_radius_mm ? 'Globoid (hourglass)' : 'Cylindrical'}</td></tr>
-            <tr><td><strong>Wheel Type:</strong></td><td>${manufacturing.throated_wheel ? 'Throated (hobbed)' : 'Helical'}</td></tr>
-            <tr><td><strong>Hand:</strong></td><td>${design.assembly.hand}</td></tr>
-        </table>
-        <p style="margin-top: 0.5rem; font-size: 0.85em; color: #666;">
-            These settings from your design will be used for generation.
-        </p>
+    const assembly = design.assembly || {};
+    const wormType = design.worm.type || (design.worm.throat_curvature_radius_mm ? 'globoid' : 'cylindrical');
+    const moduleStr = `m${Number(design.worm.module_mm).toFixed(1)}`;
+    const ratioStr = `r${assembly.ratio}`;
+    const profileStr = manufacturing.profile || 'ZA';
+
+    // Compact one-liner banner
+    if (banner) {
+        banner.textContent = `Design: ${moduleStr} ${ratioStr} ${wormType} ${profileStr}`;
+        banner.style.display = 'block';
+    }
+
+    // Full summary table with manufacturing dimensions and efficiency
+    const fmt = (v, d = 1) => v != null ? Number(v).toFixed(d) : '\u2014';
+
+    let summaryRows = `
+        <tr><td><strong>Module:</strong></td><td>${design.worm.module_mm} mm</td></tr>
+        <tr><td><strong>Ratio:</strong></td><td>${assembly.ratio}:1</td></tr>
+        <tr><td><strong>Centre Distance:</strong></td><td>${fmt(assembly.centre_distance_mm)} mm</td></tr>
+        <tr><td><strong>Profile:</strong></td><td>${profileStr}</td></tr>
+        <tr><td><strong>Worm Type:</strong></td><td>${wormType === 'globoid' ? 'Globoid' : 'Cylindrical'}</td></tr>
     `;
+
+    // Manufacturing dimensions
+    if (manufacturing.worm_length_mm) {
+        summaryRows += `<tr><td><strong>Worm Length:</strong></td><td>${fmt(manufacturing.worm_length_mm)} mm</td></tr>`;
+    }
+    if (manufacturing.wheel_width_mm) {
+        summaryRows += `<tr><td><strong>Wheel Width:</strong></td><td>${fmt(manufacturing.wheel_width_mm)} mm</td></tr>`;
+    }
+
+    // Efficiency and self-locking
+    if (assembly.efficiency_percent != null) {
+        const selfLock = assembly.self_locking ? ' (self-locking)' : '';
+        summaryRows += `<tr><td><strong>Efficiency:</strong></td><td>~${Math.round(assembly.efficiency_percent)}%${selfLock}</td></tr>`;
+    }
+
+    summary.innerHTML = `<table style="width: 100%; font-size: 0.9em;">${summaryRows}</table>`;
 }
 
 /**

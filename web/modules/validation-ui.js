@@ -1,31 +1,30 @@
 /**
  * Validation UI Module
  *
- * Handles display of validation results and messages.
+ * Handles display of validation status badge.
+ * Individual messages are rendered inline in the spec sheet by renderSpecSheet().
  */
 
 /**
- * Update validation status and messages in the UI
+ * Update validation status indicator.
+ * Messages are rendered inline by renderSpecSheet() — this only updates the badge.
  * @param {boolean} valid - Whether the design is valid
- * @param {Array} messages - Validation messages
+ * @param {Array} messages - Validation messages (used for count display)
  */
 export function updateValidationUI(valid, messages) {
     const statusDiv = document.getElementById('validation-status');
-    const messagesList = document.getElementById('validation-messages');
 
-    // Update status indicator
-    statusDiv.className = valid ? 'status-valid' : 'status-error';
-    statusDiv.textContent = valid ? '✓ Design valid' : '✗ Design has errors';
+    const errorCount = messages.filter(m => m.severity === 'error').length;
+    const warningCount = messages.filter(m => m.severity === 'warning').length;
 
-    // Clear and populate messages list
-    messagesList.innerHTML = '';
-    messages.forEach(msg => {
-        const li = document.createElement('li');
-        li.className = `validation-${msg.severity}`;
-        li.innerHTML = `<strong>${msg.code}</strong>: ${msg.message}`;
-        if (msg.suggestion) {
-            li.innerHTML += `<br><em>Suggestion: ${msg.suggestion}</em>`;
-        }
-        messagesList.appendChild(li);
-    });
+    if (valid && warningCount === 0) {
+        statusDiv.className = 'status-valid';
+        statusDiv.textContent = '\u2713 Design valid';
+    } else if (valid) {
+        statusDiv.className = 'status-valid';
+        statusDiv.textContent = `\u2713 Design valid \u2014 ${warningCount} warning${warningCount !== 1 ? 's' : ''}`;
+    } else {
+        statusDiv.className = 'status-error';
+        statusDiv.textContent = `\u2717 ${errorCount} error${errorCount !== 1 ? 's' : ''}${warningCount > 0 ? `, ${warningCount} warning${warningCount !== 1 ? 's' : ''}` : ''}`;
+    }
 }

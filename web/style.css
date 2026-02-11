@@ -67,6 +67,363 @@ header h1.site-title .title-light {
     font-size: 1rem;
 }
 
+/* Learn mode toggle */
+.learn-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 0;
+    font-weight: 400;
+    user-select: none;
+}
+
+.learn-toggle input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+.learn-toggle-label {
+    transition: color 0.2s;
+}
+
+.learn-toggle:hover .learn-toggle-label {
+    color: var(--color-primary);
+}
+
+/* Expanded hints - hidden by default, shown in learn mode */
+small.hint-expanded {
+    display: none;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-text);
+    line-height: 1.5;
+    padding: 0.5rem 0.625rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.04), rgba(59, 130, 246, 0.08));
+    border-left: 2px solid var(--color-primary);
+    border-radius: 0 0.25rem 0.25rem 0;
+}
+
+/* When learn mode is active, show expanded hints */
+#app.learn-mode small.hint-expanded {
+    display: block;
+}
+
+/* When learn mode is active, highlight the toggle */
+#app.learn-mode .learn-toggle-label {
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+/* ============================================================================
+   TAB NAVIGATION
+   ============================================================================ */
+
+.tabs {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 2px solid #e0e0e0;
+    background: #f8f9fa;
+    margin: 0;
+}
+
+/* Tab group containers */
+.tab-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 6px 4px 0;
+}
+
+.tab-group-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    letter-spacing: 0.08em;
+    padding: 0 20px;
+    line-height: 1;
+}
+
+.tab-group-buttons {
+    display: flex;
+}
+
+.tab {
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-size: 0.95em;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.3s;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    box-shadow: none;
+}
+
+.tab:hover {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+}
+
+.tab.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+    background: white;
+}
+
+/* Separator between design and build groups */
+.tab-separator {
+    display: block;
+    width: 1px;
+    background: #d0d0d0;
+    margin: 8px 12px;
+    flex-shrink: 0;
+    align-self: stretch;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* ============================================================================
+   CALCULATOR TWO-COLUMN LAYOUT
+   ============================================================================ */
+
+.calculator-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.calculator-layout #inputs-section {
+    grid-column: 1;
+    grid-row: 1 / 5;
+}
+
+.calculator-layout #results-section {
+    grid-column: 2;
+    grid-row: 1 / 3;
+}
+
+.calculator-layout #export-section {
+    grid-column: 2;
+    grid-row: 3;
+}
+
+@media (max-width: 768px) {
+    .calculator-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .calculator-layout #inputs-section,
+    .calculator-layout #results-section,
+    .calculator-layout #export-section {
+        grid-column: 1;
+        grid-row: auto;
+    }
+}
+
+/* ============================================================================
+   STEP SECTIONS (within design form)
+   ============================================================================ */
+
+.step-section {
+    /* Step 1: always visible, no special container */
+}
+
+.step-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 1rem;
+    padding: 0;
+}
+
+/* Step 2 and 3 as collapsible <details> */
+.step-details {
+    margin-top: 1.5rem;
+    padding-top: 0;
+    border-top: 2px solid var(--color-border);
+}
+
+.step-details > summary.step-header {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1.05rem;
+    padding: 0.75rem 0;
+    color: var(--color-primary);
+    user-select: none;
+    list-style: none;
+}
+
+.step-details > summary.step-header::-webkit-details-marker {
+    display: none;
+}
+
+.step-details > summary.step-header::before {
+    content: '\25B6';
+    display: inline-block;
+    margin-right: 0.5rem;
+    font-size: 0.7em;
+    transition: transform 0.2s;
+}
+
+.step-details[open] > summary.step-header::before {
+    transform: rotate(90deg);
+}
+
+.step-details > summary.step-header:hover {
+    color: var(--color-primary-hover);
+}
+
+.step-content {
+    padding-top: 0.5rem;
+}
+
+/* Bore section sub-headers */
+.bore-part-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ============================================================================
+   GLOBOID/CYLINDRICAL CONDITIONAL VISIBILITY
+   ============================================================================ */
+
+/* Hide globoid-only fields when worm type is cylindrical (or not set) */
+#design-tab:not([data-worm-type="globoid"]) .globoid-only {
+    display: none !important;
+}
+
+/* Show globoid-only fields when worm type is globoid */
+#design-tab[data-worm-type="globoid"] .globoid-only {
+    display: block;
+}
+
+/* ============================================================================
+   GENERATOR TAB - Generation Options
+   ============================================================================ */
+
+/* Compact design banner in generator */
+.gen-design-banner {
+    font-family: 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Note callout in generator options */
+.gen-note {
+    font-size: 0.8rem;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+.gen-options {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.gen-options label {
+    margin-top: 0.5rem;
+}
+
+.gen-options label:first-child {
+    margin-top: 0;
+}
+
+/* Slider for sections per turn */
+.slider-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    outline: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: var(--shadow-sm);
+}
+
+.slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: var(--shadow-sm);
+}
+
+.slider-value {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    min-width: 2em;
+    text-align: center;
+}
+
+/* "Open in 3D Generator" button */
+.btn-generator {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+.btn-generator:hover:not(:disabled) {
+    background: linear-gradient(135deg, #5a6fd6, #6a3f96);
+    border: none;
+}
+
+.btn-generator:disabled {
+    background: #ccc;
+    color: #888;
+}
+
 /* Main layout */
 main {
     /* No default grid - let tabs control their own layout */
@@ -90,17 +447,36 @@ section h2 {
 
 #export-section {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.5rem;
     flex-wrap: wrap;
+    align-items: center;
 }
 
-@media (max-width: 768px) {
-    #inputs-section,
-    #validation-section,
-    #results-section {
-        grid-column: 1;
-        grid-row: auto;
-    }
+#export-section h2 {
+    display: none;
+}
+
+.export-group {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.btn-primary-export {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+    font-weight: 600;
+}
+
+.btn-primary-export:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+
+.btn-primary-export:disabled {
+    background: #ccc;
+    border-color: #ccc;
+    color: #888;
 }
 
 /* Form elements */
@@ -175,7 +551,7 @@ small.hint {
     user-select: none;
 }
 
-/* Details/Summary (Options) */
+/* Details/Summary (legacy, and generator section) */
 details {
     margin-top: 1rem;
     padding-top: 1rem;
@@ -210,16 +586,12 @@ details.generator-section[open] summary {
     margin-bottom: 1rem;
 }
 
-#options-inputs {
-    padding-top: 0.5rem;
-}
-
-/* Validation */
+/* Validation status badge */
 #validation-status {
     font-weight: 600;
-    font-size: 1rem;
-    margin-bottom: 1rem;
-    padding: 0.75rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
     border-radius: 0.375rem;
 }
 
@@ -227,12 +599,6 @@ details.generator-section[open] summary {
     color: var(--color-valid);
     background: #f0fdf4;
     border: 1px solid #bbf7d0;
-}
-
-.status-invalid {
-    color: var(--color-error);
-    background: #fef2f2;
-    border: 1px solid #fecaca;
 }
 
 .status-pending {
@@ -247,42 +613,6 @@ details.generator-section[open] summary {
     border: 1px solid #fecaca;
 }
 
-#validation-messages {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-#validation-messages li {
-    padding: 0.75rem;
-    border-radius: 0.375rem;
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
-    line-height: 1.5;
-}
-
-#validation-messages li:last-child {
-    margin-bottom: 0;
-}
-
-.message-error {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-.message-warning {
-    background: #fffbeb;
-    color: #92400e;
-    border: 1px solid #fde68a;
-}
-
-.message-info {
-    background: #eff6ff;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
-}
-
 /* Module info */
 .module-info {
     font-size: 0.875rem;
@@ -295,18 +625,129 @@ details.generator-section[open] summary {
     font-weight: 500;
 }
 
-/* Results */
-#results-text {
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    margin: 0;
-    padding: 1rem;
+/* Specification Sheet */
+#spec-sheet {
+    font-size: 0.875rem;
+}
+
+.spec-sheet-placeholder {
+    color: var(--color-text-muted);
+    padding: 2rem;
+    text-align: center;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: 0.375rem;
-    overflow-x: auto;
+}
+
+.spec-section {
+    margin-bottom: 0.75rem;
+}
+
+.spec-section:last-child {
+    margin-bottom: 0;
+}
+
+.spec-section-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin: 0 0 0.25rem;
+    padding: 0.375rem 0.5rem;
+    background: var(--color-bg);
+    border-radius: 0.25rem 0.25rem 0 0;
+    border: 1px solid var(--color-border);
+    border-bottom: none;
+}
+
+.spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--color-border);
+    border-radius: 0 0 0.25rem 0.25rem;
+}
+
+.spec-table tr:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.spec-table td {
+    padding: 0.3rem 0.5rem;
+    vertical-align: baseline;
+}
+
+.spec-label {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    width: 40%;
+    font-size: 0.8125rem;
+}
+
+.spec-value {
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-size: 0.8125rem;
+}
+
+.spec-note {
+    font-weight: 400;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+
+/* Inline validation messages within spec sheet sections */
+.spec-messages {
+    margin-top: 0.25rem;
+}
+
+.spec-msg {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0 0 0.25rem 0.25rem;
+    border: 1px solid;
+    border-top: none;
+}
+
+.spec-msg + .spec-msg {
+    border-top: 1px solid;
+    border-radius: 0;
+}
+
+.spec-msg:last-child {
+    border-radius: 0 0 0.25rem 0.25rem;
+}
+
+.spec-msg-error {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+
+.spec-msg-warning {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fde68a;
+}
+
+.spec-msg-info {
+    background: #eff6ff;
+    color: #1e40af;
+    border-color: #bfdbfe;
+}
+
+.spec-msg-text {
+    display: block;
+}
+
+.spec-msg-suggestion {
+    display: block;
+    font-size: 0.75rem;
+    font-style: italic;
+    margin-top: 0.125rem;
+    opacity: 0.85;
 }
 
 /* Buttons */
@@ -453,7 +894,60 @@ footer a:hover {
     }
 }
 
-/* Responsive adjustments */
+/* ============================================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================================ */
+
+/* Tablet portrait & small laptops */
+@media (max-width: 768px) {
+    .tabs {
+        flex-wrap: wrap;
+    }
+
+    .tab {
+        padding: 8px 14px;
+        font-size: 0.9em;
+    }
+
+    .tab-group-label {
+        font-size: 0.6rem;
+        padding: 0 14px;
+    }
+
+    /* Stack export section */
+    #export-section {
+        flex-direction: column;
+    }
+
+    .export-group {
+        width: 100%;
+    }
+
+    .export-group button {
+        flex: 1;
+    }
+
+    /* Spec sheet: tighten spacing */
+    .spec-table td {
+        padding: 0.25rem 0.375rem;
+    }
+
+    .spec-label {
+        font-size: 0.775rem;
+    }
+
+    .spec-value {
+        font-size: 0.775rem;
+    }
+
+    /* Step indicators: smaller on tablets */
+    .step-indicator {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8em;
+    }
+}
+
+/* Mobile phones */
 @media (max-width: 480px) {
     body {
         padding: 0.5rem;
@@ -475,14 +969,149 @@ footer a:hover {
         width: 100%;
     }
 
-    #export-section {
-        flex-direction: column;
-    }
-
     .notification {
         left: 1rem;
         right: 1rem;
         bottom: 1rem;
+    }
+
+    /* Tabs: full width, hide separator, compact labels */
+    .tab-group {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .tab-group-buttons {
+        width: 100%;
+    }
+
+    .tab {
+        padding: 8px 10px;
+        font-size: 0.82em;
+        flex: 1;
+        text-align: center;
+    }
+
+    .tab-separator {
+        display: none;
+    }
+
+    .tab-group-label {
+        font-size: 0.55rem;
+        padding: 0 10px;
+    }
+
+    /* Spec sheet: compact for narrow screens */
+    .spec-section-title {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.375rem;
+    }
+
+    .spec-table td {
+        padding: 0.2rem 0.375rem;
+    }
+
+    .spec-label {
+        font-size: 0.75rem;
+        width: 45%;
+    }
+
+    .spec-value {
+        font-size: 0.75rem;
+    }
+
+    .spec-msg {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.375rem;
+    }
+
+    .spec-msg-suggestion {
+        font-size: 0.7rem;
+    }
+
+    /* Step indicators: compact for mobile */
+    .step-indicator {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.7em;
+    }
+
+    .step-arrow {
+        font-size: 0.75em;
+    }
+
+    /* Generator: compact sections */
+    .generator-section.compact {
+        padding: 0.75rem;
+    }
+
+    .generator-section.compact h2 {
+        font-size: 1rem;
+        margin: 0 0 0.5rem;
+    }
+
+    .gen-design-banner {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.5rem;
+    }
+
+    /* Design summary: tighter on mobile */
+    .design-summary {
+        padding: 0.5rem;
+    }
+
+    .design-summary td {
+        padding: 0.15rem 0.25rem;
+        font-size: 0.85em;
+    }
+
+    /* Console: smaller text on mobile */
+    .console {
+        font-size: 0.75em;
+        max-height: 300px;
+    }
+
+    /* Collapsible steps: more compact on mobile */
+    .step-details > summary.step-header {
+        font-size: 0.95rem;
+        padding: 0.5rem 0;
+    }
+
+    .bore-part-header {
+        font-size: 0.9rem;
+    }
+
+    /* Hint text: slightly smaller on mobile */
+    small.hint {
+        font-size: 0.7rem;
+    }
+
+    /* Forms: tighten spacing */
+    label {
+        margin-top: 0.5rem;
+        font-size: 0.825rem;
+    }
+
+    input[type="number"],
+    select {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .checkbox-option {
+        padding: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* Expanded hints: smaller on mobile */
+    small.hint-expanded {
+        font-size: 0.7rem;
+        padding: 0.375rem 0.5rem;
+    }
+
+    /* Loading overlay: tighter on mobile */
+    .loading-content {
+        padding: 1.5rem;
+        margin: 0 1rem;
     }
 }
 
@@ -516,11 +1145,6 @@ footer a:hover {
     border-top: 4px solid #667eea;
     border-radius: 50%;
     animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
 }
 
 .loading-detail {
@@ -658,37 +1282,6 @@ footer a:hover {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Validation status colors */
-.status-valid {
-    color: var(--color-valid);
-    font-weight: 600;
-}
-
-.status-error {
-    color: var(--color-error);
-    font-weight: 600;
-}
-
-.status-pending {
-    color: var(--color-text-muted);
-}
-
-/* Validation messages */
-.validation-error {
-    color: var(--color-error);
-    margin-bottom: 0.5rem;
-}
-
-.validation-warning {
-    color: var(--color-warning);
-    margin-bottom: 0.5rem;
-}
-
-.validation-info {
-    color: var(--color-info);
-    margin-bottom: 0.5rem;
-}
-
 /* Design summary */
 .design-summary {
     background: #f8f9fa;
@@ -770,13 +1363,90 @@ footer a:hover {
     font-weight: bold;
 }
 
-@media (max-width: 640px) {
-    .step-indicator {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75em;
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+    /* Hide everything except the spec sheet and validation */
+    header,
+    footer,
+    .tabs,
+    #inputs-section,
+    #export-section,
+    #generator-tab,
+    .loading-overlay,
+    .notification {
+        display: none !important;
     }
 
-    .step-arrow {
-        font-size: 0.85em;
+    /* Reset page layout */
+    body {
+        background: white;
+        padding: 0;
+        font-size: 11pt;
+    }
+
+    #app {
+        max-width: none;
+    }
+
+    main {
+        display: block;
+    }
+
+    /* Show design tab content in single column */
+    .calculator-layout {
+        display: block;
+    }
+
+    /* Style the results section for print */
+    #results-section {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    /* Hide validation status badge in print (PDF has its own header) */
+    #validation-status {
+        display: none;
+    }
+
+    /* Spec sheet print styling */
+    .spec-section {
+        break-inside: avoid;
+    }
+
+    .spec-section-title {
+        background: #eee;
+        border-color: #ccc;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .spec-table {
+        border-color: #ccc;
+    }
+
+    .spec-table tr:not(:last-child) {
+        border-bottom-color: #ddd;
+    }
+
+    /* Inline validation messages print styling */
+    .spec-msg {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Add print header */
+    #results-section::before {
+        content: "WORMGEAR.STUDIO";
+        display: block;
+        font-family: 'Fira Code', monospace;
+        font-size: 14pt;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #333;
     }
 }
