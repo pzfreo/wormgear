@@ -66,19 +66,20 @@ export function updateDesignSummary(design) {
     const fmtMm = (v, d = 2) => v != null ? `${Number(v).toFixed(d)} mm` : '\u2014';
     const fmtDeg = (v, d = 1) => v != null ? `${Number(v).toFixed(d)}\u00b0` : '\u2014';
 
-    function section(title, rows) {
-        let html = `<div class="spec-section"><h3 class="spec-section-title">${title}</h3><table class="spec-table">`;
+    function section(title, rows, open = false) {
+        const openAttr = open ? ' open' : '';
+        let html = `<details class="gen-spec-details"${openAttr}><summary class="gen-spec-toggle">${title}</summary><table class="spec-table">`;
         for (const [label, value] of rows) {
             if (value === undefined || value === null) continue;
             html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
         }
-        html += '</table></div>';
+        html += '</table></details>';
         return html;
     }
 
     let html = '';
 
-    // OVERVIEW
+    // OVERVIEW (expanded by default)
     const overviewRows = [
         ['Module', fmtMm(worm.module_mm, 3)],
         ['Ratio', `${assembly.ratio}:1`],
@@ -86,7 +87,7 @@ export function updateDesignSummary(design) {
         ['Profile', profileLabels[profileStr] || profileStr],
     ];
     if (wormType === 'globoid') overviewRows.push(['Worm Type', 'Globoid']);
-    html += section('Overview', overviewRows);
+    html += section('Overview', overviewRows, true);
 
     // WORM
     const wormRows = [

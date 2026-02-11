@@ -1087,6 +1087,7 @@ function setupWorkerMessageHandler(worker) {
                 const statusEl = document.getElementById('generator-loading-status');
                 if (statusEl) {
                     statusEl.textContent = 'Generator ready';
+                    statusEl.classList.remove('loading');
                     statusEl.classList.add('ready');
                 }
                 const btn = document.getElementById('generate-btn');
@@ -1097,6 +1098,7 @@ function setupWorkerMessageHandler(worker) {
                 const statusElError = document.getElementById('generator-loading-status');
                 if (statusElError) {
                     statusElError.textContent = `Error: ${error}`;
+                    statusElError.classList.remove('loading');
                     statusElError.classList.add('error');
                 }
                 break;
@@ -1365,7 +1367,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('design-json-file-input').addEventListener('change', handleDesignFileUpload);
 
     // Setup event listeners for generator
-    document.getElementById('load-from-calculator').addEventListener('click', loadFromCalculator);
     document.getElementById('load-json-file').addEventListener('click', loadJSONFile);
     document.getElementById('json-file-input').addEventListener('change', handleFileUpload);
     document.getElementById('generate-btn').addEventListener('click', () => generateGeometry('both'));
@@ -1377,22 +1378,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gen-hobbing-precision-group').style.display = isVirtualHobbing ? 'block' : 'none';
         updateThroatingNote();
     });
-
-    // Update design summary when JSON is pasted or edited
-    const jsonInput = document.getElementById('json-input');
-    jsonInput.addEventListener('input', debounce(() => {
-        try {
-            const design = JSON.parse(jsonInput.value);
-            if (design.worm && design.wheel && design.assembly) {
-                updateDesignSummary(design);
-                syncGeneratorUI(design);
-                loadDesignIntoDesignTab(design);
-                window.currentGeneratedDesign = design;
-            }
-        } catch (e) {
-            // Invalid JSON - don't update summary
-        }
-    }, 500));
 
     // Mode switching
     document.getElementById('mode').addEventListener('change', (e) => {
@@ -1487,7 +1472,6 @@ window.downloadJSON = downloadJSON;
 window.downloadPDF = downloadPDF;
 window.downloadDesignPackage = downloadDesignPackage;
 window.copyLink = copyLink;
-window.loadFromCalculator = loadFromCalculator;
 window.loadJSONFile = loadJSONFile;
 window.generateGeometry = generateGeometry;
 window.initGeneratorTab = initGeneratorTab;

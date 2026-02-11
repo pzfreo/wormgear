@@ -369,12 +369,18 @@
             <!-- Generator Tab -->
             <div id="generator-tab" class="tab-content">
                 <div id="generator-content">
-                    <div class="generator-layout">
-                        <!-- Left column: Controls -->
-                        <div class="generator-controls">
+                    <!-- Status bar: always visible at top -->
+                    <div id="generator-loading-status" class="gen-loading-status loading">
+                        Loading generator...
+                    </div>
 
-                            <!-- A. Design Summary (top of controls) -->
-                            <section class="generator-section compact" id="design-summary-section">
+                    <div class="generator-layout">
+                        <!-- Left column: Design summary + console -->
+                        <div class="generator-info">
+
+                            <!-- Design Summary (collapsible) -->
+                            <details class="generator-section compact" id="design-summary-section" open>
+                                <summary class="gen-details-summary">Design Summary</summary>
                                 <div id="gen-design-banner" class="gen-design-banner" style="display: none;">
                                     No design loaded
                                 </div>
@@ -382,14 +388,22 @@
                                 <div id="gen-design-summary">
                                     <p>No design loaded. Use a Design tab or upload JSON.</p>
                                 </div>
-                            </section>
+                            </details>
 
-                            <!-- B. Generation (options + buttons + progress) -->
+                            <!-- Console Output -->
                             <section class="generator-section compact">
-                                <div id="generator-loading-status" class="gen-loading-status">
-                                    Loading generator...
+                                <h2>Console Output</h2>
+                                <div id="console-output" class="console">
+                                    <div>Ready to generate geometry...</div>
                                 </div>
+                            </section>
+                        </div>
 
+                        <!-- Right column: Controls -->
+                        <div class="generator-controls">
+
+                            <!-- Generation controls -->
+                            <section class="generator-section compact">
                                 <div class="gen-options">
                                     <label for="gen-worm-generation">Worm Thread Method:</label>
                                     <select id="gen-worm-generation">
@@ -476,7 +490,7 @@
                                 </div>
                             </section>
 
-                            <!-- C. Downloads (hidden until generation completes) -->
+                            <!-- Downloads (hidden until generation completes) -->
                             <section class="generator-section compact gen-downloads-section" id="gen-downloads-section">
                                 <button id="download-zip" class="gen-btn-download" disabled>
                                     Download Complete Package (ZIP)
@@ -486,28 +500,14 @@
                                 </p>
                             </section>
 
-                            <!-- D. Advanced: JSON Input -->
-                            <details class="generator-section compact">
-                                <summary style="cursor: pointer; font-weight: 600; font-size: 1.25rem; margin-bottom: 1rem; color: var(--color-text);">Advanced: JSON Input</summary>
-                                <div class="json-input-area">
-                                    <textarea id="json-input" placeholder="Paste JSON here or use a Design tab..."></textarea>
-                                    <div class="gen-json-actions">
-                                        <button id="load-from-calculator">Load from Calculator</button>
-                                        <input type="file" id="json-file-input" accept=".json" style="display: none;">
-                                        <button id="load-json-file">Upload JSON File</button>
-                                    </div>
-                                </div>
-                            </details>
-                        </div>
+                            <!-- Load JSON file (replaces old JSON textarea) -->
+                            <div class="gen-load-file">
+                                <button id="load-json-file">Upload JSON File</button>
+                                <input type="file" id="json-file-input" accept=".json" style="display: none;">
+                            </div>
 
-                        <!-- Right column: Console -->
-                        <div class="generator-console">
-                            <section class="generator-section compact">
-                                <h2>Console Output</h2>
-                                <div id="console-output" class="console">
-                                    <div>Ready to generate geometry...</div>
-                                </div>
-                            </section>
+                            <!-- Hidden: keeps JSON data for programmatic use -->
+                            <textarea id="json-input" style="display: none;"></textarea>
                         </div>
                     </div>
                 </div>
