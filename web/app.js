@@ -41,11 +41,11 @@ function debounce(func, wait) {
 // ============================================================================
 
 /**
- * Get the active worm type from the design tab's data attribute.
+ * Get the active worm type from the worm-type dropdown.
  * @returns {string} 'cylindrical' or 'globoid'
  */
 function getActiveWormType() {
-    return document.getElementById('design-tab')?.dataset.wormType || 'cylindrical';
+    return document.getElementById('worm-type')?.value || 'cylindrical';
 }
 
 /**
@@ -94,18 +94,11 @@ function loadDesignIntoDesignTab(design) {
         const mfg = design.manufacturing || {};
         const features = design.features || {};
 
-        // --- 1. Worm type: switch tab if globoid ---
+        // --- 1. Worm type: set dropdown and data attribute ---
         const wormType = worm.type || 'cylindrical';
         const designTab = document.getElementById('design-tab');
         designTab.dataset.wormType = wormType;
-
-        // Activate the correct tab button (without triggering full tab click handler)
-        const tabs = document.querySelectorAll('.tab');
-        const targetTabName = wormType === 'globoid' ? 'globoid' : 'cylindrical';
-        tabs.forEach(t => {
-            if (t.dataset.tab === targetTabName) t.classList.add('active');
-            else if (t.dataset.tab === 'cylindrical' || t.dataset.tab === 'globoid') t.classList.remove('active');
-        });
+        document.getElementById('worm-type').value = wormType;
 
         // --- 2. Mode: always use from-module (module + ratio are in every JSON) ---
         const modeEl = document.getElementById('mode');
@@ -478,21 +471,15 @@ function initTabs() {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
-            if (targetTab === 'cylindrical' || targetTab === 'globoid') {
-                // Both design tabs show the same #design-tab content
+            if (targetTab === 'design') {
                 designTab.classList.add('active');
                 generatorTab.classList.remove('active');
-
-                // Set worm type on the design tab container
-                designTab.dataset.wormType = targetTab;
 
                 // Lazy load calculator if needed
                 if (!getCalculatorPyodide()) {
                     initCalculatorTab();
-                } else {
-                    // Recalculate with new worm type
-                    calculate();
                 }
+                // No recalculate — just showing the tab
             } else if (targetTab === 'generator') {
                 // Show generator tab
                 designTab.classList.remove('active');
@@ -614,15 +601,11 @@ function loadFromUrl() {
             group.style.display = group.dataset.mode === mode ? 'block' : 'none';
         });
 
-        // Handle worm_type from URL - switch to correct tab
+        // Handle worm_type from URL - set dropdown and data attribute
         if (params.has('worm_type')) {
             const wormType = params.get('worm_type');
-            if (wormType === 'globoid') {
-                // Activate the globoid tab
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelector('.tab[data-tab="globoid"]').classList.add('active');
-                document.getElementById('design-tab').dataset.wormType = 'globoid';
-            }
+            document.getElementById('worm-type').value = wormType;
+            document.getElementById('design-tab').dataset.wormType = wormType;
         }
 
         // Set inputs based on mode
@@ -1377,6 +1360,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const isVirtualHobbing = e.target.value === 'virtual-hobbing';
         document.getElementById('gen-hobbing-precision-group').style.display = isVirtualHobbing ? 'block' : 'none';
         updateThroatingNote();
+    });
+
+    // Worm type dropdown — sync data attribute for CSS visibility rules
+    document.getElementById('worm-type').addEventListener('change', (e) => {
+        document.getElementById('design-tab').dataset.wormType = e.target.value;
     });
 
     // Mode switching
