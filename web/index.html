@@ -372,15 +372,24 @@
                     <div class="generator-layout">
                         <!-- Left column: Controls -->
                         <div class="generator-controls">
-                            <section class="generator-section compact">
+
+                            <!-- A. Design Summary (top of controls) -->
+                            <section class="generator-section compact" id="design-summary-section">
                                 <div id="gen-design-banner" class="gen-design-banner" style="display: none;">
                                     No design loaded
                                 </div>
-                                <div id="generator-loading-status" style="color: #666; font-size: 0.9em; margin-bottom: 0.75rem;">
+                                <div id="gen-validation-status" class="gen-validation-status"></div>
+                                <div id="gen-design-summary">
+                                    <p>No design loaded. Use a Design tab or upload JSON.</p>
+                                </div>
+                            </section>
+
+                            <!-- B. Generation (options + buttons + progress) -->
+                            <section class="generator-section compact">
+                                <div id="generator-loading-status" class="gen-loading-status">
                                     Loading generator...
                                 </div>
 
-                                <!-- Generation Options (moved from calculator) -->
                                 <div class="gen-options">
                                     <label for="gen-worm-generation">Worm Thread Method:</label>
                                     <select id="gen-worm-generation">
@@ -410,8 +419,7 @@
                                         Design specifies non-throated wheel. Virtual hobbing will produce throated geometry regardless.
                                     </div>
 
-                                    <!-- Sections per turn: hidden - sweep method ignores it for cylindrical worms.
-                                         Kept in DOM for globoid loft (hardcoded to 36 in worker). -->
+                                    <!-- Sections per turn: hidden - sweep method ignores it for cylindrical worms. -->
                                     <div id="gen-sections-per-turn-group" style="display: none;">
                                         <label for="gen-sections-per-turn">Sections per Turn:</label>
                                         <div class="slider-group">
@@ -422,73 +430,68 @@
                                     </div>
                                 </div>
 
-                                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-                                    <button id="generate-btn" disabled style="flex: 1; padding: 0.75rem; font-size: 1rem; font-weight: 600;">
+                                <div class="gen-button-row">
+                                    <button id="generate-btn" class="gen-btn-primary" disabled>
                                         Generate 3D Models
                                     </button>
-                                    <button id="cancel-generate-btn" style="display: none; padding: 0.75rem 1.5rem; font-size: 1rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                    <button id="cancel-generate-btn" class="gen-btn-cancel">
                                         Cancel
                                     </button>
                                 </div>
 
-                                <p style="font-size: 0.85em; color: #666; margin-top: 0.5rem; margin-bottom: 0.75rem;">
+                                <p class="gen-helper-text">
                                     Generates worm and wheel STEP files
                                 </p>
 
                                 <!-- Progress indicator -->
-                                <div id="generation-progress" style="display: none; margin-top: 0.75rem;">
-                                    <!-- Main progress steps -->
+                                <div id="generation-progress" class="gen-progress" style="display: none;">
                                     <div id="main-progress" style="margin-bottom: 0.75rem;">
-                                        <div style="font-weight: 600; font-size: 0.95em; margin-bottom: 0.5rem; color: #667eea;" id="main-step-text">
+                                        <div class="gen-progress-header" id="main-step-text">
                                             Starting generation...
                                         </div>
-                                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                                        <div class="gen-progress-steps">
                                             <div class="step-indicator" data-step="parse">Parse</div>
-                                            <div class="step-arrow">→</div>
+                                            <div class="step-arrow">&rarr;</div>
                                             <div class="step-indicator" data-step="worm">Worm</div>
-                                            <div class="step-arrow">→</div>
+                                            <div class="step-arrow">&rarr;</div>
                                             <div class="step-indicator" data-step="worm-export">Export</div>
-                                            <div class="step-arrow">→</div>
+                                            <div class="step-arrow">&rarr;</div>
                                             <div class="step-indicator" data-step="wheel">Wheel</div>
-                                            <div class="step-arrow">→</div>
+                                            <div class="step-arrow">&rarr;</div>
                                             <div class="step-indicator" data-step="wheel-export">Export</div>
-                                            <div class="step-arrow">→</div>
+                                            <div class="step-arrow">&rarr;</div>
                                             <div class="step-indicator" data-step="package">Package</div>
                                         </div>
                                     </div>
 
                                     <!-- Sub-progress (hobbing) -->
                                     <div id="sub-progress" style="display: none;">
-                                        <div style="font-size: 0.85em; color: #666; margin-bottom: 0.25rem;" id="sub-progress-text">
+                                        <div class="gen-sub-progress-text" id="sub-progress-text">
                                             Virtual hobbing in progress...
                                         </div>
-                                        <div style="background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 20px;">
-                                            <div id="progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75em; font-weight: bold;"></div>
+                                        <div class="gen-progress-track">
+                                            <div id="progress-bar" class="gen-progress-bar"></div>
                                         </div>
                                     </div>
                                 </div>
+                            </section>
 
-                                <button id="download-zip" disabled style="width: 100%; margin-top: 0.75rem;">
+                            <!-- C. Downloads (hidden until generation completes) -->
+                            <section class="generator-section compact gen-downloads-section" id="gen-downloads-section">
+                                <button id="download-zip" class="gen-btn-download" disabled>
                                     Download Complete Package (ZIP)
                                 </button>
-
-                                <p style="font-size: 0.85em; color: #666; margin-top: 0.5rem; margin-bottom: 0;">
+                                <p class="gen-file-list">
                                     Includes: worm.step, wheel.step, worm.3mf, wheel.3mf, assembly.3mf, worm.stl, wheel.stl, design.json, design.md
                                 </p>
                             </section>
 
-                            <section class="generator-section compact" id="design-summary-section">
-                                <h2>Design Summary</h2>
-                                <div id="gen-design-summary">
-                                    <p>No design loaded. Use a Design tab or upload JSON.</p>
-                                </div>
-                            </section>
-
+                            <!-- D. Advanced: JSON Input -->
                             <details class="generator-section compact">
                                 <summary style="cursor: pointer; font-weight: 600; font-size: 1.25rem; margin-bottom: 1rem; color: var(--color-text);">Advanced: JSON Input</summary>
                                 <div class="json-input-area">
                                     <textarea id="json-input" placeholder="Paste JSON here or use a Design tab..."></textarea>
-                                    <div style="margin-top: 10px;">
+                                    <div class="gen-json-actions">
                                         <button id="load-from-calculator">Load from Calculator</button>
                                         <input type="file" id="json-file-input" accept=".json" style="display: none;">
                                         <button id="load-json-file">Upload JSON File</button>

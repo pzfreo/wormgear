@@ -31,7 +31,7 @@ export function appendToConsole(message) {
 }
 
 /**
- * Update design summary display
+ * Update design summary display using spec-table styling (matching design tab).
  * @param {object} design - Design object
  */
 export function updateDesignSummary(design) {
@@ -44,12 +44,16 @@ export function updateDesignSummary(design) {
         return;
     }
 
-    const manufacturing = design.manufacturing || {};
+    const worm = design.worm;
+    const wheel = design.wheel;
     const assembly = design.assembly || {};
-    const wormType = design.worm.type || (design.worm.throat_curvature_radius_mm ? 'globoid' : 'cylindrical');
-    const moduleStr = `m${Number(design.worm.module_mm).toFixed(1)}`;
+    const manufacturing = design.manufacturing || {};
+    const features = design.features || {};
+    const wormType = worm.type || (worm.throat_curvature_radius_mm ? 'globoid' : 'cylindrical');
+    const moduleStr = `m${Number(worm.module_mm).toFixed(1)}`;
     const ratioStr = `r${assembly.ratio}`;
     const profileStr = manufacturing.profile || 'ZA';
+    const profileLabels = { 'ZA': 'ZA (straight)', 'ZK': 'ZK (convex)', 'ZI': 'ZI (involute)' };
 
     // Compact one-liner banner
     if (banner) {
@@ -57,32 +61,151 @@ export function updateDesignSummary(design) {
         banner.style.display = 'block';
     }
 
-    // Full summary table with manufacturing dimensions and efficiency
-    const fmt = (v, d = 1) => v != null ? Number(v).toFixed(d) : '\u2014';
+    // Helpers
+    const fmt = (v, d = 2) => v != null ? Number(v).toFixed(d) : '\u2014';
+    const fmtMm = (v, d = 2) => v != null ? `${Number(v).toFixed(d)} mm` : '\u2014';
+    const fmtDeg = (v, d = 1) => v != null ? `${Number(v).toFixed(d)}\u00b0` : '\u2014';
 
-    let summaryRows = `
-        <tr><td><strong>Module:</strong></td><td>${design.worm.module_mm} mm</td></tr>
-        <tr><td><strong>Ratio:</strong></td><td>${assembly.ratio}:1</td></tr>
-        <tr><td><strong>Centre Distance:</strong></td><td>${fmt(assembly.centre_distance_mm)} mm</td></tr>
-        <tr><td><strong>Profile:</strong></td><td>${profileStr}</td></tr>
-        <tr><td><strong>Worm Type:</strong></td><td>${wormType === 'globoid' ? 'Globoid' : 'Cylindrical'}</td></tr>
-    `;
+    function section(title, rows) {
+        let html = `<div class="spec-section"><h3 class="spec-section-title">${title}</h3><table class="spec-table">`;
+        for (const [label, value] of rows) {
+            if (value === undefined || value === null) continue;
+            html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
+        }
+        html += '</table></div>';
+        return html;
+    }
 
-    // Manufacturing dimensions
+    let html = '';
+
+    // OVERVIEW
+    const overviewRows = [
+        ['Module', fmtMm(worm.module_mm, 3)],
+        ['Ratio', `${assembly.ratio}:1`],
+        ['Centre Distance', fmtMm(assembly.centre_distance_mm)],
+        ['Profile', profileLabels[profileStr] || profileStr],
+    ];
+    if (wormType === 'globoid') overviewRows.push(['Worm Type', 'Globoid']);
+    html += section('Overview', overviewRows);
+
+    // WORM
+    const wormRows = [
+        ['Tip Diameter', fmtMm(worm.tip_diameter_mm)],
+        ['Pitch Diameter', fmtMm(worm.pitch_diameter_mm)],
+        ['Root Diameter', fmtMm(worm.root_diameter_mm)],
+        ['Lead Angle', fmtDeg(worm.lead_angle_deg)],
+    ];
     if (manufacturing.worm_length_mm) {
-        summaryRows += `<tr><td><strong>Worm Length:</strong></td><td>${fmt(manufacturing.worm_length_mm)} mm</td></tr>`;
+        wormRows.push(['Length', fmtMm(manufacturing.worm_length_mm, 1)]);
     }
+    html += section('Worm', wormRows);
+
+    // WHEEL
+    const wheelRows = [
+        ['Tip Diameter', fmtMm(wheel.tip_diameter_mm)],
+        ['Pitch Diameter', fmtMm(wheel.pitch_diameter_mm)],
+        ['Teeth', wheel.num_teeth],
+    ];
     if (manufacturing.wheel_width_mm) {
-        summaryRows += `<tr><td><strong>Wheel Width:</strong></td><td>${fmt(manufacturing.wheel_width_mm)} mm</td></tr>`;
+        wheelRows.push(['Face Width', fmtMm(manufacturing.wheel_width_mm, 1)]);
+    }
+    html += section('Wheel', wheelRows);
+
+    // ASSEMBLY
+    const asmRows = [
+        ['Efficiency', assembly.efficiency_percent != null ? `~${Math.round(assembly.efficiency_percent)}%` : '\u2014'],
+        ['Self-Locking', assembly.self_locking ? 'Yes' : 'No'],
+        ['Pressure Angle', fmtDeg(assembly.pressure_angle_deg)],
+    ];
+    html += section('Assembly', asmRows);
+
+    // SHAFT INTERFACE (if features present)
+    const shaftRows = [];
+    const wormF = features.worm || {};
+    const wheelF = features.wheel || {};
+
+    if (wormF.bore_type === 'custom' && wormF.bore_diameter_mm) {
+        let s = `${fmt(wormF.bore_diameter_mm, 1)} mm`;
+        if (wormF.anti_rotation === 'DIN6885') s += ' + keyway';
+        else if (wormF.anti_rotation === 'ddcut') s += ' + DD-cut';
+        shaftRows.push(['Worm Bore', s]);
+    } else if (wormF.bore_type === 'none') {
+        shaftRows.push(['Worm Bore', 'Solid']);
     }
 
-    // Efficiency and self-locking
-    if (assembly.efficiency_percent != null) {
-        const selfLock = assembly.self_locking ? ' (self-locking)' : '';
-        summaryRows += `<tr><td><strong>Efficiency:</strong></td><td>~${Math.round(assembly.efficiency_percent)}%${selfLock}</td></tr>`;
+    if (wheelF.bore_type === 'custom' && wheelF.bore_diameter_mm) {
+        let s = `${fmt(wheelF.bore_diameter_mm, 1)} mm`;
+        if (wheelF.anti_rotation === 'DIN6885') s += ' + keyway';
+        else if (wheelF.anti_rotation === 'ddcut') s += ' + DD-cut';
+        shaftRows.push(['Wheel Bore', s]);
+    } else if (wheelF.bore_type === 'none') {
+        shaftRows.push(['Wheel Bore', 'Solid']);
     }
 
-    summary.innerHTML = `<table style="width: 100%; font-size: 0.9em;">${summaryRows}</table>`;
+    if (shaftRows.length > 0) {
+        html += section('Shaft Interface', shaftRows);
+    }
+
+    summary.innerHTML = html;
+}
+
+/**
+ * Update validation status badge in generator tab.
+ * @param {boolean} valid - Whether the design is valid
+ * @param {Array} messages - Validation messages array
+ */
+export function updateGeneratorValidation(valid, messages) {
+    const badge = document.getElementById('gen-validation-status');
+    if (!badge) return;
+
+    if (!messages || messages.length === 0) {
+        // No messages — hide badge
+        badge.classList.remove('visible', 'status-valid', 'status-error', 'status-warning');
+        return;
+    }
+
+    const errors = messages.filter(m => m.severity === 'error').length;
+    const warnings = messages.filter(m => m.severity === 'warning').length;
+
+    badge.classList.add('visible');
+    badge.classList.remove('status-valid', 'status-error', 'status-warning');
+
+    if (errors > 0) {
+        badge.classList.add('status-error');
+        badge.textContent = `${errors} error${errors > 1 ? 's' : ''}${warnings > 0 ? `, ${warnings} warning${warnings > 1 ? 's' : ''}` : ''}`;
+    } else if (warnings > 0) {
+        badge.classList.add('status-warning');
+        badge.textContent = `${warnings} warning${warnings > 1 ? 's' : ''}`;
+    } else {
+        badge.classList.add('status-valid');
+        badge.textContent = 'Design valid';
+    }
+}
+
+/**
+ * Hide validation badge in generator tab (e.g. when loading from file/paste).
+ */
+export function hideGeneratorValidation() {
+    const badge = document.getElementById('gen-validation-status');
+    if (badge) {
+        badge.classList.remove('visible', 'status-valid', 'status-error', 'status-warning');
+    }
+}
+
+/**
+ * Show the downloads section (after successful generation).
+ */
+export function showDownloadsSection() {
+    const section = document.getElementById('gen-downloads-section');
+    if (section) section.classList.add('visible');
+}
+
+/**
+ * Hide the downloads section.
+ */
+export function hideDownloadsSection() {
+    const section = document.getElementById('gen-downloads-section');
+    if (section) section.classList.remove('visible');
 }
 
 /**
@@ -268,15 +391,17 @@ export function resetHobbingTimer() {
  */
 export function showCancelButton() {
     document.getElementById('generate-btn').style.display = 'none';
-    document.getElementById('cancel-generate-btn').style.display = 'block';
+    const cancelBtn = document.getElementById('cancel-generate-btn');
+    if (cancelBtn) cancelBtn.style.display = 'block';
 }
 
 /**
  * Hide cancel button and show generate button
  */
 export function hideCancelButton() {
-    document.getElementById('generate-btn').style.display = 'block';
-    document.getElementById('cancel-generate-btn').style.display = 'none';
+    document.getElementById('generate-btn').style.display = '';
+    const cancelBtn = document.getElementById('cancel-generate-btn');
+    if (cancelBtn) cancelBtn.style.display = '';
 }
 
 /**
@@ -480,12 +605,13 @@ to_markdown(design)
         markdown: markdown
     };
 
-    // Enable download button
+    // Enable download button and show downloads section
     const downloadBtn = document.getElementById('download-zip');
     if (downloadBtn) {
         downloadBtn.disabled = false;
         downloadBtn.onclick = createAndDownloadZip;
     }
+    showDownloadsSection();
 
     appendToConsole('Complete package ready for download');
 
