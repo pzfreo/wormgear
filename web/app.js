@@ -59,6 +59,21 @@ function updateThroatingNote() {
 }
 
 /**
+ * Sync generator UI controls from a loaded design's manufacturing settings.
+ * Called when loading JSON from calculator, file upload, or "Open in Generator".
+ */
+function syncGeneratorUI(design) {
+    if (!design) return;
+    const mfg = design.manufacturing || {};
+
+    // Worm generation method
+    const genWormEl = document.getElementById('gen-worm-generation');
+    if (genWormEl && mfg.generation_method) {
+        genWormEl.value = mfg.generation_method;
+    }
+}
+
+/**
  * Map a validation message code to a spec sheet section name.
  * Returns the section title where the message should appear inline.
  */
@@ -847,6 +862,7 @@ function openInGenerator() {
     // Load design into generator
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    syncGeneratorUI(currentDesign);
     updateThroatingNote();
 
     // Switch to generator tab
@@ -978,6 +994,7 @@ function loadFromCalculator() {
 
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    syncGeneratorUI(currentDesign);
     updateThroatingNote();
     appendToConsole('Loaded design from calculator');
 }
@@ -996,6 +1013,7 @@ function handleFileUpload(event) {
         try {
             const design = JSON.parse(e.target.result);
             updateDesignSummary(design);
+            syncGeneratorUI(design);
             appendToConsole(`Loaded ${file.name}`);
         } catch (error) {
             appendToConsole(`Error parsing ${file.name}: ${error.message}`);
@@ -1044,9 +1062,11 @@ async function generateGeometry(type) {
         }
 
         // Read generation parameters from GENERATOR TAB UI (not from design JSON)
+        const genWormGeneration = document.getElementById('gen-worm-generation');
         const genWheelGeneration = document.getElementById('gen-wheel-generation');
         const genHobbingPrecision = document.getElementById('gen-hobbing-precision');
 
+        const generationMethod = genWormGeneration ? genWormGeneration.value : 'sweep';
         const virtualHobbing = genWheelGeneration ? genWheelGeneration.value === 'virtual-hobbing' : false;
 
         const hobbingPrecisionMap = { 'preview': 36, 'balanced': 72, 'high': 144 };
@@ -1076,7 +1096,7 @@ async function generateGeometry(type) {
         isGenerating = true;
 
         appendToConsole('Starting geometry generation...');
-        appendToConsole(`Parameters: ${type}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
+        appendToConsole(`Parameters: ${type}, Worm: ${generationMethod}, Virtual Hobbing: ${virtualHobbing}, Profile: ${profile}`);
 
         // Show and reset progress indicator
         const progressContainer = document.getElementById('generation-progress');
@@ -1103,6 +1123,7 @@ async function generateGeometry(type) {
             data: {
                 designData,
                 generateType: type,
+                generationMethod,
                 virtualHobbing,
                 hobbingSteps: effectiveHobbingSteps,
                 profile,

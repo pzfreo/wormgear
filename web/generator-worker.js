@@ -212,7 +212,8 @@ async function generateGeometry(data) {
             wheelWidth,
             virtualHobbing,
             hobbingSteps,
-            generateType
+            generateType,
+            generationMethod = 'sweep'
         } = data;
 
         self.postMessage({ type: 'LOG', message: '⏳ Starting geometry generation...' });
@@ -245,6 +246,7 @@ progress_callback
         pyodide.globals.set('virtual_hobbing_val', virtualHobbing);
         pyodide.globals.set('hobbing_steps_val', hobbingSteps);
         pyodide.globals.set('generate_type', generateType);
+        pyodide.globals.set('generation_method_val', generationMethod);
         pyodide.globals.set('progress_callback_fn', progressCallback);
 
         // Run generation
@@ -403,7 +405,8 @@ if generate_type in ['worm', 'both']:
                 length=worm_length,
                 bore=worm_bore,
                 keyway=worm_keyway,
-                ddcut=worm_ddcut
+                ddcut=worm_ddcut,
+                generation_method=generation_method_val
             )
         print("  Building 3D model...")
         worm = worm_geo.build()

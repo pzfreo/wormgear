@@ -378,6 +378,13 @@
 
                                 <!-- Generation Options (moved from calculator) -->
                                 <div class="gen-options">
+                                    <label for="gen-worm-generation">Worm Thread Method:</label>
+                                    <select id="gen-worm-generation">
+                                        <option value="sweep" selected>Sweep (fast, default)</option>
+                                        <option value="loft">Loft (legacy, slower)</option>
+                                    </select>
+                                    <small class="hint">Sweep: ~25x faster, clean topology. Loft: original method, creates sections and lofts between them.</small>
+
                                     <label for="gen-wheel-generation">Wheel Generation Method:</label>
                                     <select id="gen-wheel-generation">
                                         <option value="helical" selected>Helical (simple, fast)</option>
