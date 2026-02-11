@@ -6,11 +6,12 @@ import { updateValidationUI } from './modules/validation-ui.js';
 import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
-import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete } from './modules/generator-ui.js';
+import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
 
 // Global state
 let currentDesign = null;
 let currentValidation = null;
+let currentMessages = null;
 let currentMarkdown = null;
 let generatorTabVisited = false;
 let currentGenerationId = 0;  // Track generation to ignore cancelled results
@@ -571,6 +572,7 @@ calculate(input_json)
         // Update global state
         currentDesign = design;
         currentValidation = output.valid;
+        currentMessages = output.messages || [];
         currentMarkdown = output.markdown;
 
         // Update UI - pass Python's bore recommendations
@@ -1016,6 +1018,7 @@ function openInGenerator() {
     // Load design into generator
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    updateGeneratorValidation(currentValidation, currentMessages);
     syncGeneratorUI(currentDesign);
     updateThroatingNote();
 
@@ -1084,7 +1087,7 @@ function setupWorkerMessageHandler(worker) {
                 const statusEl = document.getElementById('generator-loading-status');
                 if (statusEl) {
                     statusEl.textContent = 'Generator ready';
-                    statusEl.style.color = '#22c55e';
+                    statusEl.classList.add('ready');
                 }
                 const btn = document.getElementById('generate-btn');
                 if (btn) btn.disabled = false;
@@ -1094,7 +1097,7 @@ function setupWorkerMessageHandler(worker) {
                 const statusElError = document.getElementById('generator-loading-status');
                 if (statusElError) {
                     statusElError.textContent = `Error: ${error}`;
-                    statusElError.style.color = '#dc3545';
+                    statusElError.classList.add('error');
                 }
                 break;
             case 'LOG':
@@ -1148,6 +1151,7 @@ function loadFromCalculator() {
 
     document.getElementById('json-input').value = JSON.stringify(currentDesign, null, 2);
     updateDesignSummary(currentDesign);
+    updateGeneratorValidation(currentValidation, currentMessages);
     syncGeneratorUI(currentDesign);
     updateThroatingNote();
     appendToConsole('Loaded design from calculator');
@@ -1167,6 +1171,7 @@ function handleFileUpload(event) {
         try {
             const design = JSON.parse(e.target.result);
             updateDesignSummary(design);
+            hideGeneratorValidation();
             syncGeneratorUI(design);
             loadDesignIntoDesignTab(design);
             appendToConsole(`Loaded ${file.name}`);
