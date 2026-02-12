@@ -165,9 +165,14 @@ small.hint-expanded {
     box-shadow: none;
 }
 
-.tab:hover {
+.tab:hover:not(:disabled) {
     background: rgba(102, 126, 234, 0.1);
     color: #667eea;
+}
+
+.tab:disabled {
+    color: #bbb;
+    cursor: not-allowed;
 }
 
 .tab.active {
@@ -1757,4 +1762,77 @@ summary.gen-spec-toggle::before {
         margin-bottom: 0.5rem;
         color: #333;
     }
+}
+
+/* ============================================================================
+   3D PREVIEW TAB
+   ============================================================================ */
+
+.preview-empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--color-text-muted);
+    font-size: 1.1em;
+}
+
+.preview-container {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 130px);
+    background: #1a1a2e;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#preview-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.preview-controls {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 10px 18px;
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    color: #e0e0e0;
+    font-size: 13px;
+}
+
+.preview-controls button {
+    background: #4a4a6a;
+    color: #e0e0e0;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.preview-controls button:hover {
+    background: #6a6a8a;
+}
+
+.preview-controls input[type="range"] {
+    width: 100px;
+    vertical-align: middle;
+}
+
+.preview-status {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    font-size: 13px;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 8px 14px;
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    color: #e0e0e0;
 }

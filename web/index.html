@@ -35,6 +35,13 @@
                     <button class="tab" data-tab="generator">3D Generator</button>
                 </div>
             </div>
+            <span class="tab-separator"></span>
+            <div class="tab-group">
+                <span class="tab-group-label">PREVIEW</span>
+                <div class="tab-group-buttons">
+                    <button class="tab" data-tab="preview" id="preview-tab-btn" disabled>3D Preview</button>
+                </div>
+            </div>
         </div>
 
         <main>
@@ -502,7 +509,7 @@
                                     Download Complete Package (ZIP)
                                 </button>
                                 <p class="gen-file-list">
-                                    Includes: worm.step, wheel.step, worm.3mf, wheel.3mf, assembly.3mf, worm.stl, wheel.stl, design.json, design.md
+                                    Includes: worm.step, wheel.step, worm.3mf, wheel.3mf, assembly.glb, worm.stl, wheel.stl, design.json, design.md
                                 </p>
                             </section>
 
@@ -516,6 +523,22 @@
                             <textarea id="json-input" style="display: none;"></textarea>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 3D Preview Tab -->
+            <div id="preview-tab" class="tab-content">
+                <div id="preview-empty" class="preview-empty-state">
+                    <p>Generate 3D models first, then return here to see the animation.</p>
+                </div>
+                <div id="preview-container" class="preview-container" style="display: none;">
+                    <canvas id="preview-canvas"></canvas>
+                    <div id="preview-controls" class="preview-controls">
+                        <button id="preview-play-pause">Pause</button>
+                        <label>Speed: <input type="range" id="preview-speed" min="0.1" max="5" step="0.1" value="1"></label>
+                        <span id="preview-speed-label">1.0x</span>
+                    </div>
+                    <div id="preview-status" class="preview-status"></div>
                 </div>
             </div>
         </main>
@@ -545,6 +568,14 @@
     <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" crossorigin="anonymous"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

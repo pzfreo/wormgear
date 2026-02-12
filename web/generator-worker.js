@@ -372,7 +372,6 @@ worm_3mf_b64 = None
 wheel_3mf_b64 = None
 worm_stl_b64 = None
 wheel_stl_b64 = None
-assembly_3mf_b64 = None
 worm = None  # Will hold worm geometry if generated
 
 # Check if globoid - either by type field or presence of throat curvature radius
@@ -634,42 +633,19 @@ if generate_type in ['wheel', 'both']:
 
     print("")
 
-# Generate assembly 3MF (only when both parts generated successfully)
+# Find optimal mesh rotation for 3D preview (only when both parts generated)
 if generate_type == 'both' and worm is not None and wheel is not None:
     try:
-        print("⚙️  Generating assembly 3MF...")
-        from wormgear.core.mesh_alignment import find_optimal_mesh_rotation, position_for_mesh
+        print("⚙️  Finding optimal mesh rotation...")
+        from wormgear.core.mesh_alignment import find_optimal_mesh_rotation
 
-        # Find optimal mesh rotation for proper tooth engagement
         centre_distance = assembly_params.centre_distance_mm
         num_teeth = wheel_params.num_teeth
         mesh_result = find_optimal_mesh_rotation(wheel, worm, centre_distance, num_teeth)
         print(f"  Optimal rotation: {mesh_result.optimal_rotation_deg:.2f}\u00b0")
         print(f"  {mesh_result.message}")
-
-        # Position parts for assembly
-        wheel_pos, worm_pos = position_for_mesh(
-            wheel, worm, centre_distance, mesh_result.optimal_rotation_deg
-        )
-
-        # Export combined 3MF with both parts
-        from build123d import Mesher, Unit
-        mesher = Mesher(unit=Unit.MM)
-        mesher.add_shape(wheel_pos, linear_deflection=0.0005, angular_deflection=0.05)
-        mesher.add_shape(worm_pos, linear_deflection=0.0005, angular_deflection=0.05)
-
-        with tempfile.NamedTemporaryFile(suffix='.3mf', delete=False) as tmp:
-            temp_asm_path = tmp.name
-        mesher.write(temp_asm_path)
-
-        with open(temp_asm_path, 'rb') as f:
-            assembly_3mf = f.read()
-        os.unlink(temp_asm_path)
-
-        assembly_3mf_b64 = base64.b64encode(assembly_3mf).decode('utf-8')
-        print(f"\u2713 Assembly 3MF: {len(assembly_3mf) / 1024:.1f} KB")
     except Exception as e:
-        print(f"  \u26a0\ufe0f Assembly 3MF failed (non-fatal): {e}")
+        print(f"  \u26a0\ufe0f Mesh rotation failed (non-fatal): {e}")
         import traceback
         traceback.print_exc()
 
@@ -698,7 +674,7 @@ elif generate_type == 'both':
     'wheel_3mf': wheel_3mf_b64,
     'worm_stl': worm_stl_b64,
     'wheel_stl': wheel_stl_b64,
-    'assembly_3mf': assembly_3mf_b64,
+    'mesh_rotation_deg': mesh_result.optimal_rotation_deg if 'mesh_result' in dir() else 0.0,
     'success': (generate_type == 'worm' and worm_b64 is not None) or
                (generate_type == 'wheel' and wheel_b64 is not None) or
                (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)
@@ -713,7 +689,7 @@ elif generate_type == 'both':
         const wheel3mfB64 = result.get('wheel_3mf');
         const wormStlB64 = result.get('worm_stl');
         const wheelStlB64 = result.get('wheel_stl');
-        const assembly3mfB64 = result.get('assembly_3mf');
+        const meshRotationDeg = result.get('mesh_rotation_deg') || 0;
 
         self.postMessage({
             type: 'GENERATE_COMPLETE',
@@ -724,7 +700,7 @@ elif generate_type == 'both':
             wheel_3mf: wheel3mfB64,
             worm_stl: wormStlB64,
             wheel_stl: wheelStlB64,
-            assembly_3mf: assembly3mfB64
+            mesh_rotation_deg: meshRotationDeg
         });
 
     } catch (error) {

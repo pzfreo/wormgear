@@ -515,3 +515,20 @@ class WheelGeometry:
             exp_step(self._part, filepath)
 
         logger.info(f"Exported wheel to {filepath}")
+
+    def export_gltf(self, filepath: str, binary: bool = True):
+        """Export wheel to glTF file (builds if not already built).
+
+        Args:
+            filepath: Output path (.glb for binary, .gltf for text)
+            binary: If True, export as binary .glb (default)
+        """
+        if self._part is None:
+            self.build()
+
+        from build123d import export_gltf as b3d_export_gltf
+        b3d_export_gltf(
+            self._part, filepath, binary=binary,
+            linear_deflection=0.001, angular_deflection=0.1,
+        )
+        logger.info(f"Exported wheel to {filepath}")
