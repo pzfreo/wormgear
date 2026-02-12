@@ -14,6 +14,7 @@ let currentDesign = null;
 let currentValidation = null;
 let currentMessages = null;
 let currentMarkdown = null;
+let currentOutput = null;  // Last calculator output (for recommended dims)
 let generatorTabVisited = false;
 let currentGenerationId = 0;  // Track generation to ignore cancelled results
 let isGenerating = false;  // Track if generation is in progress
@@ -368,7 +369,12 @@ function renderSpecSheet(design, output, messages = []) {
         ['Starts', worm.num_starts],
     ];
     if (mfg.worm_length_mm) {
-        wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm <span class="spec-note">(recommended)</span>`]);
+        const recWormLen = output?.recommended_worm_length_mm;
+        const isCustomWormLen = recWormLen != null && Math.abs(mfg.worm_length_mm - recWormLen) > 0.01;
+        const wormLenNote = isCustomWormLen
+            ? `${fmt(recWormLen, 1)} mm recommended`
+            : 'recommended';
+        wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm <span class="spec-note">(${wormLenNote})</span>`]);
     }
     if (wormType === 'globoid' && worm.throat_curvature_radius_mm) {
         wormRows.push(['Throat Pitch Radius', fmtMm(worm.throat_curvature_radius_mm)]);
@@ -386,7 +392,12 @@ function renderSpecSheet(design, output, messages = []) {
         ['Teeth', wheel.num_teeth],
     ];
     if (mfg.wheel_width_mm) {
-        wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm <span class="spec-note">(recommended)</span>`]);
+        const recWheelWidth = output?.recommended_wheel_width_mm;
+        const isCustomWheelWidth = recWheelWidth != null && Math.abs(mfg.wheel_width_mm - recWheelWidth) > 0.01;
+        const wheelWidthNote = isCustomWheelWidth
+            ? `${fmt(recWheelWidth, 1)} mm recommended`
+            : 'recommended';
+        wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm <span class="spec-note">(${wheelWidthNote})</span>`]);
     }
     if (wheel.helix_angle_deg) {
         wheelRows.push(['Helix Angle', fmtDeg(wheel.helix_angle_deg)]);
@@ -677,6 +688,7 @@ calculate(input_json)
 
         // Update global state
         currentDesign = design;
+        currentOutput = output;
         currentValidation = output.valid;
         currentMessages = output.messages || [];
         currentMarkdown = output.markdown;
@@ -933,7 +945,12 @@ function buildPDFDocument() {
         ['Lead Angle', `${fmt(worm.lead_angle_deg, 1)}\u00b0`],
         ['Starts', `${worm.num_starts}`],
     ];
-    if (mfg.worm_length_mm) wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm (recommended)`]);
+    if (mfg.worm_length_mm) {
+        const recWormLen = currentOutput?.recommended_worm_length_mm;
+        const isCustom = recWormLen != null && Math.abs(mfg.worm_length_mm - recWormLen) > 0.01;
+        const note = isCustom ? `(${fmt(recWormLen, 1)} mm recommended)` : '(recommended)';
+        wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm ${note}`]);
+    }
     if (wormType === 'globoid' && worm.throat_curvature_radius_mm) {
         wormRows.push(['Throat Pitch Radius', `${fmt(worm.throat_curvature_radius_mm)} mm`]);
     }
@@ -949,7 +966,12 @@ function buildPDFDocument() {
         ['Root Diameter', `${fmt(wheel.root_diameter_mm)} mm`],
         ['Teeth', `${wheel.num_teeth}`],
     ];
-    if (mfg.wheel_width_mm) wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm (recommended)`]);
+    if (mfg.wheel_width_mm) {
+        const recWheelW = currentOutput?.recommended_wheel_width_mm;
+        const isCustom = recWheelW != null && Math.abs(mfg.wheel_width_mm - recWheelW) > 0.01;
+        const note = isCustom ? `(${fmt(recWheelW, 1)} mm recommended)` : '(recommended)';
+        wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm ${note}`]);
+    }
     if (wheel.helix_angle_deg) wheelRows.push(['Helix Angle', `${fmt(wheel.helix_angle_deg, 1)}\u00b0`]);
     wheelRows.push(['Throated', mfg.throated_wheel ? 'Yes' : 'No']);
     if (wormType === 'globoid' && worm.throat_reduction_mm) {

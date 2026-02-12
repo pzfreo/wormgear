@@ -183,6 +183,10 @@ class CalculatorOutput(BaseModel):
     # Wheel throat OD (minimum OD at engagement zone for throated/globoid wheels)
     wheel_throat_od_mm: Optional[float] = None
 
+    # Calculator's recommended dimensions (so UI can distinguish custom vs recommended)
+    recommended_worm_length_mm: Optional[float] = None
+    recommended_wheel_width_mm: Optional[float] = None
+
 
 # ============================================================================
 # Main Entry Point
@@ -223,6 +227,10 @@ def calculate(input_json: str) -> str:
         # Validate the design (pass bore_dict for bore validation before features are added)
         validation = validate_design(design, bore_settings=bore_dict)
         mfg_dict = inputs.manufacturing.model_dump() if inputs.manufacturing else None
+
+        # Capture calculator's recommended dimensions before any override
+        recommended_worm_length = design.manufacturing.worm_length_mm if design.manufacturing else None
+        recommended_wheel_width = design.manufacturing.wheel_width_mm if design.manufacturing else None
 
         # Handle recommended dimensions - remove from mfg_dict so calculator values aren't overwritten
         if inputs.manufacturing.use_recommended_dims:
@@ -292,7 +300,9 @@ def calculate(input_json: str) -> str:
             ],
             recommended_worm_bore=recommended_worm_bore,
             recommended_wheel_bore=recommended_wheel_bore,
-            wheel_throat_od_mm=wheel_throat_od
+            wheel_throat_od_mm=wheel_throat_od,
+            recommended_worm_length_mm=recommended_worm_length,
+            recommended_wheel_width_mm=recommended_wheel_width
         )
 
         return output.model_dump_json()
