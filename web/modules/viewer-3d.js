@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 let renderer = null;
 let scene = null;
@@ -205,4 +206,56 @@ export function togglePlayPause() {
  */
 export function isLoaded() {
     return initialized && wheelMesh !== null;
+}
+
+/**
+ * Export positioned assembly as GLB (binary glTF).
+ *
+ * Builds a standalone scene from STL base64 data, positions the parts
+ * using the same transforms as position_for_mesh(), and exports to GLB.
+ * Does not require the viewer to be initialized.
+ *
+ * @param {string} wormStlBase64 - Base64-encoded binary STL for worm
+ * @param {string} wheelStlBase64 - Base64-encoded binary STL for wheel
+ * @param {object} info - { centre_distance_mm, mesh_rotation_deg }
+ * @returns {Promise<ArrayBuffer>} GLB binary data
+ */
+export async function exportAssemblyGLB(wormStlBase64, wheelStlBase64, info) {
+    const stlLoader = new STLLoader();
+    const cd = info.centre_distance_mm;
+
+    // Parse STL meshes
+    const wormGeom = stlLoader.parse(base64ToArrayBuffer(wormStlBase64));
+    const wheelGeom = stlLoader.parse(base64ToArrayBuffer(wheelStlBase64));
+    wormGeom.computeVertexNormals();
+    wheelGeom.computeVertexNormals();
+
+    // Build a static assembly scene
+    const exportScene = new THREE.Scene();
+
+    // Wheel at origin with mesh rotation
+    const wheelMat = new THREE.MeshStandardMaterial({
+        color: 0xc8a832, metalness: 0.6, roughness: 0.3,
+    });
+    const wheelObj = new THREE.Mesh(wheelGeom, wheelMat);
+    wheelObj.name = 'wheel';
+    wheelObj.rotation.z = THREE.MathUtils.degToRad(info.mesh_rotation_deg || 0);
+    exportScene.add(wheelObj);
+
+    // Worm: rotate -90 deg around Y, translate to (0, CD, 0)
+    const wormMat = new THREE.MeshStandardMaterial({
+        color: 0x8888aa, metalness: 0.7, roughness: 0.25,
+    });
+    const wormObj = new THREE.Mesh(wormGeom, wormMat);
+    wormObj.name = 'worm';
+    const pivot = new THREE.Group();
+    pivot.name = 'worm_pivot';
+    pivot.rotation.y = THREE.MathUtils.degToRad(-90);
+    pivot.position.set(0, cd, 0);
+    pivot.add(wormObj);
+    exportScene.add(pivot);
+
+    // Export as GLB
+    const exporter = new GLTFExporter();
+    return exporter.parseAsync(exportScene, { binary: true });
 }
