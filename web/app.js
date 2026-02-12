@@ -212,14 +212,27 @@ function loadDesignIntoDesignTab(design) {
             }
         }
 
-        // --- 8. Preserve worm pitch diameter for round-trip fidelity ---
+        // --- 8. Worm length and wheel width ---
+        const hasCustomDims = (mfg.worm_length_mm != null && mfg.worm_length_mm > 0) ||
+                              (mfg.wheel_width_mm != null && mfg.wheel_width_mm > 0);
+        if (hasCustomDims) {
+            document.getElementById('use-recommended-dims').checked = false;
+            document.getElementById('custom-dims-group').style.display = 'block';
+            if (mfg.worm_length_mm) document.getElementById('worm-length').value = mfg.worm_length_mm;
+            if (mfg.wheel_width_mm) document.getElementById('wheel-width').value = mfg.wheel_width_mm;
+        } else {
+            document.getElementById('use-recommended-dims').checked = true;
+            document.getElementById('custom-dims-group').style.display = 'none';
+        }
+
+        // --- 9. Preserve worm pitch diameter for round-trip fidelity ---
         // The calculator's from-module mode computes worm pitch diameter from a default
         // lead angle, which may differ from the loaded design. Store it so calculate()
         // can pass it through to preserve the original centre distance.
         const designTab2 = document.getElementById('design-tab');
         designTab2.dataset.wormPitchDiameter = worm.pitch_diameter_mm || '';
 
-        // --- 9. Recalculate to update currentDesign, currentMarkdown, spec sheet ---
+        // --- 10. Recalculate to update currentDesign, currentMarkdown, spec sheet ---
         if (getCalculatorPyodide()) {
             calculate();
         }
