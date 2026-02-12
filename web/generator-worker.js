@@ -474,7 +474,7 @@ if generate_type in ['worm', 'both']:
             # Use the Mesher's lib3mf model to write STL (same tessellation as 3MF)
             with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
                 temp_stl_path = tmp.name
-            stl_writer = mesher._model.QueryWriter("stl")
+            stl_writer = mesher.model.QueryWriter("stl")
             stl_writer.WriteToFile(temp_stl_path)
             with open(temp_stl_path, 'rb') as f:
                 worm_stl = f.read()
@@ -610,7 +610,7 @@ if generate_type in ['wheel', 'both']:
         if wheel_3mf_b64 is not None:
             with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
                 temp_stl_path = tmp.name
-            stl_writer = mesher._model.QueryWriter("stl")
+            stl_writer = mesher.model.QueryWriter("stl")
             stl_writer.WriteToFile(temp_stl_path)
             with open(temp_stl_path, 'rb') as f:
                 wheel_stl = f.read()
