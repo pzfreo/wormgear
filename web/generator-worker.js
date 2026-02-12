@@ -466,29 +466,34 @@ if generate_type in ['worm', 'both']:
             print(f"    STEP and STL files are still available.")
             worm_3mf_b64 = None
 
-        # Also export STL for compatibility
-        # Use finer mesh settings consistent with 3MF export for better detail
+        # Also export STL from the same Mesher model (reuses correct tessellation)
+        # Note: build123d's export_stl() uses StlAPI_Writer which can miss geometry
+        # on compound shapes. Using Mesher's lib3mf STL writer is more reliable.
         print("  Exporting to STL format...")
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
-            temp_stl_path = tmp.name
-
-        from build123d import export_stl
-        export_stl(
-            worm,
-            temp_stl_path,
-            tolerance=0.0005,       # Finer than default 0.001 for better gear tooth detail
-            angular_tolerance=0.05  # Finer than default 0.1 for curved surfaces
-        )
-
-        with open(temp_stl_path, 'rb') as f:
-            worm_stl = f.read()
-
-        os.unlink(temp_stl_path)
-        worm_stl_b64 = base64.b64encode(worm_stl).decode('utf-8')
+        if worm_3mf_b64 is not None:
+            # Use the Mesher's lib3mf model to write STL (same tessellation as 3MF)
+            with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
+                temp_stl_path = tmp.name
+            stl_writer = mesher._model.QueryWriter("stl")
+            stl_writer.WriteToFile(temp_stl_path)
+            with open(temp_stl_path, 'rb') as f:
+                worm_stl = f.read()
+            os.unlink(temp_stl_path)
+            worm_stl_b64 = base64.b64encode(worm_stl).decode('utf-8')
+        else:
+            # Fallback: use export_stl if Mesher failed
+            with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
+                temp_stl_path = tmp.name
+            from build123d import export_stl
+            export_stl(worm, temp_stl_path, tolerance=0.0005, angular_tolerance=0.05)
+            with open(temp_stl_path, 'rb') as f:
+                worm_stl = f.read()
+            os.unlink(temp_stl_path)
+            worm_stl_b64 = base64.b64encode(worm_stl).decode('utf-8')
 
         size_kb = len(worm_step) / 1024
         mf3_size_kb = len(worm_3mf) / 1024 if worm_3mf_b64 else 0
-        stl_size_kb = len(worm_stl) / 1024
+        stl_size_kb = len(worm_stl) / 1024 if worm_stl_b64 else 0
         print(f"✓ Worm generated successfully!")
         mf3_status = f"{mf3_size_kb:.1f} KB" if worm_3mf_b64 else "failed"
         print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_status}, STL: {stl_size_kb:.1f} KB")
@@ -600,29 +605,30 @@ if generate_type in ['wheel', 'both']:
             print(f"    STEP and STL files are still available.")
             wheel_3mf_b64 = None
 
-        # Also export STL for compatibility
-        # Use finer mesh settings consistent with 3MF export for better detail
+        # Also export STL from the same Mesher model (reuses correct tessellation)
         print("  Exporting to STL format...")
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.stl', delete=False) as tmp:
-            temp_stl_path = tmp.name
-
-        from build123d import export_stl
-        export_stl(
-            wheel,
-            temp_stl_path,
-            tolerance=0.0005,       # Finer than default 0.001 for better gear tooth detail
-            angular_tolerance=0.05  # Finer than default 0.1 for curved surfaces
-        )
-
-        with open(temp_stl_path, 'rb') as f:
-            wheel_stl = f.read()
-
-        os.unlink(temp_stl_path)
-        wheel_stl_b64 = base64.b64encode(wheel_stl).decode('utf-8')
+        if wheel_3mf_b64 is not None:
+            with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
+                temp_stl_path = tmp.name
+            stl_writer = mesher._model.QueryWriter("stl")
+            stl_writer.WriteToFile(temp_stl_path)
+            with open(temp_stl_path, 'rb') as f:
+                wheel_stl = f.read()
+            os.unlink(temp_stl_path)
+            wheel_stl_b64 = base64.b64encode(wheel_stl).decode('utf-8')
+        else:
+            with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
+                temp_stl_path = tmp.name
+            from build123d import export_stl
+            export_stl(wheel, temp_stl_path, tolerance=0.0005, angular_tolerance=0.05)
+            with open(temp_stl_path, 'rb') as f:
+                wheel_stl = f.read()
+            os.unlink(temp_stl_path)
+            wheel_stl_b64 = base64.b64encode(wheel_stl).decode('utf-8')
 
         size_kb = len(wheel_step) / 1024
         mf3_size_kb = len(wheel_3mf) / 1024 if wheel_3mf_b64 else 0
-        stl_size_kb = len(wheel_stl) / 1024
+        stl_size_kb = len(wheel_stl) / 1024 if wheel_stl_b64 else 0
         print(f"✓ Wheel generated successfully!")
         mf3_status = f"{mf3_size_kb:.1f} KB" if wheel_3mf_b64 else "failed"
         print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_status}, STL: {stl_size_kb:.1f} KB")
