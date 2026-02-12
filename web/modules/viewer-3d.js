@@ -230,30 +230,37 @@ export async function exportAssemblyGLB(wormStlBase64, wheelStlBase64, info) {
     wormGeom.computeVertexNormals();
     wheelGeom.computeVertexNormals();
 
-    // Build a static assembly scene
+    // Bake transforms directly into geometry vertices so the GLB has
+    // flat structure (no nested groups that some viewers mishandle).
+
+    // Wheel: rotate around Z for mesh engagement
+    if (info.mesh_rotation_deg) {
+        wheelGeom.rotateZ(THREE.MathUtils.degToRad(info.mesh_rotation_deg));
+    }
+
+    // Worm: rotate -90° around Y (axis Z→X), then translate to (0, CD, 0)
+    // Same as position_for_mesh() in mesh_alignment.py
+    const wormMatrix = new THREE.Matrix4()
+        .makeTranslation(0, cd, 0)
+        .multiply(new THREE.Matrix4().makeRotationY(-Math.PI / 2));
+    wormGeom.applyMatrix4(wormMatrix);
+
+    // Build a flat scene with positioned geometry
     const exportScene = new THREE.Scene();
 
-    // Wheel at origin with mesh rotation
     const wheelMat = new THREE.MeshStandardMaterial({
         color: 0xc8a832, metalness: 0.6, roughness: 0.3,
     });
     const wheelObj = new THREE.Mesh(wheelGeom, wheelMat);
     wheelObj.name = 'wheel';
-    wheelObj.rotation.z = THREE.MathUtils.degToRad(info.mesh_rotation_deg || 0);
     exportScene.add(wheelObj);
 
-    // Worm: rotate -90 deg around Y, translate to (0, CD, 0)
     const wormMat = new THREE.MeshStandardMaterial({
         color: 0x8888aa, metalness: 0.7, roughness: 0.25,
     });
     const wormObj = new THREE.Mesh(wormGeom, wormMat);
     wormObj.name = 'worm';
-    const pivot = new THREE.Group();
-    pivot.name = 'worm_pivot';
-    pivot.rotation.y = THREE.MathUtils.degToRad(-90);
-    pivot.position.set(0, cd, 0);
-    pivot.add(wormObj);
-    exportScene.add(pivot);
+    exportScene.add(wormObj);
 
     // Export as GLB
     const exporter = new GLTFExporter();
