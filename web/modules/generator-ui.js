@@ -523,7 +523,7 @@ export async function handleGenerateComplete(data) {
         success: data.success
     });
 
-    const { worm, wheel, worm_3mf, wheel_3mf, worm_stl, wheel_stl, assembly_3mf, success } = data;
+    const { worm, wheel, worm_3mf, wheel_3mf, worm_stl, wheel_stl, assembly_3mf, mesh_rotation_deg, success } = data;
 
     if (!success) {
         appendToConsole('⚠️ Generation completed with errors');
@@ -594,7 +594,7 @@ to_markdown(design)
         appendToConsole(`⚠️ Could not generate markdown: ${error.message}`);
     }
 
-    // Store data for ZIP creation
+    // Store data for ZIP creation and 3D preview
     window.generatedSTEP = {
         worm: worm,
         wheel: wheel,
@@ -603,6 +603,7 @@ to_markdown(design)
         worm_stl: worm_stl,
         wheel_stl: wheel_stl,
         assembly_3mf: assembly_3mf,
+        mesh_rotation_deg: mesh_rotation_deg || 0,
         markdown: markdown
     };
 
@@ -613,6 +614,12 @@ to_markdown(design)
         downloadBtn.onclick = createAndDownloadZip;
     }
     showDownloadsSection();
+
+    // Enable 3D Preview tab if STL data is available
+    const previewBtn = document.getElementById('preview-tab-btn');
+    if (previewBtn && worm_stl && wheel_stl) {
+        previewBtn.disabled = false;
+    }
 
     appendToConsole('Complete package ready for download');
 

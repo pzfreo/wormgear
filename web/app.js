@@ -7,6 +7,7 @@ import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
+import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
 
 // Global state
 let currentDesign = null;
@@ -211,7 +212,14 @@ function loadDesignIntoDesignTab(design) {
             }
         }
 
-        // --- 8. Recalculate to update currentDesign, currentMarkdown, spec sheet ---
+        // --- 8. Preserve worm pitch diameter for round-trip fidelity ---
+        // The calculator's from-module mode computes worm pitch diameter from a default
+        // lead angle, which may differ from the loaded design. Store it so calculate()
+        // can pass it through to preserve the original centre distance.
+        const designTab2 = document.getElementById('design-tab');
+        designTab2.dataset.wormPitchDiameter = worm.pitch_diameter_mm || '';
+
+        // --- 9. Recalculate to update currentDesign, currentMarkdown, spec sheet ---
         if (getCalculatorPyodide()) {
             calculate();
         }
@@ -462,27 +470,36 @@ function initTabs() {
     const tabs = document.querySelectorAll('.tab');
     const designTab = document.getElementById('design-tab');
     const generatorTab = document.getElementById('generator-tab');
+    const previewTab = document.getElementById('preview-tab');
+
+    // All tab content panels
+    const allPanels = [designTab, generatorTab, previewTab].filter(Boolean);
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetTab = tab.dataset.tab;
 
+            // Skip disabled tabs
+            if (tab.disabled) return;
+
             // Update active tab button
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
+            // Hide all panels
+            allPanels.forEach(p => p.classList.remove('active'));
+
             if (targetTab === 'design') {
                 designTab.classList.add('active');
-                generatorTab.classList.remove('active');
 
                 // Lazy load calculator if needed
                 if (!getCalculatorPyodide()) {
                     initCalculatorTab();
                 }
-                // No recalculate — just showing the tab
+
+                // Pause preview animation when leaving
+                pauseAnimation();
             } else if (targetTab === 'generator') {
-                // Show generator tab
-                designTab.classList.remove('active');
                 generatorTab.classList.add('active');
 
                 // Hide progress indicator on tab switch
@@ -503,9 +520,91 @@ function initTabs() {
                         loadFromCalculator();
                     }
                 }
+
+                // Pause preview animation when leaving
+                pauseAnimation();
+            } else if (targetTab === 'preview') {
+                previewTab.classList.add('active');
+
+                // Auto-start viewer when tab is opened
+                initPreviewViewer();
             }
         });
     });
+
+    // Preview controls
+    const playPauseBtn = document.getElementById('preview-play-pause');
+    if (playPauseBtn) {
+        playPauseBtn.addEventListener('click', () => {
+            const nowPlaying = togglePlayPause();
+            playPauseBtn.textContent = nowPlaying ? 'Pause' : 'Play';
+        });
+    }
+
+    const speedSlider = document.getElementById('preview-speed');
+    const speedLabel = document.getElementById('preview-speed-label');
+    if (speedSlider) {
+        speedSlider.addEventListener('input', () => {
+            const speed = parseFloat(speedSlider.value);
+            setSpeed(speed);
+            if (speedLabel) speedLabel.textContent = speed.toFixed(1) + 'x';
+        });
+    }
+}
+
+/**
+ * Initialize and show the 3D preview viewer.
+ * Auto-loads mesh data from window.generatedSTEP if available.
+ */
+function initPreviewViewer() {
+    const canvas = document.getElementById('preview-canvas');
+    const container = document.getElementById('preview-container');
+    const empty = document.getElementById('preview-empty');
+    const status = document.getElementById('preview-status');
+
+    if (!window.generatedSTEP?.worm_stl || !window.generatedSTEP?.wheel_stl) {
+        if (empty) empty.style.display = '';
+        if (container) container.style.display = 'none';
+        return;
+    }
+
+    if (empty) empty.style.display = 'none';
+    if (container) container.style.display = '';
+
+    // Initialize Three.js (idempotent)
+    initViewer(canvas);
+    resizeViewer(canvas);
+
+    // Load meshes if not already loaded, or if new data is available
+    if (!isLoaded()) {
+        // Use the actual design JSON that was sent to the worker for generation,
+        // NOT currentDesign (which is recomputed by the calculator and may have
+        // different values, e.g. centre_distance if worm pitch diameter differs)
+        const design = window.currentGeneratedDesign || currentDesign;
+        const info = {
+            centre_distance_mm: design?.assembly?.centre_distance_mm || 38,
+            ratio: design?.assembly?.ratio || 30,
+            num_starts: design?.worm?.num_starts || 1,
+            num_teeth: design?.wheel?.num_teeth || 30,
+            hand: (design?.assembly?.hand || 'right').toLowerCase(),
+            mesh_rotation_deg: window.generatedSTEP.mesh_rotation_deg || 0,
+        };
+
+        loadMeshes(window.generatedSTEP.worm_stl, window.generatedSTEP.wheel_stl, info);
+
+        if (status) {
+            status.textContent =
+                `Module ${design?.worm?.module_mm || '?'}mm | ` +
+                `Ratio 1:${info.ratio} | ` +
+                `Centre distance: ${info.centre_distance_mm.toFixed(1)}mm`;
+        }
+    }
+
+    resumeAnimation();
+
+    // Handle resize
+    const resizeObserver = new ResizeObserver(() => resizeViewer(canvas));
+    resizeObserver.observe(canvas);
 }
 
 // ============================================================================
@@ -536,6 +635,13 @@ async function calculate() {
 
         // Get validated inputs (throws if invalid)
         const inputs = getInputs(mode, wormType);
+
+        // If a loaded design specified a worm pitch diameter, pass it through
+        // so the calculator preserves the original centre distance
+        const wormPdOverride = document.getElementById('design-tab').dataset.wormPitchDiameter;
+        if (wormPdOverride && mode === 'from-module') {
+            inputs.worm_pitch_diameter = parseFloat(wormPdOverride);
+        }
 
         // Serialize to JSON for Python
         const inputJson = JSON.stringify(inputs);
@@ -1438,6 +1544,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const designInputs = designTab.querySelectorAll('input, select');
     designInputs.forEach(input => {
         input.addEventListener('change', () => {
+            // Clear worm pitch diameter override when user manually edits any input.
+            // The override is only meant for JSON round-trip fidelity — once the user
+            // changes parameters, the calculator should recompute normally.
+            if (!isLoadingDesign) {
+                designTab.dataset.wormPitchDiameter = '';
+            }
             if (getCalculatorPyodide() && !isLoadingDesign) calculate();
         });
     });

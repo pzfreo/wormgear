@@ -116,6 +116,9 @@ class CalculatorInputs(BaseModel):
     wheel_tip_reduction: Optional[float] = None
     relief_groove: Optional[Dict[str, Any]] = None
 
+    # Override: worm pitch diameter from loaded JSON (preserves centre distance on round-trip)
+    worm_pitch_diameter: Optional[float] = None
+
     # Nested settings
     bore: BoreSettings = Field(default_factory=BoreSettings)
     manufacturing: ManufacturingSettings = Field(default_factory=ManufacturingSettings)
@@ -341,6 +344,8 @@ def _call_design_function(mode: str, inputs: CalculatorInputs, kwargs: Dict[str,
     if mode == 'from-module':
         if inputs.module is None or inputs.ratio is None:
             raise ValueError("module and ratio are required for from-module mode")
+        if inputs.worm_pitch_diameter is not None:
+            kwargs['worm_pitch_diameter'] = inputs.worm_pitch_diameter
         return design_from_module(
             module=inputs.module,
             ratio=inputs.ratio,

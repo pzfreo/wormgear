@@ -699,6 +699,7 @@ elif generate_type == 'both':
     'worm_stl': worm_stl_b64,
     'wheel_stl': wheel_stl_b64,
     'assembly_3mf': assembly_3mf_b64,
+    'mesh_rotation_deg': mesh_result.optimal_rotation_deg if 'mesh_result' in dir() else 0.0,
     'success': (generate_type == 'worm' and worm_b64 is not None) or
                (generate_type == 'wheel' and wheel_b64 is not None) or
                (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)
@@ -714,6 +715,7 @@ elif generate_type == 'both':
         const wormStlB64 = result.get('worm_stl');
         const wheelStlB64 = result.get('wheel_stl');
         const assembly3mfB64 = result.get('assembly_3mf');
+        const meshRotationDeg = result.get('mesh_rotation_deg') || 0;
 
         self.postMessage({
             type: 'GENERATE_COMPLETE',
@@ -724,7 +726,8 @@ elif generate_type == 'both':
             wheel_3mf: wheel3mfB64,
             worm_stl: wormStlB64,
             wheel_stl: wheelStlB64,
-            assembly_3mf: assembly3mfB64
+            assembly_3mf: assembly3mfB64,
+            mesh_rotation_deg: meshRotationDeg
         });
 
     } catch (error) {

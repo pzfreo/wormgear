@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worm Gear Animation Prototype</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; overflow: hidden; }
+        #canvas { display: block; width: 100vw; height: 100vh; }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(8px);
+        }
+        button {
+            background: #4a4a6a;
+            color: #e0e0e0;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #6a6a8a; }
+        label { font-size: 13px; }
+        input[type="range"] { width: 120px; vertical-align: middle; }
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 16px;
+            border-radius: 8px;
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="status">Loading meshes...</div>
+    <div id="controls">
+        <button id="playPause">Pause</button>
+        <label>Speed: <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1"></label>
+        <span id="speedLabel">1.0x</span>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const canvas = document.getElementById('canvas');
+        const statusEl = document.getElementById('status');
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x1a1a2e);
+
+        // Scene
+        const scene = new THREE.Scene();
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        // Controls
+        const controls = new OrbitControls(camera, canvas);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0x404060, 1.5));
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight1.position.set(50, 80, 50);
+        scene.add(dirLight1);
+        const dirLight2 = new THREE.DirectionalLight(0x8888cc, 1);
+        dirLight2.position.set(-30, -20, -40);
+        scene.add(dirLight2);
+
+        // Grid (XY plane since build123d is Z-up)
+        const grid = new THREE.GridHelper(100, 20, 0x444466, 0x333355);
+        grid.rotation.x = Math.PI / 2; // Rotate grid to XY plane (Z-up)
+        scene.add(grid);
+
+        // State
+        let playing = true;
+        let speedMultiplier = 1.0;
+        let wheelMesh = null;
+        let wormMesh = null;
+        let wormPivot = null;
+        let designInfo = null;
+
+        async function init() {
+            const stlLoader = new STLLoader();
+
+            // Load design metadata
+            try {
+                const resp = await fetch('samples/design-info.json');
+                designInfo = await resp.json();
+            } catch (e) {
+                statusEl.textContent = 'Error: Run python scripts/export_sample_gltf.py first';
+                return;
+            }
+
+            const cd = designInfo.centre_distance_mm;
+            statusEl.textContent = `Loading meshes (ratio 1:${designInfo.ratio})...`;
+
+            // Load STL files in parallel
+            // STL from build123d preserves Z-up coordinate system
+            const [wormGeom, wheelGeom] = await Promise.all([
+                stlLoader.loadAsync('samples/worm.stl'),
+                stlLoader.loadAsync('samples/wheel.stl'),
+            ]);
+
+            console.log('Worm geometry:', wormGeom.attributes.position.count, 'vertices');
+            console.log('Wheel geometry:', wheelGeom.attributes.position.count, 'vertices');
+
+            // Compute normals for proper lighting
+            wormGeom.computeVertexNormals();
+            wheelGeom.computeVertexNormals();
+
+            // -- Wheel --
+            // In build123d: axis along Z, at origin.
+            // STL preserves Z-up, so wheel axis is Z in Three.js too.
+            // Apply initial optimal rotation around Z for tooth engagement.
+            const wheelMat = new THREE.MeshStandardMaterial({
+                color: 0xc8a832,
+                metalness: 0.6,
+                roughness: 0.3,
+                side: THREE.DoubleSide,
+            });
+            wheelMesh = new THREE.Mesh(wheelGeom, wheelMat);
+            wheelMesh.rotation.z = THREE.MathUtils.degToRad(designInfo.optimal_rotation_deg);
+            scene.add(wheelMesh);
+
+            // -- Worm --
+            // Replicate position_for_mesh() from mesh_alignment.py:
+            //   1. Rotate -90° around Y (axis Z → X)
+            //   2. Translate to (0, centre_distance, 0)
+            // Use pivot group so worm rotates around its local Z axis.
+            const wormMat = new THREE.MeshStandardMaterial({
+                color: 0x8888aa,
+                metalness: 0.7,
+                roughness: 0.25,
+                side: THREE.DoubleSide,
+            });
+            wormMesh = new THREE.Mesh(wormGeom, wormMat);
+
+            wormPivot = new THREE.Group();
+            wormPivot.rotation.y = THREE.MathUtils.degToRad(-90); // Axis Z → X
+            wormPivot.position.set(0, cd, 0);                     // Offset by centre distance
+            wormPivot.add(wormMesh);
+            scene.add(wormPivot);
+
+            // Position camera to see both parts
+            // Assembly is centred around (0, cd/2, 0) in build123d coords
+            controls.target.set(0, cd / 2, 0);
+            camera.position.set(80, cd / 2 + 30, 60);
+            controls.update();
+
+            statusEl.textContent =
+                `Module 2.0 | Ratio 1:${designInfo.ratio} | ` +
+                `Centre distance: ${cd.toFixed(1)}mm | ` +
+                `Hand: ${designInfo.hand}`;
+        }
+
+        // Animation
+        const BASE_SPEED = 0.02; // radians per frame for worm
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (playing && wormMesh && wheelMesh && designInfo) {
+                const wormSpeed = BASE_SPEED * speedMultiplier;
+
+                // Worm rotates around its local Z axis
+                // (pivot makes this world X axis, matching position_for_mesh)
+                wormMesh.rotation.z += wormSpeed;
+
+                // Wheel rotates around Z at gear ratio speed
+                const direction = designInfo.hand === 'right' ? -1 : 1;
+                wheelMesh.rotation.z += direction * wormSpeed * designInfo.num_starts / designInfo.num_teeth;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // UI
+        document.getElementById('playPause').addEventListener('click', () => {
+            playing = !playing;
+            document.getElementById('playPause').textContent = playing ? 'Pause' : 'Play';
+        });
+
+        const speedSlider = document.getElementById('speed');
+        const speedLabel = document.getElementById('speedLabel');
+        speedSlider.addEventListener('input', () => {
+            speedMultiplier = parseFloat(speedSlider.value);
+            speedLabel.textContent = speedMultiplier.toFixed(1) + 'x';
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init().catch(err => {
+            statusEl.textContent = `Error: ${err.message}`;
+            console.error(err);
+        });
+        animate();
+    </script>
+</body>
+</html>

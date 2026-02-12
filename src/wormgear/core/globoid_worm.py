@@ -1546,3 +1546,20 @@ class GloboidWormGeometry:
             exp_step(self._part, filename)
 
         logger.info(f"Exported globoid worm to {filename}")
+
+    def export_gltf(self, filepath: str, binary: bool = True):
+        """Export globoid worm to glTF file (builds if not already built).
+
+        Args:
+            filepath: Output path (.glb for binary, .gltf for text)
+            binary: If True, export as binary .glb (default)
+        """
+        if self._part is None:
+            raise ValueError("Geometry not built yet. Call build() first.")
+
+        from build123d import export_gltf as b3d_export_gltf
+        b3d_export_gltf(
+            self._part, filepath, binary=binary,
+            linear_deflection=0.001, angular_deflection=0.1,
+        )
+        logger.info(f"Exported globoid worm to {filepath}")
