@@ -520,11 +520,10 @@ export async function handleGenerateComplete(data) {
         hasWheel3mf: !!data.wheel_3mf,
         hasWormStl: !!data.worm_stl,
         hasWheelStl: !!data.wheel_stl,
-        hasAssembly3mf: !!data.assembly_3mf,
         success: data.success
     });
 
-    const { worm, wheel, worm_3mf, wheel_3mf, worm_stl, wheel_stl, assembly_3mf, mesh_rotation_deg, success } = data;
+    const { worm, wheel, worm_3mf, wheel_3mf, worm_stl, wheel_stl, mesh_rotation_deg, success } = data;
 
     if (!success) {
         appendToConsole('⚠️ Generation completed with errors');
@@ -603,7 +602,6 @@ to_markdown(design)
         wheel_3mf: wheel_3mf,
         worm_stl: worm_stl,
         wheel_stl: wheel_stl,
-        assembly_3mf: assembly_3mf,
         mesh_rotation_deg: mesh_rotation_deg || 0,
         markdown: markdown
     };
@@ -616,9 +614,9 @@ to_markdown(design)
     }
     showDownloadsSection();
 
-    // Enable 3D Preview tab if mesh data is available (prefer 3MF, fall back to STL)
+    // Enable 3D Preview tab if STL data is available
     const previewBtn = document.getElementById('preview-tab-btn');
-    if (previewBtn && ((worm_3mf && wheel_3mf) || (worm_stl && wheel_stl))) {
+    if (previewBtn && worm_stl && wheel_stl) {
         previewBtn.disabled = false;
     }
 
@@ -678,7 +676,6 @@ async function createAndDownloadZip() {
             hasWheel3mf: !!stepData.wheel_3mf,
             hasWormStl: !!stepData.worm_stl,
             hasWheelStl: !!stepData.wheel_stl,
-            hasAssembly3mf: !!stepData.assembly_3mf,
             hasMarkdown: !!stepData.markdown,
             markdownLength: stepData.markdown ? stepData.markdown.length : 0
         });
@@ -739,30 +736,13 @@ async function createAndDownloadZip() {
             appendToConsole(`  ✓ Added wheel.3mf (${(wheel3mfBytes.length / 1024).toFixed(1)} KB)`);
         }
 
-        // Add assembly 3MF (pre-positioned by Python - correct geometry)
-        if (stepData.assembly_3mf) {
-            const asm3mfBinary = atob(stepData.assembly_3mf);
-            const asm3mfBytes = new Uint8Array(asm3mfBinary.length);
-            for (let i = 0; i < asm3mfBinary.length; i++) {
-                asm3mfBytes[i] = asm3mfBinary.charCodeAt(i);
-            }
-            zip.file('assembly.3mf', asm3mfBytes);
-            appendToConsole(`  ✓ Added assembly.3mf (${(asm3mfBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
         // Generate assembly GLB (both parts positioned at correct centre distance)
-        const hasMesh = stepData.assembly_3mf || (stepData.worm_3mf && stepData.wheel_3mf) || (stepData.worm_stl && stepData.wheel_stl);
-        if (hasMesh && design) {
+        if (stepData.worm_stl && stepData.wheel_stl && design) {
             try {
                 appendToConsole('  Generating assembly.glb...');
                 const glbBuffer = await exportAssemblyGLB(
-                    {
-                        assembly_3mf: stepData.assembly_3mf,
-                        worm_3mf: stepData.worm_3mf,
-                        wheel_3mf: stepData.wheel_3mf,
-                        worm_stl: stepData.worm_stl,
-                        wheel_stl: stepData.wheel_stl,
-                    },
+                    stepData.worm_stl,
+                    stepData.wheel_stl,
                     {
                         centre_distance_mm: design.assembly.centre_distance_mm,
                         mesh_rotation_deg: stepData.mesh_rotation_deg || 0,

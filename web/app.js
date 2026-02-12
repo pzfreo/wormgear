@@ -586,9 +586,7 @@ function initPreviewViewer() {
     const empty = document.getElementById('preview-empty');
     const status = document.getElementById('preview-status');
 
-    const hasMeshData = (window.generatedSTEP?.worm_3mf && window.generatedSTEP?.wheel_3mf) ||
-                        (window.generatedSTEP?.worm_stl && window.generatedSTEP?.wheel_stl);
-    if (!hasMeshData) {
+    if (!window.generatedSTEP?.worm_stl || !window.generatedSTEP?.wheel_stl) {
         if (empty) empty.style.display = '';
         if (container) container.style.display = 'none';
         return;
@@ -616,15 +614,7 @@ function initPreviewViewer() {
             mesh_rotation_deg: window.generatedSTEP.mesh_rotation_deg || 0,
         };
 
-        // loadMeshes is async (uses JSZip for 3MF parsing)
-        loadMeshes({
-            worm_3mf: window.generatedSTEP.worm_3mf,
-            wheel_3mf: window.generatedSTEP.wheel_3mf,
-            worm_stl: window.generatedSTEP.worm_stl,
-            wheel_stl: window.generatedSTEP.wheel_stl,
-        }, info).catch(err => {
-            console.error('[Preview] Failed to load meshes:', err);
-        });
+        loadMeshes(window.generatedSTEP.worm_stl, window.generatedSTEP.wheel_stl, info);
 
         if (status) {
             status.textContent =
