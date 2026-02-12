@@ -616,12 +616,15 @@ function initPreviewViewer() {
             mesh_rotation_deg: window.generatedSTEP.mesh_rotation_deg || 0,
         };
 
+        // loadMeshes is async (uses JSZip for 3MF parsing)
         loadMeshes({
             worm_3mf: window.generatedSTEP.worm_3mf,
             wheel_3mf: window.generatedSTEP.wheel_3mf,
             worm_stl: window.generatedSTEP.worm_stl,
             wheel_stl: window.generatedSTEP.wheel_stl,
-        }, info);
+        }, info).catch(err => {
+            console.error('[Preview] Failed to load meshes:', err);
+        });
 
         if (status) {
             status.textContent =
