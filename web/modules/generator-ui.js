@@ -614,9 +614,9 @@ to_markdown(design)
     }
     showDownloadsSection();
 
-    // Enable 3D Preview tab if STL data is available
+    // Enable 3D Preview tab if mesh data is available (prefer 3MF, fall back to STL)
     const previewBtn = document.getElementById('preview-tab-btn');
-    if (previewBtn && worm_stl && wheel_stl) {
+    if (previewBtn && ((worm_3mf && wheel_3mf) || (worm_stl && wheel_stl))) {
         previewBtn.disabled = false;
     }
 
@@ -737,12 +737,17 @@ async function createAndDownloadZip() {
         }
 
         // Generate assembly GLB (both parts positioned at correct centre distance)
-        if (stepData.worm_stl && stepData.wheel_stl && design) {
+        const hasMesh = (stepData.worm_3mf && stepData.wheel_3mf) || (stepData.worm_stl && stepData.wheel_stl);
+        if (hasMesh && design) {
             try {
                 appendToConsole('  Generating assembly.glb...');
                 const glbBuffer = await exportAssemblyGLB(
-                    stepData.worm_stl,
-                    stepData.wheel_stl,
+                    {
+                        worm_3mf: stepData.worm_3mf,
+                        wheel_3mf: stepData.wheel_3mf,
+                        worm_stl: stepData.worm_stl,
+                        wheel_stl: stepData.wheel_stl,
+                    },
                     {
                         centre_distance_mm: design.assembly.centre_distance_mm,
                         mesh_rotation_deg: stepData.mesh_rotation_deg || 0,

@@ -586,7 +586,9 @@ function initPreviewViewer() {
     const empty = document.getElementById('preview-empty');
     const status = document.getElementById('preview-status');
 
-    if (!window.generatedSTEP?.worm_stl || !window.generatedSTEP?.wheel_stl) {
+    const hasMeshData = (window.generatedSTEP?.worm_3mf && window.generatedSTEP?.wheel_3mf) ||
+                        (window.generatedSTEP?.worm_stl && window.generatedSTEP?.wheel_stl);
+    if (!hasMeshData) {
         if (empty) empty.style.display = '';
         if (container) container.style.display = 'none';
         return;
@@ -614,7 +616,12 @@ function initPreviewViewer() {
             mesh_rotation_deg: window.generatedSTEP.mesh_rotation_deg || 0,
         };
 
-        loadMeshes(window.generatedSTEP.worm_stl, window.generatedSTEP.wheel_stl, info);
+        loadMeshes({
+            worm_3mf: window.generatedSTEP.worm_3mf,
+            wheel_3mf: window.generatedSTEP.wheel_3mf,
+            worm_stl: window.generatedSTEP.worm_stl,
+            wheel_stl: window.generatedSTEP.wheel_stl,
+        }, info);
 
         if (status) {
             status.textContent =
