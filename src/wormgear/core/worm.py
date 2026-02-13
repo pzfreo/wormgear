@@ -114,11 +114,11 @@ class WormGeometry:
         if self._part is not None:
             return self._part
 
-        # Multi-start sweep uses per-start build to avoid complex boolean
-        # failures (pipe shell topology doesn't survive composite fuse+cut).
-        if (self.generation_method == "sweep"
-                and self.params.num_starts > 1):
-            return self._build_sweep_multi_start()
+        # Sweep uses groove-cut approach (full cylinder minus swept grooves)
+        # because OCC BRepAlgoAPI_Fuse cannot merge pipe shell solids with
+        # concentric cylinders — it produces disjoint compounds instead.
+        if self.generation_method == "sweep":
+            return self._build_sweep()
 
         root_radius = self.params.root_diameter_mm / 2
         tip_radius = self.params.tip_diameter_mm / 2
@@ -135,12 +135,9 @@ class WormGeometry:
         # Create core slightly longer than final worm to match extended threads
         # We'll trim to exact length after union
         extended_length = self.length + 2 * lead  # Add lead on each end
-        # Sweep threads touch core exactly at root_r (zero overlap) causing
-        # OCC Fuse to produce disjoint solids.  A tiny overlap forces merge.
-        core_radius_adj = root_radius + (0.05 if self.generation_method == "sweep" else 0)
-        logger.info(f"Creating core cylinder (radius={core_radius_adj:.2f}mm, height={extended_length:.2f}mm)...")
+        logger.info(f"Creating core cylinder (radius={root_radius:.2f}mm, height={extended_length:.2f}mm)...")
         core = Cylinder(
-            radius=core_radius_adj,
+            radius=root_radius,
             height=extended_length,
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         )
@@ -242,7 +239,23 @@ class WormGeometry:
             if len(solids) == 1:
                 worm = solids[0]
             elif len(solids) > 1:
-                worm = max(solids, key=lambda s: s.volume)
+                # Fuse all significant solids instead of picking just the largest.
+                # max(volume) silently discards thread geometry when fuse produces
+                # disjoint solids (core + thread as separate bodies).
+                real = [s for s in solids if s.volume > 1.0]
+                if len(real) == 1:
+                    worm = real[0]
+                elif len(real) > 1:
+                    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse as _Fuse
+                    shape = real[0].wrapped
+                    for s in real[1:]:
+                        f = _Fuse(shape, s.wrapped)
+                        f.Build()
+                        if f.IsDone():
+                            shape = f.Shape()
+                    worm = Part(shape)
+                else:
+                    worm = max(solids, key=lambda s: s.volume)
 
         # Cut relief grooves at thread termination points (before bore features)
         if self.relief_groove is not None:
@@ -274,60 +287,45 @@ class WormGeometry:
         self._part = worm
         return worm
 
-    def _build_sweep_multi_start(self) -> Part:
-        """Build multi-start sweep worm by fusing all threads with a shared core.
+    def _build_sweep(self) -> Part:
+        """Build sweep worm by cutting grooves from a full cylinder.
 
-        Pipe shell solids touch the core cylinder exactly at root_r (zero
-        overlap), which causes OCC Fuse to create a compound of disjoint
-        solids instead of merging them.  A tiny core radius increase (0.05 mm)
-        forces genuine overlap so Fuse produces a single merged solid that
-        trims and repairs cleanly.
+        OCC's BRepAlgoAPI_Fuse cannot merge pipe shell solids with concentric
+        cylinders — it always produces disjoint compounds regardless of overlap.
+        The groove-cut approach avoids this: start with a full cylinder at tip
+        radius, then cut swept groove profiles to create the thread geometry.
+        This works for both single-start and multi-start worms.
         """
-        from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse, BRepAlgoAPI_Cut
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 
-        root_radius = self.params.root_diameter_mm / 2
         tip_radius = self.params.tip_diameter_mm / 2
+        root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
         extended_length = self.length + 2 * lead
         trim_diameter = tip_radius * 4
         half_length = self.length / 2
 
-        # Build all threads
-        threads = []
-        for start_index in range(self.params.num_starts):
-            angle_offset = (360 / self.params.num_starts) * start_index
-            logger.info(f"Building sweep start {start_index} (angle={angle_offset:.0f}°)...")
-            thread = self._create_single_thread_sweep(angle_offset)
-            if thread is not None:
-                threads.append(thread)
-                logger.debug(f"Thread {start_index}: volume={thread.volume:.1f}")
-
-        if not threads:
-            logger.error("No threads created")
-            core = Cylinder(
-                radius=root_radius, height=self.length,
-                align=(Align.CENTER, Align.CENTER, Align.CENTER)
-            )
-            self._part = core
-            return core
-
-        # Core with 0.05mm overlap so fuse merges into one solid
-        core = Cylinder(
-            radius=root_radius + 0.05,
+        # Full cylinder at tip radius
+        logger.info(f"Creating full cylinder (radius={tip_radius:.2f}mm)...")
+        worm_shape = Cylinder(
+            radius=tip_radius,
             height=extended_length,
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
-        )
+        ).wrapped
 
-        # Fuse core + all threads sequentially
-        logger.info("Fusing core with threads...")
-        worm_shape = core.wrapped
-        for thread in threads:
-            fuse = BRepAlgoAPI_Fuse(worm_shape, thread.wrapped)
-            fuse.Build()
-            if fuse.IsDone():
-                worm_shape = fuse.Shape()
-            else:
-                logger.warning("Thread fuse failed")
+        # Cut groove for each start
+        for start_index in range(self.params.num_starts):
+            angle_offset = (360 / self.params.num_starts) * start_index
+            logger.info(f"Cutting groove {start_index} (angle={angle_offset:.0f}°)...")
+            groove = self._create_single_groove_sweep(angle_offset)
+            if groove is not None:
+                cut = BRepAlgoAPI_Cut(worm_shape, groove.wrapped)
+                cut.Build()
+                if cut.IsDone():
+                    worm_shape = cut.Shape()
+                    logger.debug(f"Groove {start_index} cut successfully")
+                else:
+                    logger.warning(f"Groove {start_index} cut failed")
 
         # Trim to length
         logger.info(f"Trimming to {self.length:.1f}mm...")
@@ -355,16 +353,17 @@ class WormGeometry:
 
         worm = Part(worm_shape)
 
-        # Remove degenerate zero-volume solids
+        # Extract single solid or fuse significant solids
         if hasattr(worm, 'solids'):
             solids = list(worm.solids())
-            real = [s for s in solids if s.volume > 0.01]
+            real = [s for s in solids if s.volume > 1.0]
             if len(real) == 1:
                 worm = real[0]
-            elif len(real) > 1 and len(real) < len(solids):
+            elif len(real) > 1:
+                from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse as _Fuse
                 shape = real[0].wrapped
                 for s in real[1:]:
-                    f = BRepAlgoAPI_Fuse(shape, s.wrapped)
+                    f = _Fuse(shape, s.wrapped)
                     f.Build()
                     if f.IsDone():
                         shape = f.Shape()
@@ -372,7 +371,7 @@ class WormGeometry:
 
         worm = self._repair_geometry(worm)
 
-        # Add features (bore, keyway, etc.)
+        # Add features (relief groove, bore, keyway, etc.)
         if self.relief_groove is not None:
             axial_pitch = self.params.lead_mm / self.params.num_starts
             worm = create_relief_groove(
@@ -396,7 +395,7 @@ class WormGeometry:
                 axis=Axis.Z
             )
 
-        logger.debug(f"Final multi-start worm volume: {worm.volume:.2f} mm³")
+        logger.debug(f"Final sweep worm volume: {worm.volume:.2f} mm³")
         self._part = worm
         return worm
 
@@ -773,6 +772,154 @@ class WormGeometry:
 
         return thread
 
+    def _create_single_groove_sweep(self, start_angle: float = 0) -> Part:
+        """
+        Create a single helical groove solid for the groove-cut approach.
+
+        The groove is the space between thread teeth — its profile is the
+        complement of the thread profile. Swept along a helix offset by
+        half the axial pitch from the thread helix.
+
+        The groove profile extends past both root and tip radii to ensure
+        clean boolean cuts against the full cylinder.
+        """
+        from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
+        from OCP.gp import gp_Dir
+
+        pitch_radius = self.params.pitch_diameter_mm / 2
+        lead = self.params.lead_mm
+        is_right_hand = self.params.hand == Hand.RIGHT
+        axial_pitch = lead / self.params.num_starts
+
+        # Thread profile dimensions
+        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
+        thread_half_width_pitch = self.params.thread_thickness_mm / 2
+
+        addendum = self.params.addendum_mm
+        dedendum = self.params.dedendum_mm
+
+        # Groove is the complement of the thread
+        # At pitch: groove_width = axial_pitch - thread_width
+        groove_half_width_pitch = (axial_pitch - self.params.thread_thickness_mm) / 2
+
+        # Groove flanks: wider at tip (where thread is narrow), narrower at root
+        groove_half_width_tip = groove_half_width_pitch + addendum * math.tan(pressure_angle_rad)
+        groove_half_width_root = max(0.1, groove_half_width_pitch - dedendum * math.tan(pressure_angle_rad))
+
+        # Extend groove past tip and root for clean boolean cuts
+        groove_extend = 0.5  # mm beyond tip/root
+
+        # Extended helix
+        extended_length = self.length + 2 * lead
+
+        # Create helix at pitch radius, offset by half axial pitch from thread
+        helix = Helix(
+            pitch=lead if is_right_hand else -lead,
+            height=extended_length,
+            radius=pitch_radius,
+            center=(0, 0, -extended_length / 2),
+            direction=(0, 0, 1)
+        )
+
+        # Offset groove helix by 180°/num_starts from thread position
+        groove_angle = start_angle + (180.0 / self.params.num_starts)
+        helix = helix.rotate(Axis.Z, groove_angle)
+
+        # Position profile at helix start
+        start_point = helix @ 0
+        start_tangent = helix % 0
+        angle = math.atan2(start_point.Y, start_point.X)
+        radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
+        profile_plane = Plane(origin=start_point, x_dir=radial_dir, z_dir=start_tangent)
+
+        # Groove radial extent: exactly at root, past tip for clean cut.
+        # inner_r at root preserves correct root diameter (remaining cylinder
+        # material below root forms the core). outer_r extends past tip to
+        # cut cleanly through the full cylinder surface.
+        inner_r = -dedendum
+        outer_r = addendum + groove_extend
+
+        with BuildSketch(profile_plane) as sk:
+            with BuildLine():
+                if self.profile in (WormProfile.ZA, "ZA", WormProfile.ZI, "ZI"):
+                    # Trapezoidal groove (complement of thread)
+                    Line((inner_r, -groove_half_width_root), (outer_r, -groove_half_width_tip))
+                    Line((outer_r, -groove_half_width_tip), (outer_r, groove_half_width_tip))
+                    Line((outer_r, groove_half_width_tip), (inner_r, groove_half_width_root))
+                    Line((inner_r, groove_half_width_root), (inner_r, -groove_half_width_root))
+
+                elif self.profile in (WormProfile.ZK, "ZK"):
+                    # ZK groove: arc flanks (complement of ZK thread arc)
+                    num_points = 9
+                    left_flank = []
+                    right_flank = []
+                    arc_radius = 0.45 * self.params.module_mm
+                    flank_height = outer_r - inner_r
+
+                    for j in range(num_points):
+                        t = j / (num_points - 1)
+                        r_pos = inner_r + t * flank_height
+                        linear_width = groove_half_width_root + t * (groove_half_width_tip - groove_half_width_root)
+                        arc_param = t * math.pi
+                        # Groove arc bulges inward (negative) where thread bulges outward
+                        arc_bulge = -arc_radius * 0.15 * math.sin(arc_param)
+                        width = linear_width + arc_bulge
+                        left_flank.append((r_pos, -width))
+                        right_flank.append((r_pos, width))
+
+                    Spline(left_flank)
+                    Line(left_flank[-1], right_flank[-1])
+                    Spline(list(reversed(right_flank)))
+                    Line(right_flank[0], left_flank[0])
+
+                else:
+                    raise ValueError(f"Unknown profile type: {self.profile}")
+            make_face()
+
+        groove_face = sk.sketch.faces()[0]
+
+        # Build helix wire
+        wire_maker = BRepBuilderAPI_MakeWire()
+        explorer = TopExp_Explorer(helix.wrapped, TopAbs_EDGE)
+        while explorer.More():
+            wire_maker.Add(TopoDS.Edge_s(explorer.Current()))
+            explorer.Next()
+        helix_wire = wire_maker.Wire()
+
+        # Sweep groove along helix
+        logger.debug("Sweeping groove profile along helix...")
+        pipe = BRepOffsetAPI_MakePipeShell(helix_wire)
+        pipe.SetMode(gp_Dir(0, 0, 1))
+        pipe.Add(groove_face.outer_wire().wrapped)
+        pipe.Build()
+
+        if not pipe.IsDone():
+            raise RuntimeError("OCC MakePipeShell failed for groove sweep")
+
+        pipe.MakeSolid()
+
+        # STEP roundtrip to normalize pipe shell topology
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.NamedTemporaryFile(suffix='.step', delete=False) as f:
+            step_path = Path(f.name)
+
+        try:
+            export_step(Part(pipe.Shape()), str(step_path))
+            imported = import_step(str(step_path))
+            solids = list(imported.solids())
+            if len(solids) == 1:
+                groove = solids[0]
+            else:
+                groove = max(solids, key=lambda s: s.volume)
+            logger.debug(f"Groove sweep completed: volume={groove.volume:.1f}")
+        finally:
+            step_path.unlink(missing_ok=True)
+
+        return groove
+
     def _create_single_thread_sweep(self, start_angle: float = 0) -> Part:
         """
         Create a single helical thread by sweeping one profile along a helix.
@@ -828,28 +975,41 @@ class WormGeometry:
 
         profile_plane = Plane(origin=start_point, x_dir=radial_dir, z_dir=start_tangent)
 
-        inner_r = -dedendum
+        # Profile radial positions:
+        # root_r = original root position (at core surface)
+        # ext_r  = extended position 0.5mm inside core for genuine fuse overlap
+        # outer_r = tip position
+        # The rectangular extension (ext_r to root_r) is invisible after fuse
+        # with the core cylinder, but ensures BRepAlgoAPI_Fuse merges the
+        # thread and core into a single solid instead of producing disjoint bodies.
+        overlap_ext = 0.5
+        root_r = -dedendum
+        ext_r = root_r - overlap_ext
         outer_r = addendum
 
         # Build the 2D profile on the profile plane
         with BuildSketch(profile_plane) as sk:
             with BuildLine():
                 if self.profile in (WormProfile.ZA, "ZA", WormProfile.ZI, "ZI"):
-                    Line((inner_r, -thread_half_width_root), (outer_r, -thread_half_width_tip))
-                    Line((outer_r, -thread_half_width_tip), (outer_r, thread_half_width_tip))
-                    Line((outer_r, thread_half_width_tip), (inner_r, thread_half_width_root))
-                    Line((inner_r, thread_half_width_root), (inner_r, -thread_half_width_root))
+                    # 6-point profile: rectangular extension + original trapezoid
+                    # Preserves flank angles while extending into core
+                    Line((ext_r, -thread_half_width_root), (root_r, -thread_half_width_root))  # Bottom-left horizontal
+                    Line((root_r, -thread_half_width_root), (outer_r, -thread_half_width_tip))  # Left flank
+                    Line((outer_r, -thread_half_width_tip), (outer_r, thread_half_width_tip))   # Tip
+                    Line((outer_r, thread_half_width_tip), (root_r, thread_half_width_root))     # Right flank
+                    Line((root_r, thread_half_width_root), (ext_r, thread_half_width_root))      # Bottom-right horizontal
+                    Line((ext_r, thread_half_width_root), (ext_r, -thread_half_width_root))      # Bottom (closes)
 
                 elif self.profile in (WormProfile.ZK, "ZK"):
                     num_points = 9
                     left_flank = []
                     right_flank = []
                     arc_radius = 0.45 * self.params.module_mm
-                    flank_height = outer_r - inner_r
+                    flank_height = outer_r - root_r  # Flank from root_r (not ext_r)
 
                     for j in range(num_points):
                         t = j / (num_points - 1)
-                        r_pos = inner_r + t * flank_height
+                        r_pos = root_r + t * flank_height  # Flanks start at root_r
                         linear_width = thread_half_width_root + t * (thread_half_width_tip - thread_half_width_root)
                         arc_param = t * math.pi
                         arc_bulge = arc_radius * 0.15 * math.sin(arc_param)
@@ -857,10 +1017,15 @@ class WormGeometry:
                         left_flank.append((r_pos, -width))
                         right_flank.append((r_pos, width))
 
-                    Spline(left_flank)
-                    Line(left_flank[-1], right_flank[-1])
-                    Spline(list(reversed(right_flank)))
-                    Line(right_flank[0], left_flank[0])
+                    # Add rectangular extension below flanks for core overlap
+                    ext_bottom_left = (ext_r, left_flank[0][1])
+                    ext_bottom_right = (ext_r, right_flank[0][1])
+                    Line(ext_bottom_left, left_flank[0])             # Bottom-left to root-left
+                    Spline(left_flank)                                # Left flank (arc)
+                    Line(left_flank[-1], right_flank[-1])             # Tip
+                    Spline(list(reversed(right_flank)))               # Right flank (arc)
+                    Line(right_flank[0], ext_bottom_right)            # Root-right to bottom-right
+                    Line(ext_bottom_right, ext_bottom_left)           # Bottom (closes)
 
                 else:
                     raise ValueError(f"Unknown profile type: {self.profile}")
