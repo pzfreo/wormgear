@@ -52,6 +52,8 @@ class MeshAlignmentResult:
         tooth_pitch_deg: Angular pitch between wheel teeth (360/num_teeth)
         worm_position: Tuple of (x, y, z) for worm centre position
         message: Human-readable status message
+        mesh_quality: Quality tier - "perfect", "good", "acceptable", or "warning"
+        tolerance_mm3: The tolerance threshold used (module-scaled)
     """
     optimal_rotation_deg: float
     interference_volume_mm3: float
@@ -59,6 +61,55 @@ class MeshAlignmentResult:
     tooth_pitch_deg: float
     worm_position: tuple[float, float, float]
     message: str
+    mesh_quality: str = "good"
+    tolerance_mm3: float = 1.0
+
+
+def calculate_tolerance_mm3(module_mm: float, base_tolerance: float = 1.0) -> float:
+    """Calculate module-scaled interference tolerance.
+
+    Volumetric interference scales roughly with the square of the module
+    because the tooth cross-section area scales as module² while the
+    contact zone length is roughly proportional to module as well.
+    Using quadratic scaling provides a practical threshold that doesn't
+    penalise larger modules unfairly.
+
+    Args:
+        module_mm: Gear module in mm
+        base_tolerance: Base tolerance at module 1.0 (default 1.0 mm³)
+
+    Returns:
+        Scaled tolerance in mm³
+    """
+    return base_tolerance * (module_mm ** 2)
+
+
+def _classify_mesh_quality(
+    interference_mm3: float, tolerance_mm3: float
+) -> tuple[str, str]:
+    """Classify mesh quality into tiers and return (quality, message_prefix).
+
+    Tiers:
+        perfect:    interference == 0
+        good:       interference ≤ tolerance
+        acceptable: interference ≤ 3× tolerance (expected for helical wheels)
+        warning:    interference > 3× tolerance
+
+    Args:
+        interference_mm3: Measured interference volume
+        tolerance_mm3: Module-scaled tolerance threshold
+
+    Returns:
+        Tuple of (quality_tier, message_prefix)
+    """
+    if interference_mm3 == 0.0:
+        return "perfect", "Perfect mesh - no interference detected"
+    elif interference_mm3 <= tolerance_mm3:
+        return "good", f"Good mesh - interference {interference_mm3:.4f}mm³ within tolerance ({tolerance_mm3:.1f}mm³)"
+    elif interference_mm3 <= 3 * tolerance_mm3:
+        return "acceptable", f"Acceptable mesh - interference {interference_mm3:.4f}mm³ within 3× tolerance ({tolerance_mm3:.1f}mm³; expected for helical wheel)"
+    else:
+        return "warning", f"Warning - interference {interference_mm3:.4f}mm³ exceeds 3× tolerance ({tolerance_mm3:.1f}mm³)"
 
 
 def _calculate_interference(wheel: Part, worm: Part) -> float:
@@ -205,7 +256,8 @@ def find_optimal_mesh_rotation(
     worm: Part,
     centre_distance_mm: float,
     num_teeth: int,
-    backlash_tolerance_mm3: float = 1.0,
+    module_mm: float = 1.0,
+    backlash_tolerance_mm3: Optional[float] = None,
     fine_step_deg: float = 0.2,
 ) -> MeshAlignmentResult:
     """Find optimal wheel rotation and analyse mesh quality.
@@ -214,9 +266,19 @@ def find_optimal_mesh_rotation(
     1. Positions the worm at the correct centre distance
     2. Calculates optimal wheel rotation to minimize interference
     3. Measures final interference volume
-    4. Reports whether mesh is within tolerance
+    4. Reports whether mesh is within tolerance (module-scaled)
 
     Uses golden section search for efficiency - O(log n) instead of O(n).
+
+    The tolerance scales with module² to account for the fact that
+    volumetric interference naturally grows with gear size. At module 1
+    the base tolerance is 1.0 mm³; at module 2 it is 4.0 mm³.
+
+    Mesh quality is reported in tiers rather than binary pass/fail:
+    - perfect:    No interference
+    - good:       Within tolerance
+    - acceptable: Within 3× tolerance (expected for non-conjugate helical wheels)
+    - warning:    Exceeds 3× tolerance
 
     The worm is positioned with its axis along Y, offset from the wheel
     (whose axis is along Z) by the centre distance.
@@ -226,13 +288,20 @@ def find_optimal_mesh_rotation(
         worm: Worm Part centred at origin with axis along Z (will be rotated/positioned)
         centre_distance_mm: Distance between wheel and worm axes in mm
         num_teeth: Number of teeth on the wheel
-        backlash_tolerance_mm3: Maximum acceptable interference volume (default 1.0)
+        module_mm: Gear module in mm (used to scale tolerance; default 1.0)
+        backlash_tolerance_mm3: Override tolerance (if None, auto-scaled from module)
         fine_step_deg: Search precision in degrees (default 0.2°)
 
     Returns:
-        MeshAlignmentResult with rotation, interference, and status
+        MeshAlignmentResult with rotation, interference, quality tier, and status
     """
     tooth_pitch_deg = 360.0 / num_teeth
+
+    # Calculate tolerance (auto-scale from module, or use explicit override)
+    if backlash_tolerance_mm3 is not None:
+        tolerance = backlash_tolerance_mm3
+    else:
+        tolerance = calculate_tolerance_mm3(module_mm)
 
     # Position worm: rotate -90° around Y so axis is along X, offset by centre_distance in Y
     worm_positioned = worm.rotate(Axis.Y, -90)
@@ -251,15 +320,9 @@ def find_optimal_mesh_rotation(
     # Also measure interference without rotation for comparison
     interference_unrotated = _calculate_interference(wheel, worm_positioned)
 
-    within_tolerance = interference <= backlash_tolerance_mm3
-
-    # Build status message
-    if interference == 0.0:
-        message = "Perfect mesh - no interference detected"
-    elif within_tolerance:
-        message = f"Good mesh - interference {interference:.4f}mm³ within tolerance"
-    else:
-        message = f"Warning - interference {interference:.4f}mm³ exceeds tolerance"
+    # Classify mesh quality into tiers
+    mesh_quality, message = _classify_mesh_quality(interference, tolerance)
+    within_tolerance = mesh_quality in ("perfect", "good", "acceptable")
 
     if interference_unrotated > 0 and interference < interference_unrotated:
         reduction = interference_unrotated - interference
@@ -272,6 +335,8 @@ def find_optimal_mesh_rotation(
         tooth_pitch_deg=tooth_pitch_deg,
         worm_position=worm_position,
         message=message,
+        mesh_quality=mesh_quality,
+        tolerance_mm3=tolerance,
     )
 
 
@@ -360,6 +425,8 @@ def mesh_alignment_to_dict(result: MeshAlignmentResult) -> dict:
         "optimal_rotation_deg": result.optimal_rotation_deg,
         "interference_volume_mm3": result.interference_volume_mm3,
         "within_tolerance": result.within_tolerance,
+        "mesh_quality": result.mesh_quality,
+        "tolerance_mm3": result.tolerance_mm3,
         "tooth_pitch_deg": result.tooth_pitch_deg,
         "worm_position": {
             "x_mm": result.worm_position[0],
