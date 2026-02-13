@@ -1024,9 +1024,12 @@ More info: https://wormgear.studio
                 worm=worm,
                 centre_distance_mm=design.assembly.centre_distance_mm,
                 num_teeth=design.wheel.num_teeth,
+                module_mm=design.worm.module_mm,
             )
             print(f"  Optimal wheel rotation: {mesh_alignment_result.optimal_rotation_deg:.2f}°")
             print(f"  Interference volume: {mesh_alignment_result.interference_volume_mm3:.4f} mm³")
+            print(f"  Tolerance: {mesh_alignment_result.tolerance_mm3:.1f} mm³ (module-scaled)")
+            print(f"  Quality: {mesh_alignment_result.mesh_quality}")
             print(f"  Status: {mesh_alignment_result.message}")
 
     # Save geometry analysis JSON (mesh alignment + rim measurements)

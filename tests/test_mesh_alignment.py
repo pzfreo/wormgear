@@ -18,6 +18,8 @@ from wormgear import (
 from wormgear.core.mesh_alignment import (
     MeshAlignmentResult,
     calculate_mesh_rotation,
+    calculate_tolerance_mm3,
+    _classify_mesh_quality,
     check_interference,
     find_optimal_mesh_rotation,
     position_for_mesh,
@@ -40,6 +42,8 @@ class TestMeshAlignmentResult:
             tooth_pitch_deg=12.0,
             worm_position=(38.14, 0.0, 0.0),
             message="Perfect mesh",
+            mesh_quality="perfect",
+            tolerance_mm3=4.0,
         )
 
         assert result.optimal_rotation_deg == 5.5
@@ -48,6 +52,22 @@ class TestMeshAlignmentResult:
         assert result.tooth_pitch_deg == 12.0
         assert result.worm_position == (38.14, 0.0, 0.0)
         assert result.message == "Perfect mesh"
+        assert result.mesh_quality == "perfect"
+        assert result.tolerance_mm3 == 4.0
+
+    def test_dataclass_defaults(self):
+        """Test that new fields have sensible defaults."""
+        result = MeshAlignmentResult(
+            optimal_rotation_deg=0.0,
+            interference_volume_mm3=0.0,
+            within_tolerance=True,
+            tooth_pitch_deg=12.0,
+            worm_position=(0.0, 0.0, 0.0),
+            message="test",
+        )
+
+        assert result.mesh_quality == "good"
+        assert result.tolerance_mm3 == 1.0
 
     def test_dataclass_with_zero_interference(self):
         """Test result with zero interference (perfect mesh)."""
@@ -58,10 +78,12 @@ class TestMeshAlignmentResult:
             tooth_pitch_deg=30.0,
             worm_position=(10.0, 0.0, 0.0),
             message="Perfect mesh - no interference detected",
+            mesh_quality="perfect",
         )
 
         assert result.interference_volume_mm3 == 0.0
         assert result.within_tolerance is True
+        assert result.mesh_quality == "perfect"
 
     def test_dataclass_with_high_interference(self):
         """Test result with interference exceeding tolerance."""
@@ -72,10 +94,12 @@ class TestMeshAlignmentResult:
             tooth_pitch_deg=12.0,
             worm_position=(38.14, 0.0, 0.0),
             message="Warning - interference exceeds tolerance",
+            mesh_quality="warning",
         )
 
         assert result.interference_volume_mm3 == 5.5
         assert result.within_tolerance is False
+        assert result.mesh_quality == "warning"
 
 
 class TestMeshAlignmentToDict:
@@ -90,6 +114,8 @@ class TestMeshAlignmentToDict:
             tooth_pitch_deg=12.0,
             worm_position=(38.14, 0.0, 0.0),
             message="Good mesh",
+            mesh_quality="good",
+            tolerance_mm3=4.0,
         )
 
         d = mesh_alignment_to_dict(result)
@@ -97,6 +123,8 @@ class TestMeshAlignmentToDict:
         assert d["optimal_rotation_deg"] == 5.5
         assert d["interference_volume_mm3"] == 0.001
         assert d["within_tolerance"] is True
+        assert d["mesh_quality"] == "good"
+        assert d["tolerance_mm3"] == 4.0
         assert d["tooth_pitch_deg"] == 12.0
         assert d["worm_position"]["x_mm"] == 38.14
         assert d["worm_position"]["y_mm"] == 0.0
@@ -114,6 +142,8 @@ class TestMeshAlignmentToDict:
             tooth_pitch_deg=12.0,
             worm_position=(38.14, 0.0, 0.0),
             message="Good mesh",
+            mesh_quality="good",
+            tolerance_mm3=4.0,
         )
 
         d = mesh_alignment_to_dict(result)
@@ -122,6 +152,77 @@ class TestMeshAlignmentToDict:
         assert isinstance(json_str, str)
         parsed = json.loads(json_str)
         assert parsed["optimal_rotation_deg"] == 5.5
+        assert parsed["mesh_quality"] == "good"
+        assert parsed["tolerance_mm3"] == 4.0
+
+
+class TestCalculateToleranceMm3:
+    """Tests for module-scaled tolerance calculation."""
+
+    def test_module_1_gives_base_tolerance(self):
+        """Module 1 should give the base tolerance of 1.0 mm³."""
+        assert calculate_tolerance_mm3(1.0) == 1.0
+
+    def test_module_2_scales_quadratically(self):
+        """Module 2 should give 4.0 mm³ (2² × 1.0)."""
+        assert calculate_tolerance_mm3(2.0) == 4.0
+
+    def test_module_5_scales_quadratically(self):
+        """Module 5 should give 25.0 mm³ (5² × 1.0)."""
+        assert calculate_tolerance_mm3(5.0) == 25.0
+
+    def test_custom_base_tolerance(self):
+        """Custom base tolerance should scale correctly."""
+        assert calculate_tolerance_mm3(2.0, base_tolerance=0.5) == 2.0
+
+    def test_small_module(self):
+        """Sub-1.0 modules should give smaller tolerances."""
+        assert calculate_tolerance_mm3(0.5) == 0.25
+
+
+class TestClassifyMeshQuality:
+    """Tests for mesh quality tier classification."""
+
+    def test_perfect_at_zero(self):
+        """Zero interference should classify as perfect."""
+        quality, msg = _classify_mesh_quality(0.0, 4.0)
+        assert quality == "perfect"
+        assert "Perfect" in msg
+
+    def test_good_within_tolerance(self):
+        """Interference within tolerance should classify as good."""
+        quality, msg = _classify_mesh_quality(2.0, 4.0)
+        assert quality == "good"
+        assert "Good" in msg
+
+    def test_good_at_tolerance_boundary(self):
+        """Interference exactly at tolerance should classify as good."""
+        quality, msg = _classify_mesh_quality(4.0, 4.0)
+        assert quality == "good"
+
+    def test_acceptable_within_3x_tolerance(self):
+        """Interference within 3× tolerance should classify as acceptable."""
+        quality, msg = _classify_mesh_quality(8.0, 4.0)
+        assert quality == "acceptable"
+        assert "Acceptable" in msg
+        assert "helical" in msg
+
+    def test_acceptable_at_3x_boundary(self):
+        """Interference exactly at 3× tolerance should classify as acceptable."""
+        quality, msg = _classify_mesh_quality(12.0, 4.0)
+        assert quality == "acceptable"
+
+    def test_warning_above_3x_tolerance(self):
+        """Interference above 3× tolerance should classify as warning."""
+        quality, msg = _classify_mesh_quality(13.0, 4.0)
+        assert quality == "warning"
+        assert "Warning" in msg
+
+    def test_within_tolerance_for_module_2_at_3_57(self):
+        """3.57 mm³ at module 2 (tolerance 4.0) should be 'good' not 'warning'."""
+        tolerance = calculate_tolerance_mm3(2.0)
+        quality, _ = _classify_mesh_quality(3.57, tolerance)
+        assert quality == "good"
 
 
 class TestAxisMarkers:
@@ -251,6 +352,7 @@ class TestMeshAlignmentIntegration:
             worm=worm,
             centre_distance_mm=assembly_params.centre_distance_mm,
             num_teeth=wheel_params.num_teeth,
+            module_mm=wheel_params.module_mm,
         )
 
         assert isinstance(result, MeshAlignmentResult)
@@ -258,6 +360,8 @@ class TestMeshAlignmentIntegration:
         assert result.interference_volume_mm3 >= 0.0
         assert isinstance(result.within_tolerance, bool)
         assert result.message is not None
+        assert result.mesh_quality in ("perfect", "good", "acceptable", "warning")
+        assert result.tolerance_mm3 > 0.0
 
     def test_tooth_pitch_calculation(
         self, worm_and_wheel, assembly_params, wheel_params
