@@ -817,6 +817,7 @@ class WormGeometry:
         groove_half_width_outer = groove_half_width_pitch + (addendum + groove_extend) * math.tan(pressure_angle_rad)
         groove_half_width_root = max(0.1, groove_half_width_pitch - dedendum * math.tan(pressure_angle_rad))
 
+
         # Extended helix
         extended_length = self.length + 2 * lead
 
