@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 let renderer = null;
 let scene = null;
@@ -113,9 +114,11 @@ async function parse3MFManual(base64) {
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geom.setIndex(allIndices);
-    geom.computeVertexNormals();
 
-    return geom;
+    // Use crease-angle normals so sharp edges (thread walls, groove edges)
+    // stay crisp instead of being smoothed into pillowy shapes.
+    // 30° threshold: edges sharper than this get hard normals.
+    return toCreasedNormals(geom, Math.PI / 6);
 }
 
 /**
@@ -124,8 +127,7 @@ async function parse3MFManual(base64) {
 function parseSTL(base64) {
     const stlLoader = new STLLoader();
     const geom = stlLoader.parse(base64ToArrayBuffer(base64));
-    geom.computeVertexNormals();
-    return geom;
+    return toCreasedNormals(geom, Math.PI / 6);
 }
 
 /**
