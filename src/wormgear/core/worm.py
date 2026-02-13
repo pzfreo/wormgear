@@ -305,11 +305,15 @@ class WormGeometry:
         trim_diameter = tip_radius * 4
         half_length = self.length / 2
 
-        # Full cylinder at tip radius
+        # Full cylinder at tip radius.
+        # The blank must be slightly taller than the groove helix to avoid
+        # coincident end-cap faces, which cause OCC boolean cuts to fail
+        # silently (the cut succeeds but removes zero material).
+        blank_length = extended_length + 2  # 1mm margin beyond each end
         logger.info(f"Creating full cylinder (radius={tip_radius:.2f}mm)...")
         worm_shape = Cylinder(
             radius=tip_radius,
-            height=extended_length,
+            height=blank_length,
             align=(Align.CENTER, Align.CENTER, Align.CENTER)
         ).wrapped
 
@@ -803,12 +807,15 @@ class WormGeometry:
         # At pitch: groove_width = axial_pitch - thread_width
         groove_half_width_pitch = (axial_pitch - self.params.thread_thickness_mm) / 2
 
-        # Groove flanks: wider at tip (where thread is narrow), narrower at root
-        groove_half_width_tip = groove_half_width_pitch + addendum * math.tan(pressure_angle_rad)
-        groove_half_width_root = max(0.1, groove_half_width_pitch - dedendum * math.tan(pressure_angle_rad))
+        # Extend groove radially past tip for clean boolean cuts.
+        # Scale with module so it's proportional at all sizes.
+        groove_extend = max(0.1, self.params.module_mm * 0.25)
 
-        # Extend groove past tip and root for clean boolean cuts
-        groove_extend = 0.5  # mm beyond tip/root
+        # Groove flanks: width varies linearly with radial position (ZA profile).
+        # Compute width at the actual outer_r and inner_r positions so the
+        # trapezoid shape is correct at the tip surface (not interpolated).
+        groove_half_width_outer = groove_half_width_pitch + (addendum + groove_extend) * math.tan(pressure_angle_rad)
+        groove_half_width_root = max(0.1, groove_half_width_pitch - dedendum * math.tan(pressure_angle_rad))
 
         # Extended helix
         extended_length = self.length + 2 * lead
@@ -844,9 +851,9 @@ class WormGeometry:
             with BuildLine():
                 if self.profile in (WormProfile.ZA, "ZA", WormProfile.ZI, "ZI"):
                     # Trapezoidal groove (complement of thread)
-                    Line((inner_r, -groove_half_width_root), (outer_r, -groove_half_width_tip))
-                    Line((outer_r, -groove_half_width_tip), (outer_r, groove_half_width_tip))
-                    Line((outer_r, groove_half_width_tip), (inner_r, groove_half_width_root))
+                    Line((inner_r, -groove_half_width_root), (outer_r, -groove_half_width_outer))
+                    Line((outer_r, -groove_half_width_outer), (outer_r, groove_half_width_outer))
+                    Line((outer_r, groove_half_width_outer), (inner_r, groove_half_width_root))
                     Line((inner_r, groove_half_width_root), (inner_r, -groove_half_width_root))
 
                 elif self.profile in (WormProfile.ZK, "ZK"):
@@ -860,7 +867,7 @@ class WormGeometry:
                     for j in range(num_points):
                         t = j / (num_points - 1)
                         r_pos = inner_r + t * flank_height
-                        linear_width = groove_half_width_root + t * (groove_half_width_tip - groove_half_width_root)
+                        linear_width = groove_half_width_root + t * (groove_half_width_outer - groove_half_width_root)
                         arc_param = t * math.pi
                         # Groove arc bulges inward (negative) where thread bulges outward
                         arc_bulge = -arc_radius * 0.15 * math.sin(arc_param)
@@ -899,24 +906,8 @@ class WormGeometry:
 
         pipe.MakeSolid()
 
-        # STEP roundtrip to normalize pipe shell topology
-        import tempfile
-        from pathlib import Path
-
-        with tempfile.NamedTemporaryFile(suffix='.step', delete=False) as f:
-            step_path = Path(f.name)
-
-        try:
-            export_step(Part(pipe.Shape()), str(step_path))
-            imported = import_step(str(step_path))
-            solids = list(imported.solids())
-            if len(solids) == 1:
-                groove = solids[0]
-            else:
-                groove = max(solids, key=lambda s: s.volume)
-            logger.debug(f"Groove sweep completed: volume={groove.volume:.1f}")
-        finally:
-            step_path.unlink(missing_ok=True)
+        groove = Part(pipe.Shape())
+        logger.debug(f"Groove sweep completed")
 
         return groove
 
