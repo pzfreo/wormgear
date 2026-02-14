@@ -603,18 +603,25 @@ if generate_type in ['wheel', 'both']:
 if generate_type == 'both' and worm is not None and wheel is not None:
     try:
         print("⚙️  Generating assembly 3MF...")
-        from wormgear.core.mesh_alignment import find_optimal_mesh_rotation, position_for_mesh
+        from wormgear.core.mesh_alignment import position_for_mesh
 
-        # Find optimal mesh rotation for proper tooth engagement
         centre_distance = assembly_params.centre_distance_mm
         num_teeth = wheel_params.num_teeth
-        mesh_result = find_optimal_mesh_rotation(wheel, worm, centre_distance, num_teeth)
-        print(f"  Optimal rotation: {mesh_result.optimal_rotation_deg:.2f}\u00b0")
-        print(f"  {mesh_result.message}")
+
+        # Virtual hobbing already produces correctly-phased teeth — skip expensive alignment search
+        if virtual_hobbing_val:
+            optimal_rotation_deg = 0.0
+            print("  Skipping mesh alignment (virtual hobbing already aligned)")
+        else:
+            from wormgear.core.mesh_alignment import find_optimal_mesh_rotation
+            mesh_result = find_optimal_mesh_rotation(wheel, worm, centre_distance, num_teeth)
+            optimal_rotation_deg = mesh_result.optimal_rotation_deg
+            print(f"  Optimal rotation: {optimal_rotation_deg:.2f}\u00b0")
+            print(f"  {mesh_result.message}")
 
         # Position parts for assembly
         wheel_pos, worm_pos = position_for_mesh(
-            wheel, worm, centre_distance, mesh_result.optimal_rotation_deg
+            wheel, worm, centre_distance, optimal_rotation_deg
         )
 
         # Export combined 3MF with both parts
@@ -664,7 +671,7 @@ elif generate_type == 'both':
     'worm_stl': worm_stl_b64,
     'wheel_stl': wheel_stl_b64,
     'assembly_3mf': assembly_3mf_b64,
-    'mesh_rotation_deg': mesh_result.optimal_rotation_deg if 'mesh_result' in dir() else 0.0,
+    'mesh_rotation_deg': optimal_rotation_deg if 'optimal_rotation_deg' in dir() else 0.0,
     'success': (generate_type == 'worm' and worm_b64 is not None) or
                (generate_type == 'wheel' and wheel_b64 is not None) or
                (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)

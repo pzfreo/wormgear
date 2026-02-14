@@ -63,12 +63,38 @@ function updateThroatingNote() {
 }
 
 /**
+ * Enable/disable the sweep option for worm generation based on worm type.
+ * Globoid worms only support loft — sweep is silently ignored by GloboidWormGeometry.
+ * @param {string} wormType - 'cylindrical' or 'globoid'
+ */
+function updateGenerationMethodForWormType(wormType) {
+    const genWormEl = document.getElementById('gen-worm-generation');
+    if (!genWormEl) return;
+
+    const sweepOption = genWormEl.querySelector('option[value="sweep"]');
+    if (!sweepOption) return;
+
+    if (wormType === 'globoid') {
+        sweepOption.disabled = true;
+        if (genWormEl.value === 'sweep') {
+            genWormEl.value = 'loft';
+        }
+    } else {
+        sweepOption.disabled = false;
+    }
+}
+
+/**
  * Sync generator UI controls from a loaded design's manufacturing settings.
  * Called when loading JSON from calculator, file upload, or "Open in Generator".
  */
 function syncGeneratorUI(design) {
     if (!design) return;
     const mfg = design.manufacturing || {};
+
+    // Enforce globoid constraints before setting method
+    const wormType = design.worm?.type || 'cylindrical';
+    updateGenerationMethodForWormType(wormType);
 
     // Worm generation method
     const genWormEl = document.getElementById('gen-worm-generation');
@@ -1513,9 +1539,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updateThroatingNote();
     });
 
-    // Worm type dropdown — sync data attribute for CSS visibility rules
+    // Worm type dropdown — sync data attribute for CSS visibility rules + enforce globoid constraints
     document.getElementById('worm-type').addEventListener('change', (e) => {
         document.getElementById('design-tab').dataset.wormType = e.target.value;
+        updateGenerationMethodForWormType(e.target.value);
     });
 
     // Mode switching

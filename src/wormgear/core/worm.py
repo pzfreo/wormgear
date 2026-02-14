@@ -8,11 +8,8 @@ import logging
 import math
 from typing import Optional, Literal
 
-from OCP.ShapeFix import ShapeFix_Shape, ShapeFix_Solid
-from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
-from OCP.BRepBuilderAPI import BRepBuilderAPI_Sewing, BRepBuilderAPI_MakeSolid
 from OCP.TopExp import TopExp_Explorer
-from OCP.TopAbs import TopAbs_SHELL, TopAbs_FACE, TopAbs_EDGE
+from OCP.TopAbs import TopAbs_EDGE
 from OCP.TopoDS import TopoDS
 
 logger = logging.getLogger(__name__)
@@ -25,6 +22,7 @@ from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
 from .geometry_base import BaseGeometry
+from .geometry_repair import repair_geometry
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -345,7 +343,7 @@ class WormGeometry(BaseGeometry):
         worm = self._trim_to_length(worm)
 
         # Repair geometry after complex boolean operations
-        worm = self._repair_geometry(worm)
+        worm = repair_geometry(worm)
 
         # Ensure we have a single Solid for proper display and volume
         worm = self._extract_single_solid(worm)
@@ -406,7 +404,7 @@ class WormGeometry(BaseGeometry):
         # Extract single solid or fuse significant solids
         worm = self._extract_single_solid(worm)
 
-        worm = self._repair_geometry(worm)
+        worm = repair_geometry(worm)
 
         # Apply features (relief grooves, bore, keyway, etc.)
         worm = self._apply_features(worm)
@@ -414,114 +412,6 @@ class WormGeometry(BaseGeometry):
         logger.debug(f"Final sweep worm volume: {worm.volume:.2f} mm³")
         self._part = worm
         return worm
-
-    def _repair_geometry(self, part: Part) -> Part:
-        """
-        Repair topology after complex boolean operations.
-
-        Multi-start worms with lower sections_per_turn can produce geometry
-        where OCP boolean operations create multiple shells. This method
-        uses multiple repair strategies:
-        1. Unify coincident faces
-        2. Sew faces into a single shell
-        3. Build solid from sewn shell
-        4. Apply ShapeFix to fix remaining issues
-        5. STEP export/reimport as last resort
-
-        Args:
-            part: Part to repair
-
-        Returns:
-            Repaired Part (or original if repair fails/unnecessary)
-        """
-        # If already valid, no repair needed
-        if part.is_valid:
-            return part
-
-        try:
-            shape = part.wrapped if hasattr(part, 'wrapped') else part
-
-            # First try: Unify faces that share the same underlying surface
-            unifier = ShapeUpgrade_UnifySameDomain(shape, True, True, True)
-            unifier.Build()
-            unified = unifier.Shape()
-
-            # Check if repair was sufficient
-            result = Part(unified)
-            if result.is_valid:
-                logger.debug("Geometry repair successful (unify)")
-                return result
-
-            # Second try: Sew all faces together into a single shell
-            # This is more aggressive and can fix multiple-shell issues
-            sewer = BRepBuilderAPI_Sewing(1e-6)  # tolerance in mm
-
-            # Add all faces from the shape
-            explorer = TopExp_Explorer(unified, TopAbs_FACE)
-            face_count = 0
-            while explorer.More():
-                sewer.Add(explorer.Current())
-                face_count += 1
-                explorer.Next()
-
-            if face_count > 0:
-                sewer.Perform()
-                sewn = sewer.SewedShape()
-
-                # Try to make a solid from the sewn shell
-                shell_explorer = TopExp_Explorer(sewn, TopAbs_SHELL)
-                if shell_explorer.More():
-                    shell = TopoDS.Shell_s(shell_explorer.Current())
-                    solid_maker = BRepBuilderAPI_MakeSolid(shell)
-                    if solid_maker.IsDone():
-                        solid = solid_maker.Solid()
-
-                        # Apply ShapeFix_Solid for final cleanup
-                        solid_fixer = ShapeFix_Solid(solid)
-                        solid_fixer.Perform()
-                        fixed_solid = solid_fixer.Solid()
-
-                        result = Part(fixed_solid)
-                        if result.is_valid:
-                            logger.debug("Geometry repair successful (sew + solid)")
-                            return result
-
-            # Third try: Just use ShapeFix_Shape on original
-            fixer = ShapeFix_Shape(unified)
-            fixer.Perform()
-            fixed = fixer.Shape()
-
-            result = Part(fixed)
-            if result.is_valid:
-                logger.debug("Geometry repair successful (ShapeFix)")
-                return result
-
-            # Fourth try: STEP export/reimport roundtrip
-            # This is a reliable fallback that fixes most topology issues
-            # by letting the STEP writer/reader normalize the geometry
-            import tempfile
-            from pathlib import Path
-
-            with tempfile.NamedTemporaryFile(suffix='.step', delete=False) as f:
-                step_path = Path(f.name)
-
-            try:
-                export_step(part, str(step_path))
-                reimported = import_step(str(step_path))
-
-                if reimported.is_valid:
-                    logger.debug("Geometry repair successful (STEP roundtrip)")
-                    return reimported
-            finally:
-                step_path.unlink(missing_ok=True)
-
-            # If nothing worked, return the original
-            logger.debug("Geometry repair did not achieve valid solid, using original")
-            return part
-
-        except Exception as e:
-            logger.debug(f"Geometry repair skipped: {e}")
-            return part
 
     def _create_threads(self) -> Part:
         """Create helical thread(s) to add to the core."""
