@@ -312,6 +312,7 @@ def calculate(input_json: str) -> str:
             error=f"Invalid JSON: {e}"
         ).model_dump_json()
 
+    # API boundary: must return valid JSON for any error — broad catch intentional
     except Exception as e:
         return CalculatorOutput(
             success=False,

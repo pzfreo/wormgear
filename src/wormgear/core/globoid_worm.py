@@ -221,7 +221,8 @@ class GloboidWormGeometry(BaseGeometry):
                         combined_threads = Part(fuse_op.Shape())
                     else:
                         combined_threads = combined_threads + thread
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"OCP fuse failed for thread {i}: {e}, using fallback")
                     combined_threads = combined_threads + thread
 
             # Union core with all threads
