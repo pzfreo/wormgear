@@ -47,6 +47,7 @@ CALCULATOR_FILES = [
 # Files loaded by generator-worker.js for the GENERATOR
 # (requires build123d, loads geometry modules)
 GENERATOR_FILES = CALCULATOR_FILES + [
+    "core/geometry_base.py",
     "core/worm.py",
     "core/wheel.py",
     "core/features.py",
