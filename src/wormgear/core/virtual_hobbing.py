@@ -30,8 +30,6 @@ from build123d import (
     make_face, Spline, loft, Helix, Vector, Plane, Axis, Pos, Rot,
     export_step, revolve,
 )
-from OCP.ShapeFix import ShapeFix_Shape
-from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
 from ..io.loaders import WheelParams, WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import (
@@ -43,6 +41,7 @@ from .features import (
     create_hub
 )
 from .geometry_base import BaseGeometry
+from .geometry_repair import simplify_geometry
 
 ProfileType = Literal["ZA", "ZK", "ZI"]
 
@@ -545,55 +544,6 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
             except Exception as e:
                 logger.debug(f"Progress callback error: {e}")
 
-    def _simplify_geometry(self, part: Part, description: str = "") -> Part:
-        """
-        Simplify geometry using OpenCascade tools.
-
-        Optimization #3: Merge coplanar faces and unify same-domain surfaces
-        to reduce boolean operation complexity.
-
-        Args:
-            part: The part to simplify
-            description: Description for progress reporting
-
-        Returns:
-            Simplified part
-        """
-        if description:
-            logger.debug(f"Simplifying {description}...")
-
-        simplify_start = time.time()
-
-        try:
-            # Ensure we have a Part, not a ShapeList or other type
-            if not isinstance(part, Part):
-                if hasattr(part, 'wrapped'):
-                    part = Part(part.wrapped)
-                else:
-                    raise ValueError(f"Cannot simplify object of type {type(part)}")
-
-            # UnifySameDomain merges faces that share the same underlying surface
-            unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
-            unifier.Build()
-            unified_shape = unifier.Shape()
-
-            # ShapeFix cleans up invalid geometry
-            fixer = ShapeFix_Shape(unified_shape)
-            fixer.Perform()
-            fixed_shape = fixer.Shape()
-
-            simplified = Part(fixed_shape)
-
-            simplify_time = time.time() - simplify_start
-            if description:
-                logger.debug(f"done in {simplify_time:.1f}s")
-
-            return simplified
-        except Exception as e:
-            simplify_time = time.time() - simplify_start
-            logger.warning(f"failed after {simplify_time:.1f}s: {e}, using original")
-            return part
-
     def _pre_align_for_mesh(self, wheel: Part, hob: Part) -> Part:
         """
         Pre-align the hobbed wheel so it meshes with the worm at 0° rotation.
@@ -687,7 +637,7 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
             Simplified hob (or original if simplification not needed/possible)
         """
         # First try OCC simplification
-        simplified = self._simplify_geometry(original_hob, "hob geometry (OCC tools)")
+        simplified = simplify_geometry(original_hob, "hob geometry (OCC tools)")
 
         # FUTURE OPTIMIZATION: For globoid hobs with many sections, we could
         # rebuild the geometry with fewer sections for faster boolean operations.
@@ -873,7 +823,7 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
 
         See Also:
             _create_hob: Creates the hob geometry used in simulation
-            _simplify_geometry: Reduces face count to improve boolean performance
+            simplify_geometry: Reduces face count to improve boolean performance
             HOBBING_PRESETS: Recommended step counts for different quality levels
         """
         centre_distance = self.effective_centre_distance
@@ -951,7 +901,7 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
             # Optimization #4: Periodic simplification during envelope building (globoid only)
             # Simplify every few steps to prevent exponential complexity growth
             if use_periodic_simplification and envelope is not None and (step + 1) % simplification_interval == 0 and (step + 1) < self.hobbing_steps:
-                envelope = self._simplify_geometry(envelope, f"envelope at step {step + 1}")
+                envelope = simplify_geometry(envelope, f"envelope at step {step + 1}")
 
             # Progress indicator (more frequent for WASM feedback)
             if (step + 1) % progress_interval == 0:
@@ -1055,7 +1005,7 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
         logger.info(f"Applying final simplification to envelope...")
         sys.stdout.flush()
         simplify_start = time.time()
-        envelope = self._simplify_geometry(envelope, "final envelope")
+        envelope = simplify_geometry(envelope, "final envelope")
         simplify_time = time.time() - simplify_start
         logger.debug(f"Final simplification complete in {simplify_time:.1f}s")
 
