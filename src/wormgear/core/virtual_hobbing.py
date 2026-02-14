@@ -42,6 +42,7 @@ from .features import (
     add_bore_and_keyway,
     create_hub
 )
+from .geometry_base import BaseGeometry
 
 ProfileType = Literal["ZA", "ZK", "ZI"]
 
@@ -112,7 +113,7 @@ def get_preset_steps(name: str) -> int:
     return get_hobbing_preset(name)["steps"]
 
 
-class VirtualHobbingWheelGeometry:
+class VirtualHobbingWheelGeometry(BaseGeometry):
     """
     Generates wheel geometry by simulating the hobbing (gear cutting) process.
 
@@ -126,6 +127,8 @@ class VirtualHobbingWheelGeometry:
     EXPERIMENTAL: Computationally intensive. Use --hobbing-steps to control
     accuracy vs speed trade-off.
     """
+
+    _part_name = "wheel"
 
     def __init__(
         self,
@@ -1094,43 +1097,3 @@ class VirtualHobbingWheelGeometry:
         self._report_progress(f"    ✓ Virtual hobbing complete", 100.0)
         return wheel
 
-    def show(self):
-        """Display the wheel in OCP viewer (requires ocp_vscode)."""
-        wheel = self.build()
-        try:
-            from ocp_vscode import show as ocp_show
-            ocp_show(wheel)
-        except ImportError:
-            pass  # No viewer available - silent fallback
-        return wheel
-
-    def export_step(self, filepath: str):
-        """Export wheel to STEP file (builds if not already built)."""
-        if self._part is None:
-            logger.info("Exporting to STEP format...")
-            self.build()
-
-        if hasattr(self._part, 'export_step'):
-            self._part.export_step(filepath)
-        else:
-            from build123d import export_step as exp_step
-            exp_step(self._part, filepath)
-
-        logger.info(f"Exported wheel to {filepath}")
-
-    def export_gltf(self, filepath: str, binary: bool = True):
-        """Export wheel to glTF file (builds if not already built).
-
-        Args:
-            filepath: Output path (.glb for binary, .gltf for text)
-            binary: If True, export as binary .glb (default)
-        """
-        if self._part is None:
-            self.build()
-
-        from build123d import export_gltf as b3d_export_gltf
-        b3d_export_gltf(
-            self._part, filepath, binary=binary,
-            linear_deflection=0.001, angular_deflection=0.1,
-        )
-        logger.info(f"Exported wheel to {filepath}")

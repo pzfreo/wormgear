@@ -30,6 +30,24 @@ def nearest_standard_module(module: float) -> float:
     return min(STANDARD_MODULES, key=lambda m: abs(m - module))
 
 
+def calculate_throat_od(
+    worm_tip_diameter_mm: float,
+    throat_reduction_mm: float,
+    worm_addendum_mm: float,
+    wheel_addendum_mm: float,
+    centre_distance_mm: float,
+    wheel_tip_diameter_mm: float,
+) -> float:
+    """Calculate minimum wheel OD at the throat for globoid/throated wheels.
+
+    Uses same margin as _create_throated_blank(): worm_addendum + 50% wheel_addendum.
+    """
+    arc_r = worm_tip_diameter_mm / 2 - throat_reduction_mm
+    margin = worm_addendum_mm + 0.5 * wheel_addendum_mm
+    min_blank_r = centre_distance_mm - arc_r + margin
+    return round(2 * min(wheel_tip_diameter_mm / 2, min_blank_r), 3)
+
+
 def is_standard_module(module: float, tolerance: float = 0.001) -> bool:
     """Check if module is a standard value"""
     nearest = nearest_standard_module(module)

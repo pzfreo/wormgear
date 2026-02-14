@@ -13,6 +13,7 @@ from typing import Optional, TYPE_CHECKING
 from ..io import WormGearDesign
 from ..io.schema import SCHEMA_VERSION
 from ..core.bore_sizing import calculate_default_bore
+from .core import calculate_throat_od
 
 
 def _model_to_dict(model) -> dict:
@@ -27,6 +28,47 @@ def _model_to_dict(model) -> dict:
 
 if TYPE_CHECKING:
     from .validation import ValidationResult
+
+
+def _normalize_anti_rotation(value):
+    """Normalize anti-rotation values from UI to CLI format."""
+    if not value or value == 'none':
+        return 'none'
+    elif value == 'DIN6885':
+        return 'DIN6885'
+    elif value in ('DD-cut', 'ddcut'):
+        return 'ddcut'
+    return value
+
+
+def _build_part_bore_features(bore_settings: dict, part: str, pitch_diameter_mm: float, root_diameter_mm: float) -> dict | None:
+    """Build bore features dict for a single part (worm or wheel).
+
+    Returns a dict like {'bore_type': 'custom', 'bore_diameter_mm': 8.0, 'anti_rotation': 'DIN6885'}
+    or None if no bore settings exist for the part.
+    """
+    bore_type = bore_settings.get(f'{part}_bore_type', 'none')
+    if bore_type == 'custom':
+        bore_diameter = bore_settings.get(f'{part}_bore_diameter')
+        if bore_diameter is None:
+            bore_diameter, _ = calculate_default_bore(pitch_diameter_mm, root_diameter_mm)
+        if bore_diameter:
+            result = {'bore_type': 'custom', 'bore_diameter_mm': bore_diameter}
+        else:
+            result = {'bore_type': 'none'}
+    elif bore_type == 'none':
+        result = {'bore_type': 'none'}
+    else:
+        return None
+
+    # Add anti-rotation only if there's actually a bore
+    if result.get('bore_type') == 'custom':
+        keyway = bore_settings.get(f'{part}_keyway', 'none')
+        anti_rot = _normalize_anti_rotation(keyway)
+        if anti_rot != 'none':
+            result['anti_rotation'] = anti_rot
+
+    return result
 
 
 def to_json(
@@ -74,87 +116,24 @@ def to_json(
     # Transform bore settings into features section (format expected by generator CLI)
     if bore_settings:
         features = {}
-
-        # Map anti-rotation values from UI to CLI format
-        def normalize_anti_rotation(value):
-            if not value or value == 'none':
-                return 'none'
-            elif value == 'DIN6885':
-                return 'DIN6885'
-            elif value in ('DD-cut', 'ddcut'):
-                return 'ddcut'
-            return value
-
-        # Worm bore/keyway features
-        # "custom" type with explicit diameter = use that diameter
-        # "custom" type with None diameter = auto-calculate based on worm dimensions
-        # "none" type = solid part (no bore)
-        worm_bore_type = bore_settings.get('worm_bore_type', 'none')
-        if worm_bore_type == 'custom':
-            worm_bore_diameter = bore_settings.get('worm_bore_diameter')
-            if worm_bore_diameter is None:
-                # Auto-calculate based on worm dimensions
-                worm_bore_diameter, _ = calculate_default_bore(
-                    design.worm.pitch_diameter_mm,
-                    design.worm.root_diameter_mm
-                )
-            if worm_bore_diameter:
-                features['worm'] = {
-                    'bore_type': 'custom',
-                    'bore_diameter_mm': worm_bore_diameter
-                }
-            else:
-                # Auto-calculation failed (gear too small) - fall back to solid
-                features['worm'] = {'bore_type': 'none'}
-        elif worm_bore_type == 'none':
-            # Explicit none - solid part
-            features['worm'] = {'bore_type': 'none'}
-
-        # Add worm anti-rotation only if there's actually a bore
-        if 'worm' in features and features['worm'].get('bore_type') == 'custom':
-            worm_keyway = bore_settings.get('worm_keyway', 'none')
-            anti_rot = normalize_anti_rotation(worm_keyway)
-            if anti_rot != 'none':
-                features['worm']['anti_rotation'] = anti_rot
-
-        # Wheel bore/keyway features
-        # "custom" type with explicit diameter = use that diameter
-        # "custom" type with None diameter = auto-calculate based on wheel dimensions
-        # "none" type = solid part (no bore)
-        wheel_bore_type = bore_settings.get('wheel_bore_type', 'none')
-        if wheel_bore_type == 'custom':
-            wheel_bore_diameter = bore_settings.get('wheel_bore_diameter')
-            if wheel_bore_diameter is None:
-                # Auto-calculate based on wheel dimensions
-                wheel_bore_diameter, _ = calculate_default_bore(
-                    design.wheel.pitch_diameter_mm,
-                    design.wheel.root_diameter_mm
-                )
-            if wheel_bore_diameter:
-                features['wheel'] = {
-                    'bore_type': 'custom',
-                    'bore_diameter_mm': wheel_bore_diameter
-                }
-            else:
-                # Auto-calculation failed (gear too small) - fall back to solid
-                features['wheel'] = {'bore_type': 'none'}
-        elif wheel_bore_type == 'none':
-            # Explicit none - solid part
-            features['wheel'] = {'bore_type': 'none'}
-
-        # Add wheel anti-rotation only if there's actually a bore
-        if 'wheel' in features and features['wheel'].get('bore_type') == 'custom':
-            wheel_keyway = bore_settings.get('wheel_keyway', 'none')
-            anti_rot = normalize_anti_rotation(wheel_keyway)
-            if anti_rot != 'none':
-                features['wheel']['anti_rotation'] = anti_rot
-
+        worm_feat = _build_part_bore_features(
+            bore_settings, 'worm', design.worm.pitch_diameter_mm, design.worm.root_diameter_mm
+        )
+        if worm_feat:
+            features['worm'] = worm_feat
+        wheel_feat = _build_part_bore_features(
+            bore_settings, 'wheel', design.wheel.pitch_diameter_mm, design.wheel.root_diameter_mm
+        )
+        if wheel_feat:
+            features['wheel'] = wheel_feat
         if features:
             design_dict['features'] = features
 
     # Add relief groove to worm features if specified
     if relief_groove:
-        design_dict.setdefault('features', {}).setdefault('worm', {}).setdefault('bore_type', 'none')
+        if not design_dict.get('features'):
+            design_dict['features'] = {}
+        design_dict['features'].setdefault('worm', {}).setdefault('bore_type', 'none')
         design_dict['features']['worm']['relief_groove'] = relief_groove
 
     # Merge in manufacturing settings if provided
@@ -275,12 +254,12 @@ def to_markdown(
     if wheel.get('throat_diameter_mm'):
         md += f"| Throat Diameter | {wheel['throat_diameter_mm']:.3f} mm |\n"
     # Show minimum OD at throat for globoid/throated wheels
-    # Uses same margin as _create_throated_blank(): worm_addendum + 50% wheel_addendum
     if worm_type == "globoid" and worm.get('throat_reduction_mm'):
-        arc_r = worm['tip_diameter_mm'] / 2 - worm['throat_reduction_mm']
-        margin = worm['addendum_mm'] + 0.5 * wheel['addendum_mm']
-        min_blank_r = asm['centre_distance_mm'] - arc_r + margin
-        throat_od = 2 * min(wheel['tip_diameter_mm'] / 2, min_blank_r)
+        throat_od = calculate_throat_od(
+            worm['tip_diameter_mm'], worm['throat_reduction_mm'],
+            worm['addendum_mm'], wheel['addendum_mm'],
+            asm['centre_distance_mm'], wheel['tip_diameter_mm'],
+        )
         md += f"| Min OD at Throat | {throat_od:.3f} mm |\n"
     if wheel.get('helix_angle_deg'):
         md += f"| Helix Angle | {wheel['helix_angle_deg']:.2f}° |\n"
@@ -461,10 +440,11 @@ def to_summary(
 
     # Show min OD at throat for globoid wheels
     if worm_type_str == "globoid" and worm.get('throat_reduction_mm'):
-        arc_r = worm['tip_diameter_mm'] / 2 - worm['throat_reduction_mm']
-        margin = worm['addendum_mm'] + 0.5 * wheel['addendum_mm']
-        min_blank_r = asm['centre_distance_mm'] - arc_r + margin
-        throat_od = 2 * min(wheel['tip_diameter_mm'] / 2, min_blank_r)
+        throat_od = calculate_throat_od(
+            worm['tip_diameter_mm'], worm['throat_reduction_mm'],
+            worm['addendum_mm'], wheel['addendum_mm'],
+            asm['centre_distance_mm'], wheel['tip_diameter_mm'],
+        )
         lines.append(f"  Min OD at throat:  {throat_od:.2f} mm")
 
     if wheel.get('helix_angle_deg'):

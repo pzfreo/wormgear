@@ -29,6 +29,7 @@ class ValidationMessageDict(TypedDict, total=False):
 
 from ..enums import Hand, WormProfile, WormType
 from .core import (
+    calculate_throat_od,
     design_from_module,
     design_from_centre_distance,
     design_from_wheel,
@@ -272,15 +273,13 @@ def calculate(input_json: str) -> str:
         )
 
         # Calculate wheel throat OD (minimum OD at engagement zone for throated wheels)
-        # Uses same margin as _create_throated_blank(): worm_addendum + 50% wheel_addendum
         wheel_throat_od = None
         if inputs.worm_type == 'globoid' and design.worm.throat_reduction_mm:
-            arc_r = design.worm.tip_diameter_mm / 2 - design.worm.throat_reduction_mm
-            margin = design.worm.addendum_mm + 0.5 * design.wheel.addendum_mm
-            cd = design.assembly.centre_distance_mm
-            min_blank_r = cd - arc_r + margin
-            tip_r = design.wheel.tip_diameter_mm / 2
-            wheel_throat_od = round(2 * min(tip_r, min_blank_r), 3)
+            wheel_throat_od = calculate_throat_od(
+                design.worm.tip_diameter_mm, design.worm.throat_reduction_mm,
+                design.worm.addendum_mm, design.wheel.addendum_mm,
+                design.assembly.centre_distance_mm, design.wheel.tip_diameter_mm,
+            )
 
         # Build output
         output = CalculatorOutput(

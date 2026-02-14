@@ -27,6 +27,7 @@ REQUIRED_WASM_FILES = [
     "wormgear/enums.py",
     # Core geometry (for generator)
     "wormgear/core/__init__.py",
+    "wormgear/core/geometry_base.py",
     "wormgear/core/worm.py",
     "wormgear/core/wheel.py",
     "wormgear/core/features.py",
@@ -78,21 +79,56 @@ def test_all_required_files_copied():
         assert file_path.stat().st_size > 0, f"File is empty: {required_file}"
 
 
-def test_app_lazy_js_has_all_files():
-    """generator-worker.js should list all required files in packageFiles array."""
+def test_generator_worker_uses_manifest():
+    """generator-worker.js should load files from wormgear-manifest.json, not a hardcoded list."""
     worker_path = WEB_DIR / "generator-worker.js"
     assert worker_path.exists(), "generator-worker.js not found"
 
     content = worker_path.read_text()
 
-    # Check that packageFiles array exists
-    assert "packageFiles = [" in content, "packageFiles array not found in generator-worker.js"
+    assert "wormgear-manifest.json" in content, (
+        "generator-worker.js should load files from wormgear-manifest.json"
+    )
 
-    # Check each required file is listed
+
+def test_build_manifest_contains_all_required_files():
+    """Build manifest should contain all required Python files."""
+    # Run build first
+    subprocess.run([str(BUILD_SCRIPT)], cwd=WEB_DIR, check=True, capture_output=True)
+
+    manifest_path = DIST_DIR / "wormgear-manifest.json"
+    assert manifest_path.exists(), "wormgear-manifest.json not found after build"
+
+    manifest = json.loads(manifest_path.read_text())
+
     for required_file in REQUIRED_WASM_FILES:
-        # Convert path to the format used in generator-worker.js
-        assert required_file in content, (
-            f"Required file '{required_file}' not listed in generator-worker.js packageFiles array"
+        assert required_file in manifest, (
+            f"Required file '{required_file}' not in wormgear-manifest.json"
+        )
+
+
+def test_build_manifest_matches_source_files():
+    """Build manifest should include all .py files from src/wormgear/."""
+    # Run build first
+    subprocess.run([str(BUILD_SCRIPT)], cwd=WEB_DIR, check=True, capture_output=True)
+
+    manifest_path = DIST_DIR / "wormgear-manifest.json"
+    assert manifest_path.exists(), "wormgear-manifest.json not found after build"
+
+    manifest_files = set(json.loads(manifest_path.read_text()))
+
+    # Get all .py files from source
+    source_files = set()
+    for py_file in SRC_DIR.rglob("*.py"):
+        rel = py_file.relative_to(SRC_DIR.parent)  # relative to src/
+        source_files.add(str(rel))
+
+    # Every source file should be in the manifest
+    missing = source_files - manifest_files
+    if missing:
+        pytest.fail(
+            f"Source .py files missing from build manifest:\n"
+            + "\n".join(f"  - {f}" for f in sorted(missing))
         )
 
 

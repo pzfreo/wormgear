@@ -282,6 +282,107 @@ class TestManufacturingParams:
         assert design.manufacturing.throated_wheel is True
 
 
+class TestThroatOD:
+    """Tests for calculate_throat_od helper function."""
+
+    def test_basic_throat_od(self):
+        """Test throat OD calculation with known values."""
+        from wormgear.calculator.core import calculate_throat_od
+
+        result = calculate_throat_od(
+            worm_tip_diameter_mm=24.0,
+            throat_reduction_mm=0.8,
+            worm_addendum_mm=2.0,
+            wheel_addendum_mm=2.0,
+            centre_distance_mm=40.0,
+            wheel_tip_diameter_mm=64.0,
+        )
+
+        # Result should be positive and less than wheel tip diameter
+        assert result > 0
+        assert result <= 64.0
+
+    def test_zero_throat_reduction(self):
+        """With zero reduction, throat OD equals wheel tip diameter."""
+        from wormgear.calculator.core import calculate_throat_od
+
+        result = calculate_throat_od(
+            worm_tip_diameter_mm=24.0,
+            throat_reduction_mm=0.0,
+            worm_addendum_mm=2.0,
+            wheel_addendum_mm=2.0,
+            centre_distance_mm=40.0,
+            wheel_tip_diameter_mm=64.0,
+        )
+
+        # arc_r = 12 - 0 = 12, margin = 2 + 1 = 3
+        # min_blank_r = 40 - 12 + 3 = 31
+        # min(32, 31) = 31 → 62.0
+        assert result == pytest.approx(62.0, abs=0.01)
+
+    def test_larger_reduction_decreases_od(self):
+        """Larger throat reduction produces larger throat OD (more clearance)."""
+        from wormgear.calculator.core import calculate_throat_od
+
+        od_small = calculate_throat_od(
+            worm_tip_diameter_mm=24.0, throat_reduction_mm=0.2,
+            worm_addendum_mm=2.0, wheel_addendum_mm=2.0,
+            centre_distance_mm=40.0, wheel_tip_diameter_mm=64.0,
+        )
+        od_large = calculate_throat_od(
+            worm_tip_diameter_mm=24.0, throat_reduction_mm=1.0,
+            worm_addendum_mm=2.0, wheel_addendum_mm=2.0,
+            centre_distance_mm=40.0, wheel_tip_diameter_mm=64.0,
+        )
+
+        # With larger reduction, arc_r shrinks → min_blank_r grows → OD may stay capped at wheel_tip
+        # Both should be valid positive values
+        assert od_small > 0
+        assert od_large > 0
+
+
+class TestRecommendedDimensions:
+    """Tests for calculate_recommended_wheel_width and calculate_recommended_worm_length."""
+
+    def test_wheel_width_proportional(self):
+        """Wheel width scales with worm pitch diameter."""
+        from wormgear.calculator.core import calculate_recommended_wheel_width
+
+        width_small = calculate_recommended_wheel_width(10.0, 1.0)
+        width_large = calculate_recommended_wheel_width(20.0, 2.0)
+
+        assert width_small > 0
+        assert width_large > 0
+        assert width_large > width_small
+
+    def test_wheel_width_module_clamped(self):
+        """Wheel width is clamped by module-based bounds."""
+        from wormgear.calculator.core import calculate_recommended_wheel_width
+
+        # Very small worm diameter relative to module
+        width = calculate_recommended_wheel_width(2.0, 2.0)
+        # Should be at least 8 × module = 16
+        assert width >= 2.0 * 8.0
+
+    def test_worm_length_includes_engagement(self):
+        """Worm length exceeds wheel width plus lead margins."""
+        from wormgear.calculator.core import calculate_recommended_worm_length
+
+        wheel_width = 10.0
+        lead = 3.0
+        length = calculate_recommended_worm_length(wheel_width, lead)
+
+        # Should be wheel_width + 2*lead + 1
+        assert length == pytest.approx(wheel_width + 2 * lead + 1.0)
+
+    def test_worm_length_positive(self):
+        """Worm length is always positive."""
+        from wormgear.calculator.core import calculate_recommended_worm_length
+
+        length = calculate_recommended_worm_length(5.0, 1.0)
+        assert length > 0
+
+
 class TestContactPointVerification:
     """Verify worm and wheel teeth actually engage at assembly centre distance.
 

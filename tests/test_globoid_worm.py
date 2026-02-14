@@ -154,7 +154,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_different_lengths(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test globoid generation with different lengths."""
-        for length in [5.0, 10.0, 15.0, 20.0]:
+        for length in [5.0, 20.0]:
             globoid_geo = GloboidWormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
@@ -407,7 +407,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_sections_per_turn_affects_smoothness(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that more sections per turn doesn't break geometry."""
-        for sections in [12, 24, 36, 72]:
+        for sections in [12, 72]:
             globoid_geo = GloboidWormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,

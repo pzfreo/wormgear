@@ -30,6 +30,16 @@ echo "🧹 Cleaning Python cache..."
 find dist/wormgear -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 find dist/wormgear -name "*.pyc" -delete 2>/dev/null || true
 
+# Generate Python file manifest for Pyodide dynamic loading
+echo "📋 Generating Python file manifest..."
+(cd dist && find wormgear -name '*.py' | sort | python3 -c "
+import sys, json
+files = [line.strip() for line in sys.stdin]
+json.dump(files, sys.stdout, indent=2)
+print()
+" > wormgear-manifest.json)
+echo "✓ Manifest: $(python3 -c "import json; print(len(json.load(open('dist/wormgear-manifest.json'))))" ) Python files"
+
 # Verify critical files
 echo "🔍 Verifying build..."
 REQUIRED=(

@@ -273,86 +273,18 @@ class TestAxisMarkers:
 class TestMeshAlignmentIntegration:
     """Integration tests using actual worm and wheel geometry."""
 
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0,
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        """Create WheelParams from sample design."""
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0,
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"],
-        )
-
-    @pytest.fixture
-    def worm_and_wheel(self, worm_params, wheel_params, assembly_params):
-        """Create worm and wheel geometry."""
-        worm_geo = WormGeometry(
-            params=worm_params,
-            assembly_params=assembly_params,
-            length=10.0,
-            sections_per_turn=12,
-        )
-        worm = worm_geo.build()
-
-        wheel_geo = WheelGeometry(
-            params=wheel_params,
-            worm_params=worm_params,
-            assembly_params=assembly_params,
-            face_width=5.0,
-        )
-        wheel = wheel_geo.build()
-
-        return worm, wheel
-
     def test_find_optimal_rotation_returns_result(
-        self, worm_and_wheel, assembly_params, wheel_params
+        self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm
     ):
         """Test that find_optimal_mesh_rotation returns a valid result."""
-        worm, wheel = worm_and_wheel
+        worm, wheel = built_worm_and_wheel_7mm
 
         result = find_optimal_mesh_rotation(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
-            num_teeth=wheel_params.num_teeth,
-            module_mm=wheel_params.module_mm,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
+            num_teeth=wheel_params_7mm.num_teeth,
+            module_mm=wheel_params_7mm.module_mm,
         )
 
         assert isinstance(result, MeshAlignmentResult)
@@ -364,58 +296,58 @@ class TestMeshAlignmentIntegration:
         assert result.tolerance_mm3 > 0.0
 
     def test_tooth_pitch_calculation(
-        self, worm_and_wheel, assembly_params, wheel_params
+        self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm
     ):
         """Test that tooth pitch is calculated correctly."""
-        worm, wheel = worm_and_wheel
+        worm, wheel = built_worm_and_wheel_7mm
 
         result = find_optimal_mesh_rotation(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
-            num_teeth=wheel_params.num_teeth,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
+            num_teeth=wheel_params_7mm.num_teeth,
         )
 
-        expected_tooth_pitch = 360.0 / wheel_params.num_teeth
+        expected_tooth_pitch = 360.0 / wheel_params_7mm.num_teeth
         assert abs(result.tooth_pitch_deg - expected_tooth_pitch) < 0.001
 
     def test_worm_position_in_result(
-        self, worm_and_wheel, assembly_params, wheel_params
+        self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm
     ):
         """Test that worm position is recorded correctly."""
-        worm, wheel = worm_and_wheel
+        worm, wheel = built_worm_and_wheel_7mm
 
         result = find_optimal_mesh_rotation(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
-            num_teeth=wheel_params.num_teeth,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
+            num_teeth=wheel_params_7mm.num_teeth,
         )
 
         # Worm should be at centre_distance in Y (axis along X)
         assert result.worm_position[0] == 0.0
-        assert result.worm_position[1] == assembly_params.centre_distance_mm
+        assert result.worm_position[1] == assembly_params_7mm.centre_distance_mm
         assert result.worm_position[2] == 0.0
 
     def test_position_for_mesh_returns_parts(
-        self, worm_and_wheel, assembly_params, wheel_params
+        self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm
     ):
         """Test that position_for_mesh returns positioned parts."""
-        worm, wheel = worm_and_wheel
+        worm, wheel = built_worm_and_wheel_7mm
 
         # First find optimal rotation
         result = find_optimal_mesh_rotation(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
-            num_teeth=wheel_params.num_teeth,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
+            num_teeth=wheel_params_7mm.num_teeth,
         )
 
         # Then position for mesh
         wheel_positioned, worm_positioned = position_for_mesh(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
             rotation_deg=result.optimal_rotation_deg,
         )
 
@@ -425,33 +357,33 @@ class TestMeshAlignmentIntegration:
         assert worm_positioned.volume > 0
 
     def test_positioned_worm_offset_correct(
-        self, worm_and_wheel, assembly_params, wheel_params
+        self, built_worm_and_wheel_7mm, assembly_params_7mm
     ):
         """Test that positioned worm is at correct centre distance."""
-        worm, wheel = worm_and_wheel
+        worm, wheel = built_worm_and_wheel_7mm
 
         wheel_positioned, worm_positioned = position_for_mesh(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
             rotation_deg=0.0,
         )
 
         # Worm bounding box centre should be at centre_distance in Y (axis along X)
         worm_bbox = worm_positioned.bounding_box()
         worm_center_y = (worm_bbox.max.Y + worm_bbox.min.Y) / 2
-        assert abs(worm_center_y - assembly_params.centre_distance_mm) < 1.0
+        assert abs(worm_center_y - assembly_params_7mm.centre_distance_mm) < 1.0
 
     def test_check_interference_returns_volume(
-        self, worm_and_wheel, assembly_params
+        self, built_worm_and_wheel_7mm, assembly_params_7mm
     ):
         """Test that check_interference returns a numeric volume."""
-        worm, wheel = worm_and_wheel
+        worm, wheel = built_worm_and_wheel_7mm
 
         interference = check_interference(
             wheel=wheel,
             worm=worm,
-            centre_distance_mm=assembly_params.centre_distance_mm,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
             rotation_deg=0.0,
         )
 
@@ -462,67 +394,17 @@ class TestMeshAlignmentIntegration:
 class TestCalculateMeshRotation:
     """Tests for calculate_mesh_rotation function."""
 
-    @pytest.fixture
-    def simple_gear_pair(self, sample_design_7mm):
-        """Create a simple worm/wheel pair for rotation tests."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        worm_params = WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0,
-        )
-        wheel_params = WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0,
-        )
-        assembly_params = AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"],
-        )
-
-        worm_geo = WormGeometry(
-            params=worm_params,
-            assembly_params=assembly_params,
-            length=10.0,
-            sections_per_turn=12,
-        )
-        worm = worm_geo.build()
-
-        wheel_geo = WheelGeometry(
-            params=wheel_params,
-            worm_params=worm_params,
-            assembly_params=assembly_params,
-            face_width=5.0,
-        )
-        wheel = wheel_geo.build()
+    @pytest.fixture(scope="module")
+    def simple_gear_pair(self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm):
+        """Create a positioned worm/wheel pair for rotation tests."""
+        worm, wheel = built_worm_and_wheel_7mm
 
         # Position worm at centre distance for testing
         from build123d import Pos, Rot
 
-        worm_positioned = Pos(assembly_params.centre_distance_mm, 0, 0) * Rot(X=90) * worm
+        worm_positioned = Pos(assembly_params_7mm.centre_distance_mm, 0, 0) * Rot(X=90) * worm
 
-        return wheel, worm_positioned, wheel_params.num_teeth
+        return wheel, worm_positioned, wheel_params_7mm.num_teeth
 
     def test_rotation_within_tooth_pitch(self, simple_gear_pair):
         """Test that optimal rotation is within one tooth pitch."""
@@ -569,66 +451,10 @@ class TestCalculateMeshRotation:
 class TestLargerGearMeshAlignment:
     """Tests with larger gear design to ensure algorithm scales."""
 
-    @pytest.fixture
-    def large_gear_pair(self, sample_design_large):
-        """Create a larger worm/wheel pair."""
-        module_mm = sample_design_large["worm"]["module_mm"]
-        worm_params = WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_large["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_large["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_large["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_large["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_large["worm"]["lead_mm"],
-            axial_pitch_mm=sample_design_large["worm"]["axial_pitch_mm"],
-            lead_angle_deg=sample_design_large["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_large["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_large["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_large["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0,
-        )
-        wheel_params = WheelParams(
-            module_mm=sample_design_large["wheel"]["module_mm"],
-            num_teeth=sample_design_large["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_large["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_large["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_large["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_large["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_large["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_large["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_large["wheel"]["dedendum_mm"],
-            profile_shift=0.0,
-        )
-        assembly_params = AssemblyParams(
-            centre_distance_mm=sample_design_large["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_large["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_large["assembly"]["backlash_mm"],
-            hand=sample_design_large["assembly"]["hand"],
-            ratio=sample_design_large["assembly"]["ratio"],
-        )
-
-        worm_geo = WormGeometry(
-            params=worm_params,
-            assembly_params=assembly_params,
-            length=30.0,
-            sections_per_turn=12,
-        )
-        worm = worm_geo.build()
-
-        wheel_geo = WheelGeometry(
-            params=wheel_params,
-            worm_params=worm_params,
-            assembly_params=assembly_params,
-            face_width=15.0,
-        )
-        wheel = wheel_geo.build()
-
-        return worm, wheel, wheel_params, assembly_params
-
-    def test_large_gear_alignment(self, large_gear_pair):
+    def test_large_gear_alignment(self, built_worm_large, built_wheel_large, wheel_params_large, assembly_params_large):
         """Test mesh alignment with larger gears."""
-        worm, wheel, wheel_params, assembly_params = large_gear_pair
+        worm, wheel = built_worm_large, built_wheel_large
+        wheel_params, assembly_params = wheel_params_large, assembly_params_large
 
         result = find_optimal_mesh_rotation(
             wheel=wheel,
@@ -640,9 +466,10 @@ class TestLargerGearMeshAlignment:
         assert isinstance(result, MeshAlignmentResult)
         assert result.tooth_pitch_deg == 360.0 / wheel_params.num_teeth
 
-    def test_large_gear_position_for_mesh(self, large_gear_pair):
+    def test_large_gear_position_for_mesh(self, built_worm_large, built_wheel_large, wheel_params_large, assembly_params_large):
         """Test positioning larger gears for mesh."""
-        worm, wheel, wheel_params, assembly_params = large_gear_pair
+        worm, wheel = built_worm_large, built_wheel_large
+        wheel_params, assembly_params = wheel_params_large, assembly_params_large
 
         result = find_optimal_mesh_rotation(
             wheel=wheel,

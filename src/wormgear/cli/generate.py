@@ -151,6 +151,132 @@ from ..core.rim_thickness import (
 from ..io.loaders import MeshAlignment, WormPosition, MeasuredGeometry, MeasurementPoint
 
 
+def _parse_set_screw(args, json_features):
+    """Parse set screw specification from CLI args or JSON features.
+
+    Returns SetScrewFeature or None.
+    """
+    json_set_screw = json_features.set_screw if json_features else None
+    if not (args.set_screw or json_set_screw):
+        return None
+
+    if args.set_screw_size:
+        try:
+            size_str = args.set_screw_size.upper()
+            if size_str.startswith('M'):
+                diameter = float(size_str[1:])
+                return SetScrewFeature(
+                    size=size_str,
+                    diameter=diameter,
+                    count=args.set_screw_count
+                )
+            else:
+                print(f"  WARNING: Invalid set screw size '{args.set_screw_size}', using auto-size")
+                return SetScrewFeature(count=args.set_screw_count)
+        except ValueError:
+            print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
+            return SetScrewFeature(count=args.set_screw_count)
+    elif json_set_screw:
+        size_str = json_set_screw.size.upper()
+        try:
+            diameter = float(size_str[1:]) if size_str.startswith('M') else None
+            return SetScrewFeature(
+                size=size_str,
+                diameter=diameter,
+                count=json_set_screw.count
+            )
+        except ValueError:
+            return SetScrewFeature(count=json_set_screw.count)
+    else:
+        return SetScrewFeature(count=args.set_screw_count)
+
+
+def _determine_bore(args, pitch_diameter, root_diameter, json_features, bore_cli_arg, ddcut_depth_arg):
+    """Determine bore, keyway, DD-cut, and set screw features.
+
+    Priority chain: CLI arg > JSON features > auto-calculate.
+
+    Returns:
+        tuple: (bore, keyway, ddcut, set_screw, bore_diameter, thin_rim_warning)
+    """
+    bore = None
+    keyway = None
+    ddcut = None
+    set_screw = None
+    bore_diameter = None
+    thin_rim_warning = False
+
+    if args.no_bore:
+        return bore, keyway, ddcut, set_screw, bore_diameter, thin_rim_warning
+
+    if bore_cli_arg is not None:
+        # CLI override takes priority
+        bore_diameter = bore_cli_arg
+        actual_rim = (root_diameter - bore_diameter) / 2
+        thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+    elif json_features:
+        # Check bore_type from JSON features
+        json_bore_type = json_features.bore_type
+        if json_bore_type == BoreType.NONE:
+            bore_diameter = None
+        elif json_bore_type == BoreType.CUSTOM and json_features.bore_diameter_mm is not None:
+            bore_diameter = json_features.bore_diameter_mm
+            actual_rim = (root_diameter - bore_diameter) / 2
+            thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
+        else:
+            bore_diameter, thin_rim_warning = calculate_default_bore(
+                pitch_diameter, root_diameter
+            )
+    else:
+        # No JSON features - auto-calculate bore
+        bore_diameter, thin_rim_warning = calculate_default_bore(
+            pitch_diameter, root_diameter
+        )
+
+    if bore_diameter is not None:
+        bore = BoreFeature(diameter=bore_diameter)
+
+        # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
+        json_anti_rotation = json_features.anti_rotation if json_features else None
+
+        if args.dd_cut or (json_anti_rotation and json_anti_rotation.value == 'ddcut'):
+            if ddcut_depth_arg:
+                ddcut = DDCutFeature(depth=ddcut_depth_arg)
+            else:
+                depth_pct = json_features.ddcut_depth_percent if json_features else args.ddcut_depth_percent
+                ddcut = calculate_default_ddcut(bore_diameter, depth_pct)
+        elif args.no_keyway or (json_anti_rotation and json_anti_rotation.value == 'none'):
+            pass
+        elif bore_diameter >= 6.0:
+            keyway = KeywayFeature()
+
+        # Set screw
+        set_screw = _parse_set_screw(args, json_features)
+
+    return bore, keyway, ddcut, set_screw, bore_diameter, thin_rim_warning
+
+
+def _build_features_desc(bore, bore_diameter, keyway, ddcut, set_screw):
+    """Build the features description string for CLI output."""
+    features_desc = ""
+    if bore:
+        features_desc += f", bore {bore_diameter}mm"
+        if keyway:
+            features_desc += " + keyway"
+        elif ddcut:
+            ddcut_depth = ddcut.get_depth(bore_diameter)
+            features_desc += f" + DD-cut ({ddcut_depth:.1f}mm depth)"
+        elif bore_diameter < 6.0:
+            features_desc += " (no keyway - below DIN 6885 range)"
+        if set_screw:
+            screw_size, _ = set_screw.get_screw_specs(bore_diameter)
+            screw_desc = f"{screw_size}"
+            if set_screw.count > 1:
+                screw_desc += f" x{set_screw.count}"
+            features_desc += f" + set screw ({screw_desc})"
+    return features_desc
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -560,98 +686,14 @@ More info: https://wormgear.studio
 
     # Generate worm
     if generate_worm:
-        # Determine bore diameter: CLI arg > JSON features > auto-calculate
-        worm_bore = None
-        worm_keyway = None
-        worm_ddcut = None
-        worm_set_screw = None
-        worm_bore_diameter = None
-
-        worm_thin_rim_warning = False
-        if not args.no_bore:
-            if args.worm_bore is not None:
-                # CLI override takes priority
-                worm_bore_diameter = args.worm_bore
-                actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
-                worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
-            elif json_worm_features:
-                # Check bore_type from JSON features
-                json_bore_type = json_worm_features.bore_type
-                if json_bore_type == BoreType.NONE:
-                    # Explicit none - solid part
-                    worm_bore_diameter = None
-                elif json_bore_type == BoreType.CUSTOM and json_worm_features.bore_diameter_mm is not None:
-                    # Custom bore with explicit diameter
-                    worm_bore_diameter = json_worm_features.bore_diameter_mm
-                    actual_rim = (design.worm.root_diameter_mm - worm_bore_diameter) / 2
-                    worm_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
-                else:
-                    # Custom bore without diameter - auto-calculate
-                    worm_bore_diameter, worm_thin_rim_warning = calculate_default_bore(
-                        design.worm.pitch_diameter_mm,
-                        design.worm.root_diameter_mm
-                    )
-            else:
-                # No JSON features - auto-calculate bore
-                worm_bore_diameter, worm_thin_rim_warning = calculate_default_bore(
-                    design.worm.pitch_diameter_mm,
-                    design.worm.root_diameter_mm
-                )
-
-            if worm_bore_diameter is not None:
-                worm_bore = BoreFeature(diameter=worm_bore_diameter)
-
-                # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
-                json_anti_rotation = json_worm_features.anti_rotation if json_worm_features else None
-
-                if args.dd_cut or (json_anti_rotation and json_anti_rotation.value == 'ddcut'):
-                    # DD-cut requested
-                    if args.worm_ddcut_depth:
-                        worm_ddcut = DDCutFeature(depth=args.worm_ddcut_depth)
-                    else:
-                        depth_pct = json_worm_features.ddcut_depth_percent if json_worm_features else args.ddcut_depth_percent
-                        worm_ddcut = calculate_default_ddcut(worm_bore_diameter, depth_pct)
-                elif args.no_keyway or (json_anti_rotation and json_anti_rotation.value == 'none'):
-                    # No keyway explicitly requested
-                    pass
-                elif worm_bore_diameter >= 6.0:
-                    # Default: keyway for bores >= 6mm (unless JSON says none)
-                    worm_keyway = KeywayFeature()
-
-                # Add set screw: CLI arg > JSON features
-                json_set_screw = json_worm_features.set_screw if json_worm_features else None
-                if args.set_screw or json_set_screw:
-                    # Parse size: CLI arg > JSON > auto
-                    if args.set_screw_size:
-                        try:
-                            size_str = args.set_screw_size.upper()
-                            if size_str.startswith('M'):
-                                diameter = float(size_str[1:])
-                                worm_set_screw = SetScrewFeature(
-                                    size=size_str,
-                                    diameter=diameter,
-                                    count=args.set_screw_count
-                                )
-                            else:
-                                print(f"  WARNING: Invalid set screw size '{args.set_screw_size}', using auto-size")
-                                worm_set_screw = SetScrewFeature(count=args.set_screw_count)
-                        except ValueError:
-                            print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
-                            worm_set_screw = SetScrewFeature(count=args.set_screw_count)
-                    elif json_set_screw:
-                        # Use JSON set screw spec
-                        size_str = json_set_screw.size.upper()
-                        try:
-                            diameter = float(size_str[1:]) if size_str.startswith('M') else None
-                            worm_set_screw = SetScrewFeature(
-                                size=size_str,
-                                diameter=diameter,
-                                count=json_set_screw.count
-                            )
-                        except ValueError:
-                            worm_set_screw = SetScrewFeature(count=json_set_screw.count)
-                    else:
-                        worm_set_screw = SetScrewFeature(count=args.set_screw_count)
+        worm_bore, worm_keyway, worm_ddcut, worm_set_screw, worm_bore_diameter, worm_thin_rim_warning = _determine_bore(
+            args,
+            pitch_diameter=design.worm.pitch_diameter_mm,
+            root_diameter=design.worm.root_diameter_mm,
+            json_features=json_worm_features,
+            bore_cli_arg=args.worm_bore,
+            ddcut_depth_arg=args.worm_ddcut_depth,
+        )
 
         # Relief groove: CLI arg > JSON features > no groove
         worm_relief_groove = None
@@ -674,22 +716,7 @@ More info: https://wormgear.studio
                 print(f"  Relief groove (DIN 76): width={w:.2f}mm, depth={d:.2f}mm (axial pitch={axial_pitch:.2f}mm)")
 
         # Build description
-        features_desc = ""
-        if worm_bore:
-            features_desc += f", bore {worm_bore_diameter}mm"
-            if worm_keyway:
-                features_desc += " + keyway"
-            elif worm_ddcut:
-                ddcut_depth = worm_ddcut.get_depth(worm_bore_diameter)
-                features_desc += f" + DD-cut ({ddcut_depth:.1f}mm depth)"
-            elif worm_bore_diameter < 6.0:
-                features_desc += " (no keyway - below DIN 6885 range)"
-            if worm_set_screw:
-                screw_size, _ = worm_set_screw.get_screw_specs(worm_bore_diameter)
-                screw_desc = f"{screw_size}"
-                if worm_set_screw.count > 1:
-                    screw_desc += f" x{worm_set_screw.count}"
-                features_desc += f" + set screw ({screw_desc})"
+        features_desc = _build_features_desc(worm_bore, worm_bore_diameter, worm_keyway, worm_ddcut, worm_set_screw)
         if worm_relief_groove:
             features_desc += f" + relief groove ({worm_relief_groove.type})"
 
@@ -740,96 +767,14 @@ More info: https://wormgear.studio
 
     # Generate wheel
     if generate_wheel:
-        # Determine bore diameter: CLI arg > JSON features > auto-calculate
-        wheel_bore = None
-        wheel_keyway = None
-        wheel_ddcut = None
-        wheel_set_screw = None
-        wheel_bore_diameter = None
-
-        wheel_thin_rim_warning = False
-        if not args.no_bore:
-            if args.wheel_bore is not None:
-                # CLI override takes priority
-                wheel_bore_diameter = args.wheel_bore
-                actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
-                wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
-            elif json_wheel_features:
-                # Check bore_type from JSON features
-                json_bore_type = json_wheel_features.bore_type
-                if json_bore_type == BoreType.NONE:
-                    # Explicit none - solid part
-                    wheel_bore_diameter = None
-                elif json_bore_type == BoreType.CUSTOM and json_wheel_features.bore_diameter_mm is not None:
-                    # Custom bore with explicit diameter
-                    wheel_bore_diameter = json_wheel_features.bore_diameter_mm
-                    actual_rim = (design.wheel.root_diameter_mm - wheel_bore_diameter) / 2
-                    wheel_thin_rim_warning = actual_rim < 1.5 and actual_rim > 0
-                else:
-                    # Custom bore without diameter - auto-calculate
-                    wheel_bore_diameter, wheel_thin_rim_warning = calculate_default_bore(
-                        design.wheel.pitch_diameter_mm,
-                        design.wheel.root_diameter_mm
-                    )
-            else:
-                # No JSON features - auto-calculate bore
-                wheel_bore_diameter, wheel_thin_rim_warning = calculate_default_bore(
-                    design.wheel.pitch_diameter_mm,
-                    design.wheel.root_diameter_mm
-                )
-
-            if wheel_bore_diameter is not None:
-                wheel_bore = BoreFeature(diameter=wheel_bore_diameter)
-
-                # Determine anti-rotation: CLI arg > JSON features > default (keyway if >= 6mm)
-                json_anti_rotation = json_wheel_features.anti_rotation if json_wheel_features else None
-
-                if args.dd_cut or (json_anti_rotation and json_anti_rotation.value == 'ddcut'):
-                    # DD-cut requested
-                    if args.wheel_ddcut_depth:
-                        wheel_ddcut = DDCutFeature(depth=args.wheel_ddcut_depth)
-                    else:
-                        depth_pct = json_wheel_features.ddcut_depth_percent if json_wheel_features else args.ddcut_depth_percent
-                        wheel_ddcut = calculate_default_ddcut(wheel_bore_diameter, depth_pct)
-                elif args.no_keyway or (json_anti_rotation and json_anti_rotation.value == 'none'):
-                    # No keyway explicitly requested
-                    pass
-                elif wheel_bore_diameter >= 6.0:
-                    # Default: keyway for bores >= 6mm
-                    wheel_keyway = KeywayFeature()
-
-                # Add set screw: CLI arg > JSON features
-                json_set_screw = json_wheel_features.set_screw if json_wheel_features else None
-                if args.set_screw or json_set_screw:
-                    if args.set_screw_size:
-                        try:
-                            size_str = args.set_screw_size.upper()
-                            if size_str.startswith('M'):
-                                diameter = float(size_str[1:])
-                                wheel_set_screw = SetScrewFeature(
-                                    size=size_str,
-                                    diameter=diameter,
-                                    count=args.set_screw_count
-                                )
-                            else:
-                                print(f"  WARNING: Invalid set screw size '{args.set_screw_size}', using auto-size")
-                                wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
-                        except ValueError:
-                            print(f"  WARNING: Could not parse set screw size '{args.set_screw_size}', using auto-size")
-                            wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
-                    elif json_set_screw:
-                        size_str = json_set_screw.size.upper()
-                        try:
-                            diameter = float(size_str[1:]) if size_str.startswith('M') else None
-                            wheel_set_screw = SetScrewFeature(
-                                size=size_str,
-                                diameter=diameter,
-                                count=json_set_screw.count
-                            )
-                        except ValueError:
-                            wheel_set_screw = SetScrewFeature(count=json_set_screw.count)
-                    else:
-                        wheel_set_screw = SetScrewFeature(count=args.set_screw_count)
+        wheel_bore, wheel_keyway, wheel_ddcut, wheel_set_screw, wheel_bore_diameter, wheel_thin_rim_warning = _determine_bore(
+            args,
+            pitch_diameter=design.wheel.pitch_diameter_mm,
+            root_diameter=design.wheel.root_diameter_mm,
+            json_features=json_wheel_features,
+            bore_cli_arg=args.wheel_bore,
+            ddcut_depth_arg=args.wheel_ddcut_depth,
+        )
 
         # Create hub feature: CLI arg > JSON features
         wheel_hub = None
@@ -847,22 +792,7 @@ More info: https://wormgear.studio
 
         # Build description
         wheel_type_desc = "hobbed (throated)" if args.hobbed else "helical"
-        features_desc = ""
-        if wheel_bore:
-            features_desc += f", bore {wheel_bore_diameter}mm"
-            if wheel_keyway:
-                features_desc += " + keyway"
-            elif wheel_ddcut:
-                ddcut_depth = wheel_ddcut.get_depth(wheel_bore_diameter)
-                features_desc += f" + DD-cut ({ddcut_depth:.1f}mm depth)"
-            elif wheel_bore_diameter < 6.0:
-                features_desc += " (no keyway - below DIN 6885 range)"
-            if wheel_set_screw:
-                screw_size, _ = wheel_set_screw.get_screw_specs(wheel_bore_diameter)
-                screw_desc = f"{screw_size}"
-                if wheel_set_screw.count > 1:
-                    screw_desc += f" x{wheel_set_screw.count}"
-                features_desc += f" + set screw ({screw_desc})"
+        features_desc = _build_features_desc(wheel_bore, wheel_bore_diameter, wheel_keyway, wheel_ddcut, wheel_set_screw)
 
         if wheel_hub and wheel_hub.hub_type != "flush":
             hub_desc = f"{wheel_hub.hub_type} hub ({wheel_hub.length}mm"

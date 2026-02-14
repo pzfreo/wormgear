@@ -15,6 +15,7 @@ from build123d import (
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
+from .geometry_base import BaseGeometry
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -27,7 +28,7 @@ ProgressCallback = Callable[[str, float], None]  # (message, percent_complete)
 logger = logging.getLogger(__name__)
 
 
-class GloboidWormGeometry:
+class GloboidWormGeometry(BaseGeometry):
     """
     Generates 3D geometry for a globoid (hourglass) worm.
 
@@ -36,6 +37,8 @@ class GloboidWormGeometry:
     - Threads follow curved surface with varying helix radius
     - Thread depth varies along axis
     """
+
+    _part_name = "globoid worm"
 
     def __init__(
         self,
@@ -1528,38 +1531,3 @@ class GloboidWormGeometry:
             logger.warning(f"Extended thread loft failed: {e}")
             return None
 
-    def export_step(self, filename: str):
-        """
-        Export the worm geometry to a STEP file.
-
-        Args:
-            filename: Output filename (e.g., 'globoid_worm.step')
-        """
-        if self._part is None:
-            raise ValueError("Geometry not built yet. Call build() first.")
-
-        logger.info(f"Exporting globoid worm: volume={self._part.volume:.2f} mm³")
-        if hasattr(self._part, 'export_step'):
-            self._part.export_step(filename)
-        else:
-            from build123d import export_step as exp_step
-            exp_step(self._part, filename)
-
-        logger.info(f"Exported globoid worm to {filename}")
-
-    def export_gltf(self, filepath: str, binary: bool = True):
-        """Export globoid worm to glTF file (builds if not already built).
-
-        Args:
-            filepath: Output path (.glb for binary, .gltf for text)
-            binary: If True, export as binary .glb (default)
-        """
-        if self._part is None:
-            raise ValueError("Geometry not built yet. Call build() first.")
-
-        from build123d import export_gltf as b3d_export_gltf
-        b3d_export_gltf(
-            self._part, filepath, binary=binary,
-            linear_deflection=0.001, angular_deflection=0.1,
-        )
-        logger.info(f"Exported globoid worm to {filepath}")

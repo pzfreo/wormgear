@@ -21,13 +21,13 @@ pytestmark = pytest.mark.slow
 EXAMPLE_FILE = Path(__file__).parent.parent / "examples" / "sample_m2_ratio30.json"
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def design():
     """Load the example design."""
     return load_design_json(EXAMPLE_FILE)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def wheel_with_bore(design):
     """Build a wheel with a 15mm bore and keyway."""
     bore = BoreFeature(diameter=15.0)
@@ -42,7 +42,7 @@ def wheel_with_bore(design):
     return wheel_geo.build()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def wheel_with_bore_no_keyway(design):
     """Build a wheel with a 15mm bore but no keyway."""
     bore = BoreFeature(diameter=15.0)
@@ -55,7 +55,7 @@ def wheel_with_bore_no_keyway(design):
     return wheel_geo.build()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def worm_with_bore(design):
     """Build a worm with a 4mm bore."""
     bore = BoreFeature(diameter=4.0)
