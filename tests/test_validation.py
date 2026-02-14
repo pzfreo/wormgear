@@ -778,3 +778,80 @@ class TestValidateBore:
         assert 'WHEEL_BORE_OK' in codes
         errors = [m for m in msgs if m.severity == Severity.ERROR]
         assert errors == []
+
+
+# ===========================================================================
+# 17. TestNormalizeEnum — generic normalizer
+# ===========================================================================
+
+from wormgear.calculator.validation import _normalize_enum
+
+
+class TestNormalizeEnum:
+
+    def test_none_returns_default(self):
+        assert _normalize_enum(None) is None
+        assert _normalize_enum(None, default='foo') == 'foo'
+
+    def test_string_lower(self):
+        assert _normalize_enum('HELLO') == 'hello'
+        assert _normalize_enum('ZA') == 'za'
+
+    def test_string_upper(self):
+        assert _normalize_enum('hello', case='upper') == 'HELLO'
+
+    def test_enum_value_extracted(self):
+        assert _normalize_enum(WormProfile.ZA, case='upper') == 'ZA'
+        assert _normalize_enum(WormProfile.ZK, case='upper') == 'ZK'
+        assert _normalize_enum(BoreType.NONE) == 'none'
+        assert _normalize_enum(BoreType.CUSTOM) == 'custom'
+
+    def test_existing_wrappers_still_work(self):
+        """Verify the 3 wrapper functions produce identical results to before."""
+        from wormgear.calculator.validation import (
+            _normalize_profile, _normalize_worm_type, _normalize_bore_type,
+        )
+        assert _normalize_profile("za") == "ZA"
+        assert _normalize_profile(WormProfile.ZI) == "ZI"
+        assert _normalize_profile(None) is None
+
+        assert _normalize_worm_type("GLOBOID") == "globoid"
+        assert _normalize_worm_type(WormType.CYLINDRICAL) == "cylindrical"
+        assert _normalize_worm_type(None) == "cylindrical"
+
+        assert _normalize_bore_type("CUSTOM") == "custom"
+        assert _normalize_bore_type(BoreType.NONE) == "none"
+        assert _normalize_bore_type(None) is None
+
+
+# ===========================================================================
+# 18. TestSingleBoreBoreOk — BORE_OK info message from _validate_single_bore
+# ===========================================================================
+
+class TestSingleBoreBoreOk:
+
+    def test_bore_ok_emitted_with_keyway(self):
+        """_validate_single_bore emits BORE_OK when bore+keyway has adequate rim."""
+        msgs = []
+        # bore=8mm, root=20mm → rim_base = 6.0
+        # keyway_depth for 8mm shaft: [8,10) → 1.8
+        # effective_rim = 6.0 - 1.8 = 4.2 → well above warn_rim=1.5
+        _validate_single_bore(
+            msgs, "WORM", "custom", 8.0, "DIN6885",
+            16.0, 20.0, 0.5, 1.5, True
+        )
+        codes = _codes(msgs)
+        assert 'WORM_BORE_OK' in codes
+        ok_msg = [m for m in msgs if m.code == 'WORM_BORE_OK'][0]
+        assert ok_msg.severity == Severity.INFO
+        assert '4.20mm' in ok_msg.message
+
+    def test_bore_ok_not_emitted_without_keyway(self):
+        """No BORE_OK when there's no keyway (even if bore is fine)."""
+        msgs = []
+        _validate_single_bore(
+            msgs, "WORM", "custom", 4.0, "none",
+            16.0, 20.0, 0.5, 1.5, True
+        )
+        codes = _codes(msgs)
+        assert 'WORM_BORE_OK' not in codes
