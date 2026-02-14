@@ -235,8 +235,6 @@ progress_callback
         const result = await pyodide.runPythonAsync(`
 import json
 import base64
-import tempfile
-import os
 import logging
 
 # Configure logging - INFO for wormgear modules, suppress verbose build123d internals
@@ -348,13 +346,6 @@ if 'wheel' in features:
 print("✓ Parameters parsed")
 print("")
 
-worm_b64 = None
-wheel_b64 = None
-worm_3mf_b64 = None
-wheel_3mf_b64 = None
-worm_stl_b64 = None
-wheel_stl_b64 = None
-assembly_3mf_b64 = None
 worm = None  # Will hold worm geometry if generated
 
 # Check if globoid - either by type field or presence of throat curvature radius
@@ -393,80 +384,7 @@ if generate_type in ['worm', 'both']:
             )
         print("  Building 3D model...")
         worm = worm_geo.build()
-        print("  Exporting to STEP format...")
-
-        # Export to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.step', delete=False) as tmp:
-            temp_path = tmp.name
-
-        worm_geo.export_step(temp_path)
-
-        # Read back as bytes
-        with open(temp_path, 'rb') as f:
-            worm_step = f.read()
-
-        # Clean up temp file
-        os.unlink(temp_path)
-
-        worm_b64 = base64.b64encode(worm_step).decode('utf-8')
-
-        # Export 3MF for 3D printing (preferred - has explicit units and better precision)
-        # Note: 3MF export can fail for complex geometry due to mesh issues - make it non-fatal
-        try:
-            print("  Exporting to 3MF format...")
-
-            # Validate shape before meshing (diagnostic)
-            shape_valid = worm.is_valid
-            print(f"    Shape validity check: {shape_valid}")
-            if not shape_valid:
-                print("    ⚠️ Shape has validity issues - 3MF may fail")
-
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.3mf', delete=False) as tmp:
-                temp_3mf_path = tmp.name
-
-            # Use build123d Mesher for 3MF export with finer mesh settings
-            # Lower deflection values = finer mesh, may help avoid duplicate vertex issues
-            from build123d import Mesher, Unit
-            mesher = Mesher(unit=Unit.MM)
-            mesher.add_shape(
-                worm,
-                linear_deflection=0.0005,   # Finer than default 0.001
-                angular_deflection=0.05     # Finer than default 0.1
-            )
-            mesher.write(temp_3mf_path)
-
-            # Read back as bytes
-            with open(temp_3mf_path, 'rb') as f:
-                worm_3mf = f.read()
-
-            # Clean up temp file
-            os.unlink(temp_3mf_path)
-
-            worm_3mf_b64 = base64.b64encode(worm_3mf).decode('utf-8')
-        except Exception as e:
-            print(f"  ⚠️ 3MF export failed (non-fatal): {e}")
-            print(f"    This is a known issue with complex geometry meshing.")
-            print(f"    STEP and STL files are still available.")
-            worm_3mf_b64 = None
-
-        # Also export STL for compatibility (note: may lose thread detail on complex worms;
-        # 3D preview and assembly.glb use the 3MF data which is correct)
-        print("  Exporting to STL format...")
-        with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
-            temp_stl_path = tmp.name
-        from build123d import export_stl
-        export_stl(worm, temp_stl_path, tolerance=0.0005, angular_tolerance=0.05)
-        with open(temp_stl_path, 'rb') as f:
-            worm_stl = f.read()
-        os.unlink(temp_stl_path)
-        worm_stl_b64 = base64.b64encode(worm_stl).decode('utf-8')
-
-        size_kb = len(worm_step) / 1024
-        mf3_size_kb = len(worm_3mf) / 1024 if worm_3mf_b64 else 0
-        stl_size_kb = len(worm_stl) / 1024
-        print(f"✓ Worm generated successfully!")
-        mf3_status = f"{mf3_size_kb:.1f} KB" if worm_3mf_b64 else "failed"
-        print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_status}, STL: {stl_size_kb:.1f} KB")
+        print(f"✓ Worm built (volume: {worm.volume:.2f} mm³)")
     except Exception as e:
         print(f"✗ Worm generation failed: {e}")
         import traceback
@@ -475,13 +393,11 @@ if generate_type in ['worm', 'both']:
     print("")
 
 # Generate wheel if requested
+wheel = None
 if generate_type in ['wheel', 'both']:
     print("⚙️  Generating wheel gear...")
     try:
         print("  Creating wheel geometry object...")
-        # Debug: Log virtual hobbing settings
-        print(f"  [DEBUG] virtual_hobbing_val = {virtual_hobbing_val} (type: {type(virtual_hobbing_val).__name__})")
-        print(f"  [DEBUG] hobbing_steps_val = {hobbing_steps_val}")
 
         # Use VirtualHobbingWheelGeometry if virtual_hobbing enabled, otherwise regular WheelGeometry
         if virtual_hobbing_val:
@@ -519,79 +435,7 @@ if generate_type in ['wheel', 'both']:
             )
         print("  Building 3D model (this is the slowest step)...")
         wheel = wheel_geo.build()
-        print("  Exporting to STEP format...")
-
-        # Export to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.step', delete=False) as tmp:
-            temp_path = tmp.name
-
-        wheel_geo.export_step(temp_path)
-
-        # Read back as bytes
-        with open(temp_path, 'rb') as f:
-            wheel_step = f.read()
-
-        # Clean up temp file
-        os.unlink(temp_path)
-
-        wheel_b64 = base64.b64encode(wheel_step).decode('utf-8')
-
-        # Export 3MF for 3D printing (preferred - has explicit units and better precision)
-        # Note: 3MF export can fail for complex geometry due to mesh issues - make it non-fatal
-        try:
-            print("  Exporting to 3MF format...")
-
-            # Validate shape before meshing (diagnostic)
-            shape_valid = wheel.is_valid
-            print(f"    Shape validity check: {shape_valid}")
-            if not shape_valid:
-                print("    ⚠️ Shape has validity issues - 3MF may fail")
-
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.3mf', delete=False) as tmp:
-                temp_3mf_path = tmp.name
-
-            # Use build123d Mesher for 3MF export with finer mesh settings
-            # Lower deflection values = finer mesh, may help avoid duplicate vertex issues
-            from build123d import Mesher, Unit
-            mesher = Mesher(unit=Unit.MM)
-            mesher.add_shape(
-                wheel,
-                linear_deflection=0.0005,   # Finer than default 0.001
-                angular_deflection=0.05     # Finer than default 0.1
-            )
-            mesher.write(temp_3mf_path)
-
-            # Read back as bytes
-            with open(temp_3mf_path, 'rb') as f:
-                wheel_3mf = f.read()
-
-            # Clean up temp file
-            os.unlink(temp_3mf_path)
-
-            wheel_3mf_b64 = base64.b64encode(wheel_3mf).decode('utf-8')
-        except Exception as e:
-            print(f"  ⚠️ 3MF export failed (non-fatal): {e}")
-            print(f"    This is a known issue with complex geometry meshing.")
-            print(f"    STEP and STL files are still available.")
-            wheel_3mf_b64 = None
-
-        # Also export STL for compatibility
-        print("  Exporting to STL format...")
-        with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as tmp:
-            temp_stl_path = tmp.name
-        from build123d import export_stl
-        export_stl(wheel, temp_stl_path, tolerance=0.0005, angular_tolerance=0.05)
-        with open(temp_stl_path, 'rb') as f:
-            wheel_stl = f.read()
-        os.unlink(temp_stl_path)
-        wheel_stl_b64 = base64.b64encode(wheel_stl).decode('utf-8')
-
-        size_kb = len(wheel_step) / 1024
-        mf3_size_kb = len(wheel_3mf) / 1024 if wheel_3mf_b64 else 0
-        stl_size_kb = len(wheel_stl) / 1024
-        print(f"✓ Wheel generated successfully!")
-        mf3_status = f"{mf3_size_kb:.1f} KB" if wheel_3mf_b64 else "failed"
-        print(f"  STEP: {size_kb:.1f} KB, 3MF: {mf3_status}, STL: {stl_size_kb:.1f} KB")
+        print(f"✓ Wheel built (volume: {wheel.volume:.2f} mm³)")
     except Exception as e:
         print(f"✗ Wheel generation failed: {e}")
         import traceback
@@ -599,53 +443,33 @@ if generate_type in ['wheel', 'both']:
 
     print("")
 
-# Generate assembly 3MF (only when both parts generated successfully)
-if generate_type == 'both' and worm is not None and wheel is not None:
-    try:
-        print("⚙️  Generating assembly 3MF...")
-        from wormgear.core.mesh_alignment import position_for_mesh
+# Construct WormGearDesign for generate_package
+from wormgear.io.loaders import WormGearDesign
+design_obj = WormGearDesign(
+    worm=worm_params,
+    wheel=wheel_params,
+    assembly=assembly_params,
+)
 
-        centre_distance = assembly_params.centre_distance_mm
-        num_teeth = wheel_params.num_teeth
+# Export all files using shared package module
+from wormgear.io.package import generate_package
+print("📦 Exporting files (STEP, 3MF, STL, assembly)...")
+files = generate_package(
+    design=design_obj,
+    worm=worm,
+    wheel=wheel,
+    virtual_hobbing=virtual_hobbing_val,
+    log=print,
+)
 
-        # Virtual hobbing already produces correctly-phased teeth — skip expensive alignment search
-        if virtual_hobbing_val:
-            optimal_rotation_deg = 0.0
-            print("  Skipping mesh alignment (virtual hobbing already aligned)")
-        else:
-            from wormgear.core.mesh_alignment import find_optimal_mesh_rotation
-            mesh_result = find_optimal_mesh_rotation(wheel, worm, centre_distance, num_teeth)
-            optimal_rotation_deg = mesh_result.optimal_rotation_deg
-            print(f"  Optimal rotation: {optimal_rotation_deg:.2f}\u00b0")
-            print(f"  {mesh_result.message}")
-
-        # Position parts for assembly
-        wheel_pos, worm_pos = position_for_mesh(
-            wheel, worm, centre_distance, optimal_rotation_deg
-        )
-
-        # Export combined 3MF with both parts
-        from build123d import Mesher, Unit
-        mesher = Mesher(unit=Unit.MM)
-        mesher.add_shape(wheel_pos, linear_deflection=0.0005, angular_deflection=0.05)
-        mesher.add_shape(worm_pos, linear_deflection=0.0005, angular_deflection=0.05)
-
-        with tempfile.NamedTemporaryFile(suffix='.3mf', delete=False) as tmp:
-            temp_asm_path = tmp.name
-        mesher.write(temp_asm_path)
-
-        with open(temp_asm_path, 'rb') as f:
-            assembly_3mf = f.read()
-        os.unlink(temp_asm_path)
-
-        assembly_3mf_b64 = base64.b64encode(assembly_3mf).decode('utf-8')
-        print(f"\u2713 Assembly 3MF: {len(assembly_3mf) / 1024:.1f} KB")
-    except Exception as e:
-        print(f"  \u26a0\ufe0f Assembly 3MF failed (non-fatal): {e}")
-        import traceback
-        traceback.print_exc()
-
-    print("")
+# Base64 encode for JS transport
+worm_b64 = base64.b64encode(files.worm_step).decode() if files.worm_step else None
+wheel_b64 = base64.b64encode(files.wheel_step).decode() if files.wheel_step else None
+worm_3mf_b64 = base64.b64encode(files.worm_3mf).decode() if files.worm_3mf else None
+wheel_3mf_b64 = base64.b64encode(files.wheel_3mf).decode() if files.wheel_3mf else None
+worm_stl_b64 = base64.b64encode(files.worm_stl).decode() if files.worm_stl else None
+wheel_stl_b64 = base64.b64encode(files.wheel_stl).decode() if files.wheel_stl else None
+assembly_3mf_b64 = base64.b64encode(files.assembly_3mf).decode() if files.assembly_3mf else None
 
 # Report results
 if generate_type == 'worm' and worm_b64:
@@ -671,7 +495,7 @@ elif generate_type == 'both':
     'worm_stl': worm_stl_b64,
     'wheel_stl': wheel_stl_b64,
     'assembly_3mf': assembly_3mf_b64,
-    'mesh_rotation_deg': optimal_rotation_deg if 'optimal_rotation_deg' in dir() else 0.0,
+    'mesh_rotation_deg': files.mesh_rotation_deg,
     'success': (generate_type == 'worm' and worm_b64 is not None) or
                (generate_type == 'wheel' and wheel_b64 is not None) or
                (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)
