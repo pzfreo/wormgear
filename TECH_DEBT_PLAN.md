@@ -181,31 +181,16 @@ def _repair_geometry(self, part: Part) -> Part:
 
 **Risk**: Medium - geometry operations are complex
 
-### 4.2 Add Integration Test Suite
+### 4.2 Add Integration Test Suite ✅ COMPLETE
 **Goal**: Catch regressions in full calculator→geometry→STEP pipeline
 
-**Tasks**:
-- [ ] Create `tests/test_integration_workflows.py`
-- [ ] Add tests for key workflows:
-  ```python
-  def test_standard_workflow_m2_z30():
-      """Test: module=2, ratio=30, with bore+keyway → STEP export"""
-
-  def test_globoid_worm_workflow():
-      """Test: globoid worm generation → STEP export"""
-
-  def test_virtual_hobbing_workflow():
-      """Test: virtual hobbing wheel → STEP export"""
-  ```
-- [ ] Each test validates:
-  - No exceptions thrown
-  - STEP file created and valid
-  - Geometry volume within expected range
-  - Feature presence (bore, keyway) detectable
-
-**Estimated Effort**: 6-8 hours
-
-**Risk**: Low - only adding tests
+**Delivered**: `tests/test_full_pipeline.py` — 25 tests covering:
+- [x] Save/load JSON roundtrip (cylindrical, globoid, virtual hobbing, ZK profile)
+- [x] Paired worm+wheel geometry with features and dimensional compatibility
+- [x] Feature combination matrix (solid, bore, bore+keyway) on worm and wheel
+- [x] Error paths (invalid JSON, missing sections, missing file)
+- [x] Scale variations (0.5mm, 2.0mm, 8.0mm modules + multi-start)
+- [x] Validation→build pipeline (validated designs always build successfully)
 
 ---
 
