@@ -543,7 +543,7 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
             try:
                 self.progress_callback(message, percent)
             except Exception as e:
-                pass  # Don't let callback errors break generation
+                logger.debug(f"Progress callback error: {e}")
 
     def _simplify_geometry(self, part: Part, description: str = "") -> Part:
         """

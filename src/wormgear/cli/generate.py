@@ -68,11 +68,11 @@ class CLIProgressReporter:
 
 def get_version_string() -> str:
     """Get version string, including PR info if on a feature branch."""
-    from importlib.metadata import version as pkg_version
+    from importlib.metadata import PackageNotFoundError, version as pkg_version
 
     try:
         base_version = pkg_version("wormgear")
-    except Exception:
+    except PackageNotFoundError:
         base_version = "0.0.0"
 
     # Try to detect git branch and PR
@@ -94,7 +94,7 @@ def get_version_string() -> str:
                 if result.returncode == 0 and result.stdout.strip():
                     pr_number = result.stdout.strip()
                     return f"{base_version} (PR#{pr_number})"
-            except Exception:
+            except (subprocess.SubprocessError, OSError):
                 pass
             # No PR found, show branch name
             return f"{base_version} ({branch})"
@@ -107,7 +107,7 @@ def get_version_string() -> str:
         if result.returncode == 0 and result.stdout.strip():
             return f"{base_version}-dev"
 
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         pass
 
     return base_version
