@@ -119,6 +119,7 @@ from ..io.loaders import (
     ManufacturingParams,
     ManufacturingFeatures
 )
+from ..io.package import generate_package, save_package_to_dir, create_package_zip
 from ..enums import WormType, WormProfile, BoreType
 from ..core.worm import WormGeometry
 from ..core.globoid_worm import GloboidWormGeometry
@@ -399,6 +400,25 @@ More info: https://wormgear.studio
         '--no-save',
         action='store_true',
         help='Do not save STEP files (use with --view)'
+    )
+
+    parser.add_argument(
+        '--zip-output',
+        type=str,
+        default=None,
+        help='Create a ZIP archive instead of writing files to a directory'
+    )
+
+    parser.add_argument(
+        '--no-3mf',
+        action='store_true',
+        help='Skip 3MF export (default: 3MF files generated)'
+    )
+
+    parser.add_argument(
+        '--no-stl',
+        action='store_true',
+        help='Skip STL export (default: STL files generated)'
     )
 
     parser.add_argument(
@@ -856,51 +876,7 @@ More info: https://wormgear.studio
         wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
 
-    # Save STEP files first (before calculations)
-    if not args.no_save:
-        output_dir = Path(args.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        from build123d import export_step, Part
-        from OCP.ShapeFix import ShapeFix_Shape
-        from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
-
-        def repair_geometry(part: Part, name: str) -> Part:
-            """Repair geometry to ensure valid STEP export."""
-            try:
-                # Unify same-domain faces (merges adjacent faces on same surface)
-                unifier = ShapeUpgrade_UnifySameDomain(part.wrapped, True, True, True)
-                unifier.Build()
-                unified = unifier.Shape()
-
-                # Fix any remaining issues
-                fixer = ShapeFix_Shape(unified)
-                fixer.Perform()
-                fixed = fixer.Shape()
-
-                return Part(fixed)
-            except Exception as e:
-                print(f"  Warning: geometry repair failed for {name}: {e}")
-                return part
-
-        print(f"\nExporting STEP files...")
-        if worm is not None:
-            worm_export = repair_geometry(worm, "worm")
-            output_file = output_dir / f"worm_m{design.worm.module_mm}_z{design.worm.num_starts}.step"
-            if output_file.exists():
-                output_file.unlink()
-            export_step(worm_export, str(output_file))
-            print(f"  Saved: {output_file}")
-
-        if wheel is not None:
-            wheel_export = repair_geometry(wheel, "wheel")
-            output_file = output_dir / f"wheel_m{design.wheel.module_mm}_z{design.wheel.num_teeth}.step"
-            if output_file.exists():
-                output_file.unlink()
-            export_step(wheel_export, str(output_file))
-            print(f"  Saved: {output_file}")
-
-    # Measure rim thickness (after STEP export)
+    # Measure rim thickness
     if worm is not None and worm_bore_diameter is not None:
         worm_rim_result = measure_rim_thickness(
             part=worm,
@@ -962,9 +938,31 @@ More info: https://wormgear.studio
             print(f"  Quality: {mesh_alignment_result.mesh_quality}")
             print(f"  Status: {mesh_alignment_result.message}")
 
+    # Export all output files (STEP, 3MF, STL, design.json, design.md)
+    pkg = None
+    if not args.no_save:
+        # Use pre-computed mesh rotation if available
+        pre_rotation = None
+        if mesh_alignment_result is not None:
+            pre_rotation = mesh_alignment_result.optimal_rotation_deg
+
+        print(f"\nExporting files...")
+        pkg = generate_package(
+            design=design,
+            worm=worm,
+            wheel=wheel,
+            mesh_rotation_deg=pre_rotation,
+            virtual_hobbing=use_virtual_hobbing,
+            include_3mf=not args.no_3mf,
+            include_stl=not args.no_stl,
+            include_assembly=not args.no_3mf,
+            log=print,
+        )
+
     # Save geometry analysis JSON (mesh alignment + rim measurements)
     if not args.no_save:
         output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         import json
 
         has_analysis = (mesh_alignment_result is not None or
@@ -1019,6 +1017,19 @@ More info: https://wormgear.studio
             with open(analysis_file, 'w') as f:
                 json.dump(analysis_data, f, indent=2)
             print(f"  Saved: {analysis_file}")
+
+    # Write package files to disk (or ZIP)
+    if not args.no_save and pkg is not None:
+        if args.zip_output:
+            zip_path = Path(args.zip_output)
+            zip_data = create_package_zip(pkg, design)
+            zip_path.write_bytes(zip_data)
+            print(f"\n  Saved ZIP: {zip_path} ({len(zip_data) / 1024:.1f} KB)")
+        else:
+            output_dir = Path(args.output_dir)
+            written = save_package_to_dir(pkg, output_dir, design)
+            for p in written:
+                print(f"  Saved: {p}")
 
     # View in OCP viewer
     if args.view:

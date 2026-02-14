@@ -40,6 +40,18 @@ from .loaders import (
     MeasurementPoint,
 )
 
+# Import from package module (shared export/packaging)
+# Requires build123d — not available in Pyodide calculator-only mode
+try:
+    from .package import (
+        PackageFiles,
+        generate_package,
+        save_package_to_dir,
+        create_package_zip,
+    )
+except ImportError:
+    pass
+
 # Import from schema module
 from .schema import (
     SCHEMA_VERSION,
@@ -73,6 +85,12 @@ __all__ = [
     # Measured geometry
     "MeasuredGeometry",
     "MeasurementPoint",
+
+    # Package export
+    "PackageFiles",
+    "generate_package",
+    "save_package_to_dir",
+    "create_package_zip",
 
     # Schema
     "SCHEMA_VERSION",
