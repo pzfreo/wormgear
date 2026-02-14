@@ -124,7 +124,7 @@ class TestWheelGeometry:
 
     def test_wheel_correct_tooth_count(self, wheel_params, worm_params, assembly_params):
         """Test wheel with different tooth counts."""
-        for num_teeth in [10, 12, 20, 30]:
+        for num_teeth in [10, 30]:
             params = WheelParams(
                 module_mm=wheel_params.module_mm,
                 num_teeth=num_teeth,

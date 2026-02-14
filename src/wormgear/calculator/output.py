@@ -131,7 +131,9 @@ def to_json(
 
     # Add relief groove to worm features if specified
     if relief_groove:
-        design_dict.setdefault('features', {}).setdefault('worm', {}).setdefault('bore_type', 'none')
+        if not design_dict.get('features'):
+            design_dict['features'] = {}
+        design_dict['features'].setdefault('worm', {}).setdefault('bore_type', 'none')
         design_dict['features']['worm']['relief_groove'] = relief_groove
 
     # Merge in manufacturing settings if provided

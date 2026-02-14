@@ -46,13 +46,12 @@ CALCULATOR_FILES = [
 
 # Files loaded by generator-worker.js for the GENERATOR
 # (requires build123d, loads geometry modules)
+# Auto-discovered from src/wormgear/core/ to prevent drift when new files are added.
+_CORE_EXCLUDED = {"__init__.py", "bore_sizing.py"}  # Already in CALCULATOR_FILES
 GENERATOR_FILES = CALCULATOR_FILES + [
-    "core/geometry_base.py",
-    "core/worm.py",
-    "core/wheel.py",
-    "core/features.py",
-    "core/globoid_worm.py",
-    "core/virtual_hobbing.py",
+    f"core/{f.name}"
+    for f in sorted((SRC_DIR / "core").glob("*.py"))
+    if f.name not in _CORE_EXCLUDED
 ]
 
 

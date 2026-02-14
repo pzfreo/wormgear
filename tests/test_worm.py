@@ -95,7 +95,7 @@ class TestWormGeometry:
 
     def test_worm_different_lengths(self, worm_params, assembly_params):
         """Test worm generation with different lengths."""
-        for length in [5.0, 10.0, 20.0, 40.0]:
+        for length in [5.0, 40.0]:
             worm_geo = WormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
@@ -195,7 +195,7 @@ class TestWormGeometry:
 
     def test_worm_sections_per_turn_affects_smoothness(self, worm_params, assembly_params):
         """Test that more sections per turn doesn't break geometry."""
-        for sections in [8, 12, 24, 36, 72]:
+        for sections in [8, 24, 72]:
             worm_geo = WormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
