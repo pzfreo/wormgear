@@ -153,6 +153,7 @@ if '/home/pyodide' not in sys.path:
         { path: 'wormgear/__init__.py', pyPath: '/home/pyodide/wormgear/__init__.py' },
         { path: 'wormgear/enums.py', pyPath: '/home/pyodide/wormgear/enums.py' },
         { path: 'wormgear/core/__init__.py', pyPath: '/home/pyodide/wormgear/core/__init__.py' },
+        { path: 'wormgear/core/geometry_base.py', pyPath: '/home/pyodide/wormgear/core/geometry_base.py' },
         { path: 'wormgear/core/worm.py', pyPath: '/home/pyodide/wormgear/core/worm.py' },
         { path: 'wormgear/core/wheel.py', pyPath: '/home/pyodide/wormgear/core/wheel.py' },
         { path: 'wormgear/core/features.py', pyPath: '/home/pyodide/wormgear/core/features.py' },
