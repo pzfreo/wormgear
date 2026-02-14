@@ -24,6 +24,7 @@ from .features import (
     add_bore_and_keyway,
     create_hub
 )
+from .geometry_base import BaseGeometry
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -33,7 +34,7 @@ ProfileType = Literal["ZA", "ZK", "ZI"]
 logger = logging.getLogger(__name__)
 
 
-class WheelGeometry:
+class WheelGeometry(BaseGeometry):
     """
     Generates 3D geometry for a worm wheel.
 
@@ -43,6 +44,8 @@ class WheelGeometry:
 
     Optionally adds bore and keyway features.
     """
+
+    _part_name = "wheel"
 
     def __init__(
         self,
@@ -493,42 +496,3 @@ class WheelGeometry:
 
         return builder.part
 
-    def show(self):
-        """Display the wheel in OCP viewer (requires ocp_vscode)."""
-        wheel = self.build()
-        try:
-            from ocp_vscode import show as ocp_show
-            ocp_show(wheel)
-        except ImportError:
-            pass  # No viewer available - silent fallback
-        return wheel
-
-    def export_step(self, filepath: str):
-        """Export wheel to STEP file (builds if not already built)."""
-        if self._part is None:
-            self.build()
-
-        if hasattr(self._part, 'export_step'):
-            self._part.export_step(filepath)
-        else:
-            from build123d import export_step as exp_step
-            exp_step(self._part, filepath)
-
-        logger.info(f"Exported wheel to {filepath}")
-
-    def export_gltf(self, filepath: str, binary: bool = True):
-        """Export wheel to glTF file (builds if not already built).
-
-        Args:
-            filepath: Output path (.glb for binary, .gltf for text)
-            binary: If True, export as binary .glb (default)
-        """
-        if self._part is None:
-            self.build()
-
-        from build123d import export_gltf as b3d_export_gltf
-        b3d_export_gltf(
-            self._part, filepath, binary=binary,
-            linear_deflection=0.001, angular_deflection=0.1,
-        )
-        logger.info(f"Exported wheel to {filepath}")

@@ -24,6 +24,7 @@ from build123d import (
 from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
+from .geometry_base import BaseGeometry
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -32,7 +33,7 @@ from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveF
 ProfileType = Literal["ZA", "ZK", "ZI"]
 
 
-class WormGeometry:
+class WormGeometry(BaseGeometry):
     """
     Generates 3D geometry for a worm.
 
@@ -40,7 +41,7 @@ class WormGeometry:
     then unioning with core cylinder. Optionally adds bore and keyway.
     """
 
-    # Valid generation methods for thread creation
+    _part_name = "worm"
     GENERATION_METHODS = ("loft", "sweep")
 
     def __init__(
@@ -102,6 +103,178 @@ class WormGeometry:
 
         # Cache for built geometry (avoids rebuilding on export)
         self._part = None
+
+    def _compute_thread_dimensions(self) -> dict:
+        """Compute common thread profile dimensions from parameters.
+
+        Returns dict with: pitch_radius, lead, is_right_hand, pressure_angle_rad,
+        addendum, dedendum, thread_half_width_pitch, thread_half_width_root,
+        thread_half_width_tip
+        """
+        pitch_radius = self.params.pitch_diameter_mm / 2
+        lead = self.params.lead_mm
+        is_right_hand = self.params.hand == Hand.RIGHT
+        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
+        thread_half_width_pitch = self.params.thread_thickness_mm / 2
+        addendum = self.params.addendum_mm
+        dedendum = self.params.dedendum_mm
+        thread_half_width_root = thread_half_width_pitch + dedendum * math.tan(pressure_angle_rad)
+        thread_half_width_tip = max(0.1, thread_half_width_pitch - addendum * math.tan(pressure_angle_rad))
+        return {
+            'pitch_radius': pitch_radius,
+            'lead': lead,
+            'is_right_hand': is_right_hand,
+            'pressure_angle_rad': pressure_angle_rad,
+            'addendum': addendum,
+            'dedendum': dedendum,
+            'thread_half_width_pitch': thread_half_width_pitch,
+            'thread_half_width_root': thread_half_width_root,
+            'thread_half_width_tip': thread_half_width_tip,
+        }
+
+    def _create_helix(self, height: float, start_angle: float = 0):
+        """Create a helix at pitch radius with optional rotation.
+
+        Args:
+            height: Total helix height
+            start_angle: Angular offset in degrees (for multi-start)
+        """
+        pitch_radius = self.params.pitch_diameter_mm / 2
+        lead = self.params.lead_mm
+        is_right_hand = self.params.hand == Hand.RIGHT
+        helix = Helix(
+            pitch=lead if is_right_hand else -lead,
+            height=height,
+            radius=pitch_radius,
+            center=(0, 0, -height / 2),
+            direction=(0, 0, 1)
+        )
+        if start_angle != 0:
+            helix = helix.rotate(Axis.Z, start_angle)
+        return helix
+
+    @staticmethod
+    def _create_profile_plane(point, z_dir) -> Plane:
+        """Create a profile plane at point with x_dir pointing radially outward."""
+        angle = math.atan2(point.Y, point.X)
+        radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
+        return Plane(origin=point, x_dir=radial_dir, z_dir=z_dir)
+
+    @staticmethod
+    def _helix_to_wire(helix):
+        """Convert a build123d Helix to an OCC TopoDS_Wire."""
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
+        wire_maker = BRepBuilderAPI_MakeWire()
+        explorer = TopExp_Explorer(helix.wrapped, TopAbs_EDGE)
+        while explorer.More():
+            wire_maker.Add(TopoDS.Edge_s(explorer.Current()))
+            explorer.Next()
+        return wire_maker.Wire()
+
+    def _trim_to_length(self, worm_shape) -> Part:
+        """Trim worm shape to exact self.length using top/bottom box cuts.
+
+        Args:
+            worm_shape: TopoDS_Shape or Part to trim
+
+        Returns:
+            Trimmed Part with exact self.length dimension
+        """
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+
+        tip_radius = self.params.tip_diameter_mm / 2
+        lead = self.params.lead_mm
+        extended_length = self.length + 2 * lead
+        trim_diameter = tip_radius * 4
+        half_length = self.length / 2
+
+        shape = worm_shape.wrapped if hasattr(worm_shape, 'wrapped') else worm_shape
+
+        try:
+            top_box = Box(
+                length=trim_diameter, width=trim_diameter,
+                height=extended_length,
+                align=(Align.CENTER, Align.CENTER, Align.MIN)
+            )
+            top_box = Pos(0, 0, half_length) * top_box
+            cut = BRepAlgoAPI_Cut(shape, top_box.wrapped)
+            cut.Build()
+            if cut.IsDone():
+                shape = cut.Shape()
+                logger.debug("Top cut successful")
+            else:
+                logger.warning("Top cut failed")
+
+            bottom_box = Box(
+                length=trim_diameter, width=trim_diameter,
+                height=extended_length,
+                align=(Align.CENTER, Align.CENTER, Align.MAX)
+            )
+            bottom_box = Pos(0, 0, -half_length) * bottom_box
+            cut = BRepAlgoAPI_Cut(shape, bottom_box.wrapped)
+            cut.Build()
+            if cut.IsDone():
+                shape = cut.Shape()
+                logger.debug("Bottom cut successful")
+            else:
+                logger.warning("Bottom cut failed")
+
+            return Part(shape)
+
+        except Exception as e:
+            logger.error(f"Error during cutting: {e}")
+            logger.info("Keeping extended worm (no trim)")
+            return worm_shape if isinstance(worm_shape, Part) else Part(shape)
+
+    @staticmethod
+    def _extract_single_solid(part: Part) -> Part:
+        """Extract a single solid from a Part, fusing significant solids if needed."""
+        if not hasattr(part, 'solids'):
+            return part
+        solids = list(part.solids())
+        if len(solids) == 1:
+            return solids[0]
+        if len(solids) == 0:
+            return part
+        real = [s for s in solids if s.volume > 1.0]
+        if len(real) == 1:
+            return real[0]
+        elif len(real) > 1:
+            from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse as _Fuse
+            shape = real[0].wrapped
+            for s in real[1:]:
+                f = _Fuse(shape, s.wrapped)
+                f.Build()
+                if f.IsDone():
+                    shape = f.Shape()
+            return Part(shape)
+        else:
+            return max(solids, key=lambda s: s.volume)
+
+    def _apply_features(self, part: Part) -> Part:
+        """Apply relief groove, bore, keyway, DD-cut, and set screw features."""
+        if self.relief_groove is not None:
+            axial_pitch = self.params.lead_mm / self.params.num_starts
+            part = create_relief_groove(
+                part,
+                root_diameter_mm=self.params.root_diameter_mm,
+                tip_diameter_mm=self.params.tip_diameter_mm,
+                axial_pitch_mm=axial_pitch,
+                part_length=self.length,
+                groove=self.relief_groove,
+                axis=Axis.Z
+            )
+        if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:
+            part = add_bore_and_keyway(
+                part,
+                part_length=self.length,
+                bore=self.bore,
+                keyway=self.keyway,
+                ddcut=self.ddcut,
+                set_screw=self.set_screw,
+                axis=Axis.Z
+            )
+        return part
 
     def build(self) -> Part:
         """
@@ -169,118 +342,16 @@ class WormGeometry:
 
         # Trim to exact length - removes fragile tapered thread ends
         logger.info(f"Trimming to final length ({self.length:.2f}mm)...")
-
-        # Prepare trim dimensions
-        trim_diameter = tip_radius * 4  # Large enough for cutting boxes
-        half_length = self.length / 2
-        logger.info(f"Cutting at Z = ±{half_length:.2f}mm...")
-
-        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
-
-        try:
-            worm_shape = worm.wrapped if hasattr(worm, 'wrapped') else worm
-
-            # Create top cutting box (remove everything above +half_length)
-            top_cut_box = Box(
-                length=trim_diameter,
-                width=trim_diameter,
-                height=extended_length,
-                align=(Align.CENTER, Align.CENTER, Align.MIN)
-            )
-            # Move box to start at Z = +half_length
-            top_cut_box = Pos(0, 0, half_length) * top_cut_box
-
-            # Cut away top part
-            cut_top = BRepAlgoAPI_Cut(worm_shape, top_cut_box.wrapped)
-            cut_top.Build()
-
-            if cut_top.IsDone():
-                worm_shape = cut_top.Shape()
-                logger.debug("Top cut successful")
-            else:
-                logger.warning("Top cut failed")
-
-            # Create bottom cutting box (remove everything below -half_length)
-            bottom_cut_box = Box(
-                length=trim_diameter,
-                width=trim_diameter,
-                height=extended_length,
-                align=(Align.CENTER, Align.CENTER, Align.MAX)
-            )
-            # Move box to end at Z = -half_length
-            bottom_cut_box = Pos(0, 0, -half_length) * bottom_cut_box
-
-            # Cut away bottom part
-            cut_bottom = BRepAlgoAPI_Cut(worm_shape, bottom_cut_box.wrapped)
-            cut_bottom.Build()
-
-            if cut_bottom.IsDone():
-                worm = Part(cut_bottom.Shape())
-                logger.debug("Bottom cut successful")
-            else:
-                logger.warning("Bottom cut failed")
-                worm = Part(worm_shape)
-
-        except Exception as e:
-            logger.error(f"Error during cutting: {e}")
-            logger.info("Keeping extended worm (no trim)")
-
-        logger.debug("Worm trimmed to length")
+        worm = self._trim_to_length(worm)
 
         # Repair geometry after complex boolean operations
         worm = self._repair_geometry(worm)
 
-        # Ensure we have a single Solid for proper display and volume.
-        # Repair may return a Compound wrapping one valid solid (volume=0 on
-        # the Compound but correct on the inner Solid), and boolean trim may
-        # split geometry into multiple solids.
-        if hasattr(worm, 'solids'):
-            solids = list(worm.solids())
-            if len(solids) == 1:
-                worm = solids[0]
-            elif len(solids) > 1:
-                # Fuse all significant solids instead of picking just the largest.
-                # max(volume) silently discards thread geometry when fuse produces
-                # disjoint solids (core + thread as separate bodies).
-                real = [s for s in solids if s.volume > 1.0]
-                if len(real) == 1:
-                    worm = real[0]
-                elif len(real) > 1:
-                    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse as _Fuse
-                    shape = real[0].wrapped
-                    for s in real[1:]:
-                        f = _Fuse(shape, s.wrapped)
-                        f.Build()
-                        if f.IsDone():
-                            shape = f.Shape()
-                    worm = Part(shape)
-                else:
-                    worm = max(solids, key=lambda s: s.volume)
+        # Ensure we have a single Solid for proper display and volume
+        worm = self._extract_single_solid(worm)
 
-        # Cut relief grooves at thread termination points (before bore features)
-        if self.relief_groove is not None:
-            axial_pitch = self.params.lead_mm / self.params.num_starts
-            worm = create_relief_groove(
-                worm,
-                root_diameter_mm=self.params.root_diameter_mm,
-                tip_diameter_mm=self.params.tip_diameter_mm,
-                axial_pitch_mm=axial_pitch,
-                part_length=self.length,
-                groove=self.relief_groove,
-                axis=Axis.Z
-            )
-
-        # Add bore, keyway/ddcut, and set screw if specified
-        if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:
-            worm = add_bore_and_keyway(
-                worm,
-                part_length=self.length,
-                bore=self.bore,
-                keyway=self.keyway,
-                ddcut=self.ddcut,
-                set_screw=self.set_screw,
-                axis=Axis.Z
-            )
+        # Apply features (relief grooves, bore, keyway, etc.)
+        worm = self._apply_features(worm)
 
         logger.debug(f"Final worm volume: {worm.volume:.2f} mm³")
         # Cache the built geometry
@@ -299,11 +370,8 @@ class WormGeometry:
         from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 
         tip_radius = self.params.tip_diameter_mm / 2
-        root_radius = self.params.root_diameter_mm / 2
         lead = self.params.lead_mm
         extended_length = self.length + 2 * lead
-        trim_diameter = tip_radius * 4
-        half_length = self.length / 2
 
         # Full cylinder at tip radius.
         # The blank must be slightly taller than the groove helix to avoid
@@ -333,71 +401,15 @@ class WormGeometry:
 
         # Trim to length
         logger.info(f"Trimming to {self.length:.1f}mm...")
-        top_box = Box(
-            length=trim_diameter, width=trim_diameter,
-            height=extended_length,
-            align=(Align.CENTER, Align.CENTER, Align.MIN)
-        )
-        top_box = Pos(0, 0, half_length) * top_box
-        cut = BRepAlgoAPI_Cut(worm_shape, top_box.wrapped)
-        cut.Build()
-        if cut.IsDone():
-            worm_shape = cut.Shape()
-
-        bottom_box = Box(
-            length=trim_diameter, width=trim_diameter,
-            height=extended_length,
-            align=(Align.CENTER, Align.CENTER, Align.MAX)
-        )
-        bottom_box = Pos(0, 0, -half_length) * bottom_box
-        cut = BRepAlgoAPI_Cut(worm_shape, bottom_box.wrapped)
-        cut.Build()
-        if cut.IsDone():
-            worm_shape = cut.Shape()
-
-        worm = Part(worm_shape)
+        worm = self._trim_to_length(worm_shape)
 
         # Extract single solid or fuse significant solids
-        if hasattr(worm, 'solids'):
-            solids = list(worm.solids())
-            real = [s for s in solids if s.volume > 1.0]
-            if len(real) == 1:
-                worm = real[0]
-            elif len(real) > 1:
-                from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse as _Fuse
-                shape = real[0].wrapped
-                for s in real[1:]:
-                    f = _Fuse(shape, s.wrapped)
-                    f.Build()
-                    if f.IsDone():
-                        shape = f.Shape()
-                worm = Part(shape)
+        worm = self._extract_single_solid(worm)
 
         worm = self._repair_geometry(worm)
 
-        # Add features (relief groove, bore, keyway, etc.)
-        if self.relief_groove is not None:
-            axial_pitch = self.params.lead_mm / self.params.num_starts
-            worm = create_relief_groove(
-                worm,
-                root_diameter_mm=self.params.root_diameter_mm,
-                tip_diameter_mm=self.params.tip_diameter_mm,
-                axial_pitch_mm=axial_pitch,
-                part_length=self.length,
-                groove=self.relief_groove,
-                axis=Axis.Z
-            )
-
-        if self.bore is not None or self.keyway is not None or self.ddcut is not None or self.set_screw is not None:
-            worm = add_bore_and_keyway(
-                worm,
-                part_length=self.length,
-                bore=self.bore,
-                keyway=self.keyway,
-                ddcut=self.ddcut,
-                set_screw=self.set_screw,
-                axis=Axis.Z
-            )
+        # Apply features (relief grooves, bore, keyway, etc.)
+        worm = self._apply_features(worm)
 
         logger.debug(f"Final sweep worm volume: {worm.volume:.2f} mm³")
         self._part = worm
@@ -557,55 +569,18 @@ class WormGeometry:
         and lofts between them with ruled=True for consistent geometry.
         Proven approach with cosine-ramped taper at thread ends.
         """
-        import math
-
-        pitch_radius = self.params.pitch_diameter_mm / 2
-        tip_radius = self.params.tip_diameter_mm / 2
-        root_radius = self.params.root_diameter_mm / 2
-        lead = self.params.lead_mm
-        is_right_hand = self.params.hand == Hand.RIGHT
-        logger.debug(f"Thread: pitch_r={pitch_radius:.2f}, tip_r={tip_radius:.2f}, root_r={root_radius:.2f}, lead={lead:.2f}mm")
-
-        # Thread profile dimensions
-        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
-
-        # Thread width at pitch circle (axial measurement)
-        thread_half_width_pitch = self.params.thread_thickness_mm / 2
-
-        # Thread is WIDER at root, NARROWER at tip due to pressure angle
-        addendum = self.params.addendum_mm
-        dedendum = self.params.dedendum_mm
-        thread_half_width_root = thread_half_width_pitch + dedendum * math.tan(pressure_angle_rad)
-        thread_half_width_tip = max(0.1, thread_half_width_pitch - addendum * math.tan(pressure_angle_rad))
+        dims = self._compute_thread_dimensions()
+        pitch_radius = dims['pitch_radius']
+        lead = dims['lead']
+        addendum = dims['addendum']
+        dedendum = dims['dedendum']
+        thread_half_width_root = dims['thread_half_width_root']
+        thread_half_width_tip = dims['thread_half_width_tip']
+        logger.debug(f"Thread: pitch_r={pitch_radius:.2f}, tip_r={self.params.tip_diameter_mm/2:.2f}, root_r={self.params.root_diameter_mm/2:.2f}, lead={lead:.2f}mm")
 
         # Extend thread length beyond worm length so we can trim to exact length
-        extended_length = self.length + 2 * lead  # Add lead on each end
-
-        # Build helix with extended length
-        helix_height = extended_length
-        num_turns = extended_length / lead  # Exact number of turns for extended length
-
-        # Create helix path at pitch radius
-        # For left-hand worms, use negative pitch to reverse rotation direction
-        # (not negative Z direction, which would shift the helix out of range)
-        helix = Helix(
-            pitch=lead if is_right_hand else -lead,
-            height=helix_height,
-            radius=pitch_radius,
-            center=(0, 0, -helix_height / 2),
-            direction=(0, 0, 1)
-        )
-
-        if start_angle != 0:
-            helix = helix.rotate(Axis.Z, start_angle)
-
-        # Get addendum and dedendum for tapering
-        addendum = self.params.addendum_mm
-        dedendum = self.params.dedendum_mm
-
-        # Extend thread length beyond worm length so we can trim to exact length
-        # This removes the fragile tapered ends
-        extended_length = self.length + 2 * lead  # Add lead on each end
+        extended_length = self.length + 2 * lead
+        helix = self._create_helix(extended_length, start_angle)
 
         # Create profiles along the helix for lofting
         # Use extended length for sections calculation
@@ -669,12 +644,8 @@ class WormGeometry:
             local_thread_half_width_root = max(0.05, thread_half_width_root * taper_factor)
             local_thread_half_width_tip = max(0.05, thread_half_width_tip * taper_factor)
 
-            # Radial direction at this point
-            angle = math.atan2(point.Y, point.X)
-            radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
-
             # Profile plane perpendicular to helix tangent
-            profile_plane = Plane(origin=point, x_dir=radial_dir, z_dir=tangent)
+            profile_plane = self._create_profile_plane(point, tangent)
 
             with BuildSketch(profile_plane) as sk:
                 with BuildLine():
@@ -788,12 +759,9 @@ class WormGeometry:
         clean boolean cuts against the full cylinder.
         """
         from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
-        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
         from OCP.gp import gp_Dir
 
-        pitch_radius = self.params.pitch_diameter_mm / 2
         lead = self.params.lead_mm
-        is_right_hand = self.params.hand == Hand.RIGHT
         axial_pitch = lead / self.params.num_starts
 
         # Thread profile dimensions
@@ -818,28 +786,15 @@ class WormGeometry:
         groove_half_width_root = max(0.1, groove_half_width_pitch - dedendum * math.tan(pressure_angle_rad))
 
 
-        # Extended helix
+        # Extended helix, offset by half axial pitch from thread
         extended_length = self.length + 2 * lead
-
-        # Create helix at pitch radius, offset by half axial pitch from thread
-        helix = Helix(
-            pitch=lead if is_right_hand else -lead,
-            height=extended_length,
-            radius=pitch_radius,
-            center=(0, 0, -extended_length / 2),
-            direction=(0, 0, 1)
-        )
-
-        # Offset groove helix by 180°/num_starts from thread position
         groove_angle = start_angle + (180.0 / self.params.num_starts)
-        helix = helix.rotate(Axis.Z, groove_angle)
+        helix = self._create_helix(extended_length, groove_angle)
 
         # Position profile at helix start
         start_point = helix @ 0
         start_tangent = helix % 0
-        angle = math.atan2(start_point.Y, start_point.X)
-        radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
-        profile_plane = Plane(origin=start_point, x_dir=radial_dir, z_dir=start_tangent)
+        profile_plane = self._create_profile_plane(start_point, start_tangent)
 
         # Groove radial extent: exactly at root, past tip for clean cut.
         # inner_r at root preserves correct root diameter (remaining cylinder
@@ -888,12 +843,7 @@ class WormGeometry:
         groove_face = sk.sketch.faces()[0]
 
         # Build helix wire
-        wire_maker = BRepBuilderAPI_MakeWire()
-        explorer = TopExp_Explorer(helix.wrapped, TopAbs_EDGE)
-        while explorer.More():
-            wire_maker.Add(TopoDS.Edge_s(explorer.Current()))
-            explorer.Next()
-        helix_wire = wire_maker.Wire()
+        helix_wire = self._helix_to_wire(helix)
 
         # Sweep groove along helix
         logger.debug("Sweeping groove profile along helix...")
@@ -927,45 +877,24 @@ class WormGeometry:
         - Proper solid creation via STEP roundtrip normalization
         """
         from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
-        from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeWire
         from OCP.gp import gp_Dir
 
-        pitch_radius = self.params.pitch_diameter_mm / 2
-        lead = self.params.lead_mm
-        is_right_hand = self.params.hand == Hand.RIGHT
-        logger.debug(f"Sweep thread: pitch_r={pitch_radius:.2f}, lead={lead:.2f}mm")
-
-        # Thread profile dimensions
-        pressure_angle_rad = math.radians(self.assembly_params.pressure_angle_deg)
-        thread_half_width_pitch = self.params.thread_thickness_mm / 2
-
-        addendum = self.params.addendum_mm
-        dedendum = self.params.dedendum_mm
-        thread_half_width_root = thread_half_width_pitch + dedendum * math.tan(pressure_angle_rad)
-        thread_half_width_tip = max(0.1, thread_half_width_pitch - addendum * math.tan(pressure_angle_rad))
+        dims = self._compute_thread_dimensions()
+        addendum = dims['addendum']
+        dedendum = dims['dedendum']
+        thread_half_width_root = dims['thread_half_width_root']
+        thread_half_width_tip = dims['thread_half_width_tip']
+        lead = dims['lead']
+        logger.debug(f"Sweep thread: pitch_r={dims['pitch_radius']:.2f}, lead={lead:.2f}mm")
 
         # Extend helix beyond worm length so trim-to-length removes thread ends
         extended_length = self.length + 2 * lead
-
-        # Create helix path at pitch radius
-        helix = Helix(
-            pitch=lead if is_right_hand else -lead,
-            height=extended_length,
-            radius=pitch_radius,
-            center=(0, 0, -extended_length / 2),
-            direction=(0, 0, 1)
-        )
-
-        if start_angle != 0:
-            helix = helix.rotate(Axis.Z, start_angle)
+        helix = self._create_helix(extended_length, start_angle)
 
         # Position profile at helix start, perpendicular to tangent
         start_point = helix @ 0
         start_tangent = helix % 0
-        angle = math.atan2(start_point.Y, start_point.X)
-        radial_dir = Vector(math.cos(angle), math.sin(angle), 0)
-
-        profile_plane = Plane(origin=start_point, x_dir=radial_dir, z_dir=start_tangent)
+        profile_plane = self._create_profile_plane(start_point, start_tangent)
 
         # Profile radial positions:
         # root_r = original root position (at core surface)
@@ -1026,12 +955,7 @@ class WormGeometry:
         profile_face = sk.sketch.faces()[0]
 
         # Build helix wire for OCC pipe shell
-        wire_maker = BRepBuilderAPI_MakeWire()
-        explorer = TopExp_Explorer(helix.wrapped, TopAbs_EDGE)
-        while explorer.More():
-            wire_maker.Add(TopoDS.Edge_s(explorer.Current()))
-            explorer.Next()
-        helix_wire = wire_maker.Wire()
+        helix_wire = self._helix_to_wire(helix)
 
         # Create pipe shell with Z-axis auxiliary direction.
         # SetMode(gp_Dir(0,0,1)) constrains the profile frame so the radial
@@ -1074,43 +998,3 @@ class WormGeometry:
 
         return thread
 
-    def show(self):
-        """Display the worm in OCP viewer (requires ocp_vscode)."""
-        worm = self.build()
-        try:
-            from ocp_vscode import show as ocp_show
-            ocp_show(worm)
-        except ImportError:
-            pass  # No viewer available - silent fallback
-        return worm
-
-    def export_step(self, filepath: str):
-        """Export worm to STEP file (builds if not already built)."""
-        if self._part is None:
-            self.build()
-
-        logger.info(f"Exporting worm: volume={self._part.volume:.2f} mm³")
-        if hasattr(self._part, 'export_step'):
-            self._part.export_step(filepath)
-        else:
-            from build123d import export_step as exp_step
-            exp_step(self._part, filepath)
-
-        logger.info(f"Exported worm to {filepath}")
-
-    def export_gltf(self, filepath: str, binary: bool = True):
-        """Export worm to glTF file (builds if not already built).
-
-        Args:
-            filepath: Output path (.glb for binary, .gltf for text)
-            binary: If True, export as binary .glb (default)
-        """
-        if self._part is None:
-            self.build()
-
-        from build123d import export_gltf as b3d_export_gltf
-        b3d_export_gltf(
-            self._part, filepath, binary=binary,
-            linear_deflection=0.001, angular_deflection=0.1,
-        )
-        logger.info(f"Exported worm to {filepath}")
