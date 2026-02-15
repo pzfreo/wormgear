@@ -175,6 +175,8 @@ def export_assembly_3mf(
     Returns None if export fails (non-fatal).
     """
     try:
+        from build123d import Compound
+
         from ..core.mesh_alignment import position_for_mesh
 
         wheel_pos, worm_pos = position_for_mesh(
@@ -184,14 +186,10 @@ def export_assembly_3mf(
         with tempfile.NamedTemporaryFile(suffix=".3mf", delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
+        assembly = Compound(children=[wheel_pos, worm_pos])
         mesher = Mesher(unit=Unit.MM)
         mesher.add_shape(
-            wheel_pos,
-            linear_deflection=LINEAR_DEFLECTION,
-            angular_deflection=ANGULAR_DEFLECTION,
-        )
-        mesher.add_shape(
-            worm_pos,
+            assembly,
             linear_deflection=LINEAR_DEFLECTION,
             angular_deflection=ANGULAR_DEFLECTION,
         )
