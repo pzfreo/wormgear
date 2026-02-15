@@ -118,6 +118,52 @@ def export_part_stl(part: Part) -> bytes:
         tmp_path.unlink(missing_ok=True)
 
 
+def export_assembly_glb(
+    wheel: Part,
+    worm: Part,
+    centre_distance_mm: float,
+    rotation_deg: float,
+) -> Optional[bytes]:
+    """Position parts with position_for_mesh() and export combined GLB.
+
+    Uses build123d's native glTF export for positioned assembly.
+
+    Returns None if export fails (non-fatal).
+    """
+    try:
+        from build123d import export_gltf
+        from ..core.mesh_alignment import position_for_mesh
+
+        wheel_pos, worm_pos = position_for_mesh(
+            wheel, worm, centre_distance_mm, rotation_deg
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+        # Export both parts as a compound
+        from build123d import Compound
+        assembly = Compound(children=[wheel_pos, worm_pos])
+        export_gltf(
+            assembly,
+            str(tmp_path),
+            binary=True,
+            linear_deflection=LINEAR_DEFLECTION,
+            angular_deflection=ANGULAR_DEFLECTION,
+        )
+
+        data = tmp_path.read_bytes()
+        return data
+    except Exception as e:
+        logger.warning(f"Assembly GLB export failed (non-fatal): {e}")
+        return None
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except NameError:
+            pass
+
+
 def export_assembly_3mf(
     wheel: Part,
     worm: Part,
@@ -174,6 +220,7 @@ class PackageFiles:
     worm_stl: Optional[bytes] = None
     wheel_stl: Optional[bytes] = None
     assembly_3mf: Optional[bytes] = None
+    assembly_glb: Optional[bytes] = None
     design_json: Optional[str] = None
     design_md: Optional[str] = None
     mesh_rotation_deg: float = 0.0
@@ -283,6 +330,18 @@ def generate_package(
         if files.assembly_3mf:
             _log(f"  Assembly 3MF: {len(files.assembly_3mf) / 1024:.1f} KB")
 
+    # --- Assembly GLB ---
+    if include_assembly and worm is not None and wheel is not None:
+        _log("Exporting assembly GLB...")
+        files.assembly_glb = export_assembly_glb(
+            wheel=wheel,
+            worm=worm,
+            centre_distance_mm=design.assembly.centre_distance_mm,
+            rotation_deg=files.mesh_rotation_deg,
+        )
+        if files.assembly_glb:
+            _log(f"  Assembly GLB: {len(files.assembly_glb) / 1024:.1f} KB")
+
     # --- Design JSON and Markdown ---
     # Lazy import to avoid circular dependency (io -> calculator -> io)
     from ..calculator.output import to_json, to_markdown
@@ -313,18 +372,47 @@ def _package_filename(design: WormGearDesign) -> str:
     return f"wormgear_m{module_str}_{teeth}-{starts}_{type_str}"
 
 
+def _cli_file_names(design: WormGearDesign) -> dict[str, str]:
+    """Generate CLI-style filenames with module and tooth count.
+
+    Original CLI convention:
+        worm_m{module}_z{starts}.step
+        wheel_m{module}_z{teeth}.step
+    """
+    wm = design.worm.module_mm
+    ws = design.worm.num_starts
+    wt = design.wheel.num_teeth
+
+    worm_base = f"worm_m{wm}_z{ws}"
+    wheel_base = f"wheel_m{wm}_z{wt}"
+
+    return {
+        "worm_step": f"{worm_base}.step",
+        "wheel_step": f"{wheel_base}.step",
+        "worm_3mf": f"{worm_base}.3mf",
+        "wheel_3mf": f"{wheel_base}.3mf",
+        "worm_stl": f"{worm_base}.stl",
+        "wheel_stl": f"{wheel_base}.stl",
+        "assembly_3mf": f"assembly_m{wm}_{wt}-{ws}.3mf",
+        "assembly_glb": f"assembly_m{wm}_{wt}-{ws}.glb",
+    }
+
+
 def save_package_to_dir(
     files: PackageFiles,
     output_dir: Path,
     design: WormGearDesign,
 ) -> list[Path]:
-    """Write all PackageFiles to a directory with standard naming.
+    """Write all PackageFiles to a directory with CLI-style naming.
+
+    Uses the original CLI naming convention:
+        worm_m{module}_z{starts}.step
+        wheel_m{module}_z{teeth}.step
 
     Args:
         files: PackageFiles from generate_package().
         output_dir: Directory to write files into (created if needed).
-        design: WormGearDesign for context (currently unused but available
-            for future filename customisation).
+        design: WormGearDesign for filename generation.
 
     Returns:
         List of Paths written.
@@ -332,14 +420,17 @@ def save_package_to_dir(
     output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
 
+    names = _cli_file_names(design)
+
     file_map = {
-        "worm.step": files.worm_step,
-        "wheel.step": files.wheel_step,
-        "worm.3mf": files.worm_3mf,
-        "wheel.3mf": files.wheel_3mf,
-        "worm.stl": files.worm_stl,
-        "wheel.stl": files.wheel_stl,
-        "assembly.3mf": files.assembly_3mf,
+        names["worm_step"]: files.worm_step,
+        names["wheel_step"]: files.wheel_step,
+        names["worm_3mf"]: files.worm_3mf,
+        names["wheel_3mf"]: files.wheel_3mf,
+        names["worm_stl"]: files.worm_stl,
+        names["wheel_stl"]: files.wheel_stl,
+        names["assembly_3mf"]: files.assembly_3mf,
+        names["assembly_glb"]: files.assembly_glb,
     }
 
     for name, data in file_map.items():
@@ -364,8 +455,8 @@ def save_package_to_dir(
 def create_package_zip(files: PackageFiles, design: WormGearDesign) -> bytes:
     """Create ZIP archive from PackageFiles.
 
-    ZIP filename base follows the web convention:
-    wormgear_m{module}_{teeth}-{starts}_{type}
+    Uses the same descriptive filenames as save_package_to_dir:
+        worm_m{module}_z{starts}.step, wheel_m{module}_z{teeth}.step, etc.
 
     Args:
         files: PackageFiles from generate_package().
@@ -375,16 +466,18 @@ def create_package_zip(files: PackageFiles, design: WormGearDesign) -> bytes:
         ZIP file contents as bytes.
     """
     buf = io.BytesIO()
+    names = _cli_file_names(design)
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         file_map = {
-            "worm.step": files.worm_step,
-            "wheel.step": files.wheel_step,
-            "worm.3mf": files.worm_3mf,
-            "wheel.3mf": files.wheel_3mf,
-            "worm.stl": files.worm_stl,
-            "wheel.stl": files.wheel_stl,
-            "assembly.3mf": files.assembly_3mf,
+            names["worm_step"]: files.worm_step,
+            names["wheel_step"]: files.wheel_step,
+            names["worm_3mf"]: files.worm_3mf,
+            names["wheel_3mf"]: files.wheel_3mf,
+            names["worm_stl"]: files.worm_stl,
+            names["wheel_stl"]: files.wheel_stl,
+            names["assembly_3mf"]: files.assembly_3mf,
+            names["assembly_glb"]: files.assembly_glb,
         }
 
         for name, data in file_map.items():

@@ -22,7 +22,7 @@ from ..io.loaders import WormParams, AssemblyParams
 from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
 from .geometry_base import BaseGeometry
-from .geometry_repair import repair_geometry
+from .geometry_repair import repair_geometry, normalize_geometry
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -405,6 +405,12 @@ class WormGeometry(BaseGeometry):
         worm = self._extract_single_solid(worm)
 
         worm = repair_geometry(worm)
+
+        # Normalize via STEP roundtrip before applying features.
+        # The groove-cut boolean operations leave the solid with internal
+        # topology that confuses subsequent boolean cuts (relief grooves,
+        # bores).  A STEP roundtrip normalizes the representation.
+        worm = normalize_geometry(worm)
 
         # Apply features (relief grooves, bore, keyway, etc.)
         worm = self._apply_features(worm)
