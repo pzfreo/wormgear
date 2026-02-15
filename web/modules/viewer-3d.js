@@ -304,6 +304,15 @@ export function isLoaded() {
 }
 
 /**
+ * Mark viewer as needing new mesh data on next preview tab visit.
+ * Called when a new generation completes so the preview refreshes.
+ */
+export function invalidate() {
+    if (wheelMesh) { scene.remove(wheelMesh); wheelMesh.geometry.dispose(); wheelMesh = null; }
+    if (wormPivot) { scene.remove(wormPivot); wormMesh.geometry.dispose(); wormMesh = null; wormPivot = null; }
+}
+
+/**
  * Export positioned assembly as GLB (binary glTF).
  *
  * Prefers assembly_3mf (pre-positioned by Python) which contains correct

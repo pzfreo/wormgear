@@ -274,6 +274,7 @@ class WormParams(BaseModel):
     type: Optional[WormType] = None
     throat_reduction_mm: Optional[float] = None
     throat_curvature_radius_mm: Optional[float] = None
+    throat_arc_angle_deg: Optional[float] = None  # Globoid arc angle (degrees, 10-180). None = auto from wheel pitch radius.
     length_mm: Optional[float] = None
 
     @field_validator('hand', mode='before')

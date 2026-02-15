@@ -92,7 +92,7 @@ class CalculatorInputs(BaseModel):
     model_config = ConfigDict(extra='ignore')
 
     # Calculation mode
-    mode: str = "from-module"  # "from-module" | "from-centre-distance" | "from-wheel" | "envelope"
+    mode: str = "from-module"  # "from-module" | "from-centre-distance" | "from-wheel" | "envelope" | "from-arc-angle"
 
     # Common parameters
     pressure_angle: float = 20.0
@@ -103,6 +103,7 @@ class CalculatorInputs(BaseModel):
     profile: str = "ZA"
     worm_type: str = "cylindrical"
     throat_reduction: float = 0.0
+    throat_arc_angle: float = 0.0  # 0 = auto (derive from wheel pitch radius)
     wheel_throated: bool = False
 
     # Mode-specific parameters (optional, presence depends on mode)
@@ -332,11 +333,13 @@ def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
         'profile_shift': inputs.profile_shift,
     }
 
-    # Add user-specified throat reduction for globoid worms
+    # Add user-specified throat reduction and arc angle for globoid worms
     # (auto-default is calculated after design, when we have the pitch diameter)
     if inputs.worm_type == 'globoid':
         if inputs.throat_reduction and inputs.throat_reduction > 0:
             kwargs['throat_reduction'] = inputs.throat_reduction
+        if inputs.throat_arc_angle and inputs.throat_arc_angle > 0:
+            kwargs['throat_arc_angle'] = inputs.throat_arc_angle
 
     # Add wheel throated flag
     if inputs.wheel_throated:
@@ -387,6 +390,18 @@ def _call_design_function(mode: str, inputs: CalculatorInputs, kwargs: Dict[str,
             ratio=inputs.ratio,
             od_as_maximum=inputs.od_as_maximum,
             use_standard_module=inputs.use_standard_module,
+            **kwargs
+        )
+    elif mode == 'from-arc-angle':
+        if inputs.module is None or inputs.ratio is None:
+            raise ValueError("module and ratio are required for from-arc-angle mode")
+        # Force globoid worm type and pass arc angle
+        kwargs['worm_type'] = WormType.GLOBOID
+        if inputs.throat_arc_angle and inputs.throat_arc_angle > 0:
+            kwargs['throat_arc_angle'] = inputs.throat_arc_angle
+        return design_from_module(
+            module=inputs.module,
+            ratio=inputs.ratio,
             **kwargs
         )
     else:

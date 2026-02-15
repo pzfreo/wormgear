@@ -627,6 +627,29 @@ def _validate_worm_type(design: DesignInput) -> List[ValidationMessage]:
                     suggestion="May cause interference or manufacturing difficulty"
                 ))
 
+        # Teeth-in-arc validation for user-specified arc angle
+        arc_angle_deg = _get(design, 'worm', 'throat_arc_angle_deg')
+        num_teeth = _get(design, 'wheel', 'num_teeth', default=0)
+        if arc_angle_deg is not None and arc_angle_deg > 0 and num_teeth > 0:
+            teeth_in_arc = num_teeth * arc_angle_deg / 360.0
+            rounded_teeth = round(teeth_in_arc)
+            if abs(teeth_in_arc - rounded_teeth) > 0.01:
+                # Suggest nearest integer options
+                lower_teeth = max(1, int(teeth_in_arc))
+                upper_teeth = lower_teeth + 1
+                lower_angle = round(360.0 * lower_teeth / num_teeth, 1)
+                upper_angle = round(360.0 * upper_teeth / num_teeth, 1)
+                messages.append(ValidationMessage(
+                    severity=Severity.WARNING,
+                    code="TEETH_IN_ARC_NON_INTEGER",
+                    message=f"Teeth in arc ({teeth_in_arc:.2f}) is not a whole number",
+                    suggestion=(
+                        f"For optimal meshing, adjust arc angle to "
+                        f"{lower_angle}\u00b0 ({lower_teeth} teeth) or "
+                        f"{upper_angle}\u00b0 ({upper_teeth} teeth)"
+                    )
+                ))
+
     return messages
 
 

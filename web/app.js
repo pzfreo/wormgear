@@ -7,7 +7,7 @@ import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
-import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
+import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, invalidate, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
 import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, buildSpecRows, createDesignFilename } from './modules/format-utils.js';
 
 // Global state
@@ -129,12 +129,23 @@ function loadDesignIntoDesignTab(design) {
         designTab.dataset.wormType = wormType;
         document.getElementById('worm-type').value = wormType;
 
-        // --- 2. Mode: always use from-module (module + ratio are in every JSON) ---
+        // --- 2. Mode: use from-arc-angle for globoid with arc angle, else from-module ---
         const modeEl = document.getElementById('mode');
-        modeEl.value = 'from-module';
+        updateArcAngleModeVisibility(wormType);
+
+        if (wormType === 'globoid' && worm.throat_arc_angle_deg && worm.throat_arc_angle_deg > 0) {
+            modeEl.value = 'from-arc-angle';
+            // Set from-arc-angle inputs
+            document.getElementById('arc-angle-faa').value = worm.throat_arc_angle_deg;
+            document.getElementById('module-faa').value = worm.module_mm;
+            document.getElementById('ratio-faa').value = asm.ratio;
+        } else {
+            modeEl.value = 'from-module';
+        }
         document.querySelectorAll('.input-group').forEach(group => {
-            group.style.display = group.dataset.mode === 'from-module' ? 'block' : 'none';
+            group.style.display = group.dataset.mode === modeEl.value ? 'block' : 'none';
         });
+        updateDesignTabMode(modeEl.value);
 
         // --- 3. Core inputs ---
         document.getElementById('module').value = worm.module_mm;
@@ -178,6 +189,21 @@ function loadDesignIntoDesignTab(design) {
                     throatReductionMode.value = 'auto';
                     document.getElementById('throat-reduction-custom').style.display = 'none';
                     document.getElementById('throat-reduction-auto-hint').style.display = 'block';
+                }
+            }
+
+            // Arc angle
+            const arcAngleMode = document.getElementById('arc-angle-mode');
+            if (arcAngleMode) {
+                if (worm.throat_arc_angle_deg && worm.throat_arc_angle_deg > 0) {
+                    arcAngleMode.value = 'custom';
+                    document.getElementById('arc-angle').value = worm.throat_arc_angle_deg;
+                    document.getElementById('arc-angle-custom').style.display = 'block';
+                    document.getElementById('arc-angle-auto-hint').style.display = 'none';
+                } else {
+                    arcAngleMode.value = 'auto';
+                    document.getElementById('arc-angle-custom').style.display = 'none';
+                    document.getElementById('arc-angle-auto-hint').style.display = 'block';
                 }
             }
 
@@ -400,6 +426,46 @@ function updateThroatReductionAutoHint() {
         hint.textContent = `\u2248 ${throatReduction.toFixed(2)}mm (geometric: worm_r - (CD - wheel_r))`;
     } else {
         hint.textContent = `Calculated from worm/wheel geometry`;
+    }
+
+    // Also update arc angle auto hint
+    const arcHint = document.getElementById('arc-angle-auto-value');
+    if (arcHint && currentDesign?.worm?.throat_arc_angle_deg) {
+        arcHint.textContent = `\u2248 ${currentDesign.worm.throat_arc_angle_deg.toFixed(1)}\u00b0`;
+    }
+}
+
+/**
+ * Show/hide the "From Arc Angle" option in the mode dropdown based on worm type.
+ * When switching away from globoid while from-arc-angle is selected, fall back to from-module.
+ * @param {string} wormType - 'cylindrical' or 'globoid'
+ */
+function updateArcAngleModeVisibility(wormType) {
+    const arcAngleOption = document.querySelector('#mode option[value="from-arc-angle"]');
+    if (!arcAngleOption) return;
+
+    if (wormType === 'globoid') {
+        arcAngleOption.style.display = '';
+    } else {
+        arcAngleOption.style.display = 'none';
+        // If currently on from-arc-angle, switch to from-module
+        const modeEl = document.getElementById('mode');
+        if (modeEl.value === 'from-arc-angle') {
+            modeEl.value = 'from-module';
+            modeEl.dispatchEvent(new Event('change'));
+        }
+    }
+}
+
+/**
+ * Sync the data-mode attribute on #design-tab so CSS can hide redundant controls.
+ * When "From Arc Angle" mode is active, CSS hides #arc-angle-group (redundant).
+ * @param {string} mode - Current design mode
+ */
+function updateDesignTabMode(mode) {
+    const designTab = document.getElementById('design-tab');
+    if (designTab) {
+        designTab.dataset.mode = mode;
     }
 }
 
@@ -652,19 +718,22 @@ function loadFromUrl() {
 
     if (params.has('mode')) {
         const mode = params.get('mode');
+
+        // Handle worm_type from URL FIRST - needed so from-arc-angle option is visible
+        if (params.has('worm_type')) {
+            const wormType = params.get('worm_type');
+            document.getElementById('worm-type').value = wormType;
+            document.getElementById('design-tab').dataset.wormType = wormType;
+            updateArcAngleModeVisibility(wormType);
+        }
+
         document.getElementById('mode').value = mode;
 
         // Trigger mode change to show correct input group
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = group.dataset.mode === mode ? 'block' : 'none';
         });
-
-        // Handle worm_type from URL - set dropdown and data attribute
-        if (params.has('worm_type')) {
-            const wormType = params.get('worm_type');
-            document.getElementById('worm-type').value = wormType;
-            document.getElementById('design-tab').dataset.wormType = wormType;
-        }
+        updateDesignTabMode(mode);
 
         // Set inputs based on mode
         params.forEach((value, key) => {
@@ -704,7 +773,8 @@ function getModeSuffix(mode) {
     const suffixes = {
         'from-wheel': 'fw',
         'from-module': 'fm',
-        'from-centre-distance': 'fcd'
+        'from-centre-distance': 'fcd',
+        'from-arc-angle': 'faa'
     };
     return suffixes[mode] || '';
 }
@@ -1070,21 +1140,22 @@ function setupWorkerMessageHandler(worker) {
                 }
                 break;
             case 'GENERATE_COMPLETE':
-                if (isGenerating) {
+                if (isGenerating && e.data.generationId === currentGenerationId) {
                     isGenerating = false;
+                    invalidate();  // Clear stale preview so it reloads with new meshes
                     handleGenerateComplete(e.data);
                 } else {
-                    console.log('[Generator] Ignoring completion from cancelled generation');
+                    console.log(`[Generator] Ignoring completion from generation ${e.data.generationId} (current: ${currentGenerationId})`);
                 }
                 break;
             case 'GENERATE_ERROR':
-                if (isGenerating) {
+                if (isGenerating && e.data.generationId === currentGenerationId) {
                     isGenerating = false;
                     appendToConsole(`\u2717 Generation error: ${error}`);
                     if (stack) console.error('Worker error stack:', stack);
                     hideProgressIndicator();
                 } else {
-                    console.log('[Generator] Ignoring error from cancelled generation');
+                    console.log(`[Generator] Ignoring error from generation ${e.data.generationId} (current: ${currentGenerationId})`);
                 }
                 break;
         }
@@ -1265,9 +1336,10 @@ async function generateGeometry(type) {
         // Store design data globally for download
         window.currentGeneratedDesign = designData;
 
-        // Send generation request to worker
+        // Send generation request to worker (include ID for cancellation tracking)
         generatorWorker.postMessage({
             type: 'GENERATE',
+            generationId: currentGenerationId,
             data: {
                 designData,
                 generateType: type,
@@ -1334,6 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('worm-type').addEventListener('change', (e) => {
         document.getElementById('design-tab').dataset.wormType = e.target.value;
         updateGenerationMethodForWormType(e.target.value);
+        updateArcAngleModeVisibility(e.target.value);
     });
 
     // Mode switching
@@ -1341,6 +1414,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = group.dataset.mode === e.target.value ? 'block' : 'none';
         });
+
+        // When from-arc-angle is selected, force worm type to globoid
+        if (e.target.value === 'from-arc-angle') {
+            const wormTypeEl = document.getElementById('worm-type');
+            if (wormTypeEl.value !== 'globoid') {
+                wormTypeEl.value = 'globoid';
+                wormTypeEl.dispatchEvent(new Event('change'));
+            }
+        }
+
+        // Hide/show the separate arc-angle-group when mode changes
+        updateDesignTabMode(e.target.value);
     });
 
     // Throat reduction mode switching (auto vs custom)
@@ -1359,6 +1444,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 throatReduction = currentDesign.worm.pitch_diameter_mm * 0.02; // fallback
             }
             document.getElementById('throat-reduction').value = throatReduction.toFixed(2);
+        }
+    });
+
+    // Arc angle mode switching (auto vs custom)
+    document.getElementById('arc-angle-mode')?.addEventListener('change', (e) => {
+        const isCustom = e.target.value === 'custom';
+        document.getElementById('arc-angle-custom').style.display = isCustom ? 'block' : 'none';
+        document.getElementById('arc-angle-auto-hint').style.display = isCustom ? 'none' : 'block';
+        if (isCustom && currentDesign?.worm?.throat_arc_angle_deg) {
+            document.getElementById('arc-angle').value = Math.round(currentDesign.worm.throat_arc_angle_deg);
         }
     });
 

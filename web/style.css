@@ -318,6 +318,11 @@ small.hint-expanded {
     display: block !important;
 }
 
+/* Hide the separate arc-angle-group when "From Arc Angle" mode is active (redundant) */
+#design-tab[data-mode="from-arc-angle"] #arc-angle-group {
+    display: none !important;
+}
+
 /* ============================================================================
    GENERATOR TAB - Generation Options
    ============================================================================ */

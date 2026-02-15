@@ -116,6 +116,18 @@
       "default": null,
       "title": "Throat Curvature Radius Mm"
     },
+    "throat_arc_angle_deg": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Throat Arc Angle Deg"
+    },
     "length_mm": {
       "anyOf": [
         {

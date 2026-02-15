@@ -10,7 +10,7 @@ Reference standards:
 - ISO 54 (standard modules)
 """
 
-from math import pi, tan, atan, degrees, radians, cos, sin, sqrt
+from math import pi, tan, atan, acos, degrees, radians, cos, sin, sqrt
 from typing import Optional, Tuple, Union
 
 from ..enums import Hand, WormProfile, WormType
@@ -383,6 +383,7 @@ def _build_design(
     globoid: bool = False,
     throat_reduction_mm: Optional[float] = None,
     throat_curvature_radius_mm: Optional[float] = None,
+    throat_arc_angle_deg: Optional[float] = None,
     wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
     """
@@ -408,7 +409,8 @@ def _build_design(
         profile_shift=worm_dict.get("profile_shift", 0.0),
         type=worm_type,
         throat_reduction_mm=throat_reduction_mm,
-        throat_curvature_radius_mm=throat_curvature_radius_mm
+        throat_curvature_radius_mm=throat_curvature_radius_mm,
+        throat_arc_angle_deg=throat_arc_angle_deg
     )
 
     # Build WheelParams
@@ -478,6 +480,7 @@ def design_from_module(
     worm_type: Union[WormType, str, None] = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
+    throat_arc_angle: float = 0.0,
     wheel_throated: bool = False,
     wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
@@ -553,9 +556,6 @@ def design_from_module(
     # Add globoid-specific parameters if applicable
     if globoid:
         worm["throat_reduction_mm"] = throat_reduction
-        # Calculate throat curvature radius (related to wheel pitch radius)
-        wheel_pitch_radius = (module * ratio * num_starts) / 2
-        worm["throat_curvature_radius_mm"] = wheel_pitch_radius
 
     # Calculate wheel parameters
     wheel = calculate_wheel(
@@ -599,7 +599,27 @@ def design_from_module(
 
     # Globoid-specific parameters
     throat_reduction_mm = throat_reduction if globoid else None
-    throat_curvature_radius_mm = (module * ratio * num_starts) / 2 if globoid else None
+    throat_curvature_radius_mm = None
+    actual_arc_angle_deg = None
+    if globoid:
+        wheel_pitch_radius = (module * ratio * num_starts) / 2
+        if throat_arc_angle > 0 and throat_reduction > 0:
+            # User-specified arc angle: R_c = throat_reduction / (1 - cos(beta/2))
+            arc_angle_rad = radians(throat_arc_angle)
+            denom = 1 - cos(arc_angle_rad / 2)
+            if denom > 1e-10:
+                throat_curvature_radius_mm = throat_reduction / denom
+            else:
+                throat_curvature_radius_mm = wheel_pitch_radius
+            actual_arc_angle_deg = throat_arc_angle
+        else:
+            # Auto: R_c = wheel_pitch_radius (current default behavior)
+            throat_curvature_radius_mm = wheel_pitch_radius
+            # Back-calculate what arc angle this corresponds to
+            if throat_reduction > 0 and wheel_pitch_radius > throat_reduction:
+                cos_val = 1 - throat_reduction / wheel_pitch_radius
+                cos_val = max(-1.0, min(1.0, cos_val))
+                actual_arc_angle_deg = round(2 * degrees(acos(cos_val)), 2)
 
     return _build_design(
         worm_dict=worm,
@@ -618,6 +638,7 @@ def design_from_module(
         globoid=globoid,
         throat_reduction_mm=throat_reduction_mm,
         throat_curvature_radius_mm=throat_curvature_radius_mm,
+        throat_arc_angle_deg=actual_arc_angle_deg,
         wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
 
@@ -636,6 +657,7 @@ def design_from_centre_distance(
     worm_type: Union[WormType, str, None] = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
+    throat_arc_angle: float = 0.0,
     wheel_throated: bool = False,
     wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
@@ -711,6 +733,7 @@ def design_from_centre_distance(
         profile=profile,
         globoid=globoid,
         throat_reduction=throat_reduction,
+        throat_arc_angle=throat_arc_angle,
         wheel_throated=wheel_throated,
         wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
@@ -730,6 +753,7 @@ def design_from_wheel(
     worm_type: Union[WormType, str, None] = None,
     globoid: bool = False,
     throat_reduction: float = 0.0,
+    throat_arc_angle: float = 0.0,
     wheel_throated: bool = False,
     wheel_tip_reduction_mm: Optional[float] = None
 ) -> WormGearDesign:
@@ -799,6 +823,7 @@ def design_from_wheel(
         profile=profile,
         globoid=globoid,
         throat_reduction=throat_reduction,
+        throat_arc_angle=throat_arc_angle,
         wheel_throated=wheel_throated,
         wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
@@ -817,6 +842,7 @@ def design_from_envelope(
     profile: Union[WormProfile, str] = "ZA",
     worm_type: Union[WormType, str, None] = None,
     throat_reduction: float = 0.0,
+    throat_arc_angle: float = 0.0,
     wheel_throated: bool = False,
     od_as_maximum: bool = False,
     use_standard_module: bool = False,
@@ -895,6 +921,7 @@ def design_from_envelope(
                     profile=profile,
                     worm_type=worm_type,
                     throat_reduction=throat_reduction,
+                    throat_arc_angle=throat_arc_angle,
                     wheel_throated=wheel_throated,
                     wheel_tip_reduction_mm=wheel_tip_reduction_mm
                 )
@@ -935,6 +962,7 @@ def design_from_envelope(
         profile=profile,
         worm_type=worm_type,
         throat_reduction=throat_reduction,
+        throat_arc_angle=throat_arc_angle,
         wheel_throated=wheel_throated,
         wheel_tip_reduction_mm=wheel_tip_reduction_mm
     )
