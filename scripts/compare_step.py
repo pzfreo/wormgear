@@ -15,8 +15,6 @@ import sys
 from pathlib import Path
 
 from build123d import import_step, Part
-from OCP.BRepBndLib import BRepBndLib
-from OCP.Bnd import Bnd_Box
 from OCP.BRepGProp import BRepGProp
 from OCP.GProp import GProp_GProps
 from OCP.TopExp import TopExp_Explorer
@@ -57,10 +55,10 @@ def get_properties(part: Part) -> dict:
     com = vol_props.CentreOfMass()
     centre_of_mass = (com.X(), com.Y(), com.Z())
 
-    # Bounding box
-    bbox = Bnd_Box()
-    BRepBndLib.Add_s(part.wrapped, bbox)
-    xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
+    # Bounding box — use build123d's tight bbox (OCP BRepBndLib is inflated)
+    bb = part.bounding_box()
+    xmin, ymin, zmin = bb.min.X, bb.min.Y, bb.min.Z
+    xmax, ymax, zmax = bb.max.X, bb.max.Y, bb.max.Z
 
     # Topology
     topo = count_topology(part)
@@ -256,7 +254,7 @@ def print_report(name: str, result: dict, tolerance_pct: float):
     print(f"  Dimensions:")
     bx, cx = ref["bbox_size"], cand["bbox_size"]
     bd, bp = result["bbox_diffs_mm"], result["bbox_diffs_pct"]
-    for i, axis in enumerate(("X (width)", "Y (height)", "Z (length)")):
+    for i, axis in enumerate(("X", "Y", "Z")):
         metric(f"  {axis}", bx[i], cx[i], bp[i], bd[i], " mm", " mm")
 
     # --- Volume & Area ---
