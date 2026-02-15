@@ -8,6 +8,7 @@ import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
 import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
+import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, buildSpecRows } from './modules/format-utils.js';
 
 // Global state
 let currentDesign = null;
@@ -345,25 +346,12 @@ function renderSpecSheet(design, output, messages = []) {
         return;
     }
 
-    const worm = design.worm || {};
-    const wheel = design.wheel || {};
-    const asm = design.assembly || {};
-    const mfg = design.manufacturing || {};
-    const features = design.features || {};
-
-    const wormType = worm.type || 'cylindrical';
-    const profileLabels = { 'ZA': 'ZA (straight flanks)', 'ZK': 'ZK (convex flanks)', 'ZI': 'ZI (involute)' };
-    const profileLabel = profileLabels[mfg.profile] || mfg.profile || 'ZA';
-
-    // Helper: format number to fixed decimals, or dash if missing
-    const fmt = (val, decimals = 2) => val != null ? Number(val).toFixed(decimals) : '\u2014';
-    const fmtMm = (val, decimals = 2) => val != null ? `${Number(val).toFixed(decimals)} mm` : '\u2014';
-    const fmtDeg = (val, decimals = 1) => val != null ? `${Number(val).toFixed(decimals)}\u00b0` : '\u2014';
+    const rows = buildSpecRows(design, output);
 
     // Helper: build a table section with inline validation messages
-    function section(title, rows) {
+    function section(title, sectionRows) {
         let html = `<div class="spec-section"><h3 class="spec-section-title">${title}</h3><table class="spec-table">`;
-        for (const [label, value] of rows) {
+        for (const [label, value] of sectionRows) {
             if (value === undefined || value === null) continue;
             html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
         }
@@ -375,110 +363,13 @@ function renderSpecSheet(design, output, messages = []) {
 
     let html = '';
 
-    // OVERVIEW
-    html += section('Overview', [
-        ['Ratio', `${asm.ratio}:1`],
-        ['Module', fmtMm(worm.module_mm, 3)],
-        ['Centre Distance', fmtMm(asm.centre_distance_mm)],
-        ['Hand', (asm.hand || 'right').charAt(0).toUpperCase() + (asm.hand || 'right').slice(1).toLowerCase()],
-        ['Profile', profileLabel],
-        wormType === 'globoid' ? ['Worm Type', 'Globoid'] : null,
-    ].filter(Boolean));
+    html += section('Overview', rows.overview);
+    html += section('Worm', rows.worm);
+    html += section('Wheel', rows.wheel);
+    html += section('Assembly', rows.assembly);
 
-    // WORM
-    const wormRows = [
-        ['Tip Diameter', fmtMm(worm.tip_diameter_mm)],
-        ['Pitch Diameter', fmtMm(worm.pitch_diameter_mm)],
-        ['Root Diameter', fmtMm(worm.root_diameter_mm)],
-        ['Lead', fmtMm(worm.lead_mm, 3)],
-        ['Lead Angle', fmtDeg(worm.lead_angle_deg)],
-        ['Starts', worm.num_starts],
-    ];
-    if (mfg.worm_length_mm) {
-        const recWormLen = output?.recommended_worm_length_mm;
-        const isCustomWormLen = recWormLen != null && Math.abs(mfg.worm_length_mm - recWormLen) > 0.01;
-        const wormLenNote = isCustomWormLen
-            ? `${fmt(recWormLen, 1)} mm recommended`
-            : 'recommended';
-        wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm <span class="spec-note">(${wormLenNote})</span>`]);
-    }
-    if (wormType === 'globoid' && worm.throat_curvature_radius_mm) {
-        wormRows.push(['Throat Pitch Radius', fmtMm(worm.throat_curvature_radius_mm)]);
-    }
-    if (wormType === 'globoid' && worm.throat_reduction_mm) {
-        wormRows.push(['Throat Reduction', fmtMm(worm.throat_reduction_mm)]);
-    }
-    html += section('Worm', wormRows);
-
-    // WHEEL
-    const wheelRows = [
-        ['Tip Diameter', fmtMm(wheel.tip_diameter_mm)],
-        ['Pitch Diameter', fmtMm(wheel.pitch_diameter_mm)],
-        ['Root Diameter', fmtMm(wheel.root_diameter_mm)],
-        ['Teeth', wheel.num_teeth],
-    ];
-    if (mfg.wheel_width_mm) {
-        const recWheelWidth = output?.recommended_wheel_width_mm;
-        const isCustomWheelWidth = recWheelWidth != null && Math.abs(mfg.wheel_width_mm - recWheelWidth) > 0.01;
-        const wheelWidthNote = isCustomWheelWidth
-            ? `${fmt(recWheelWidth, 1)} mm recommended`
-            : 'recommended';
-        wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm <span class="spec-note">(${wheelWidthNote})</span>`]);
-    }
-    if (wheel.helix_angle_deg) {
-        wheelRows.push(['Helix Angle', fmtDeg(wheel.helix_angle_deg)]);
-    }
-    wheelRows.push(['Throated', mfg.throated_wheel ? 'Yes' : 'No']);
-
-    // Show min OD at throat for globoid
-    if (wormType === 'globoid' && worm.throat_reduction_mm) {
-        const arcR = worm.tip_diameter_mm / 2 - worm.throat_reduction_mm;
-        const margin = worm.addendum_mm + 0.5 * wheel.addendum_mm;
-        const minBlankR = asm.centre_distance_mm - arcR + margin;
-        const throatOD = 2 * Math.min(wheel.tip_diameter_mm / 2, minBlankR);
-        wheelRows.push(['Min OD at Throat', fmtMm(throatOD)]);
-    }
-    html += section('Wheel', wheelRows);
-
-    // ASSEMBLY
-    html += section('Assembly', [
-        ['Pressure Angle', fmtDeg(asm.pressure_angle_deg)],
-        ['Backlash', fmtMm(asm.backlash_mm, 3)],
-        ['Efficiency', asm.efficiency_percent != null ? `~${Math.round(asm.efficiency_percent)}%` : '\u2014'],
-        ['Self-Locking', asm.self_locking ? 'Yes' : 'No'],
-    ]);
-
-    // SHAFT INTERFACE
-    const shaftRows = [];
-    const wormFeatures = features.worm || {};
-    const wheelFeatures = features.wheel || {};
-
-    if (wormFeatures.bore_type === 'custom' && wormFeatures.bore_diameter_mm) {
-        let wormBoreStr = `${fmt(wormFeatures.bore_diameter_mm, 1)} mm`;
-        if (wormFeatures.anti_rotation === 'DIN6885') {
-            wormBoreStr += ' + DIN 6885 keyway';
-        } else if (wormFeatures.anti_rotation === 'ddcut') {
-            wormBoreStr += ' + DD-cut';
-        }
-        shaftRows.push(['Worm Bore', wormBoreStr]);
-    } else if (wormFeatures.bore_type === 'none') {
-        shaftRows.push(['Worm Bore', 'Solid (no bore)']);
-    }
-
-    if (wheelFeatures.bore_type === 'custom' && wheelFeatures.bore_diameter_mm) {
-        let wheelBoreStr = `${fmt(wheelFeatures.bore_diameter_mm, 1)} mm`;
-        if (wheelFeatures.anti_rotation === 'DIN6885') {
-            wheelBoreStr += ' + DIN 6885 keyway';
-        } else if (wheelFeatures.anti_rotation === 'ddcut') {
-            wheelBoreStr += ' + DD-cut';
-        }
-        shaftRows.push(['Wheel Bore', wheelBoreStr]);
-    } else if (wheelFeatures.bore_type === 'none') {
-        shaftRows.push(['Wheel Bore', 'Solid (no bore)']);
-    }
-
-    if (shaftRows.length > 0) {
-        html += section('Shaft Interface', shaftRows);
+    if (rows.shaft.length > 0) {
+        html += section('Shaft Interface', rows.shaft);
     }
 
     // Render any "General" messages that don't map to a specific section
@@ -862,12 +753,7 @@ function buildPDFDocument() {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
     const design = currentDesign;
-    const worm = design.worm || {};
-    const wheel = design.wheel || {};
-    const asm = design.assembly || {};
-    const mfg = design.manufacturing || {};
-    const features = design.features || {};
-    const wormType = worm.type || 'cylindrical';
+    const rows = buildSpecRows(design, currentOutput);
 
     const pageW = doc.internal.pageSize.getWidth();
     const margin = 15;
@@ -879,9 +765,6 @@ function buildPDFDocument() {
     const muted = [100, 116, 139];
     const sectionBg = [241, 245, 249];
     const borderCol = [226, 232, 240];
-
-    // Helpers
-    const fmt = (val, d = 2) => val != null ? Number(val).toFixed(d) : '\u2014';
 
     function drawTitle(text) {
         doc.setFont('helvetica', 'bold');
@@ -936,15 +819,15 @@ function buildPDFDocument() {
         y += rowH;
     }
 
-    function drawSection(title, rows) {
+    function drawSection(title, sectionRows) {
         // Check if section fits on page (header + rows)
-        const sectionH = 5.5 + rows.length * 5.5 + 4;
+        const sectionH = 5.5 + sectionRows.length * 5.5 + 4;
         if (y + sectionH > 280) {
             doc.addPage();
             y = margin;
         }
         drawSectionHeader(title);
-        rows.forEach((row, i) => drawRow(row[0], row[1], i === rows.length - 1));
+        sectionRows.forEach((row, i) => drawRow(row[0], row[1], i === sectionRows.length - 1));
         y += 4;
     }
 
@@ -958,96 +841,12 @@ function buildPDFDocument() {
     y += 8;
     drawTitle('Specification Sheet');
 
-    // Profile labels
-    const profileLabels = { 'ZA': 'ZA (straight flanks)', 'ZK': 'ZK (convex flanks)', 'ZI': 'ZI (involute)' };
-
-    // OVERVIEW
-    const overviewRows = [
-        ['Ratio', `${asm.ratio}:1`],
-        ['Module', `${fmt(worm.module_mm, 3)} mm`],
-        ['Centre Distance', `${fmt(asm.centre_distance_mm)} mm`],
-        ['Hand', (asm.hand || 'right').charAt(0).toUpperCase() + (asm.hand || 'right').slice(1).toLowerCase()],
-        ['Profile', profileLabels[mfg.profile] || mfg.profile || 'ZA'],
-    ];
-    if (wormType === 'globoid') overviewRows.push(['Worm Type', 'Globoid']);
-    drawSection('Overview', overviewRows);
-
-    // WORM
-    const wormRows = [
-        ['Tip Diameter', `${fmt(worm.tip_diameter_mm)} mm`],
-        ['Pitch Diameter', `${fmt(worm.pitch_diameter_mm)} mm`],
-        ['Root Diameter', `${fmt(worm.root_diameter_mm)} mm`],
-        ['Lead', `${fmt(worm.lead_mm, 3)} mm`],
-        ['Lead Angle', `${fmt(worm.lead_angle_deg, 1)}\u00b0`],
-        ['Starts', `${worm.num_starts}`],
-    ];
-    if (mfg.worm_length_mm) {
-        const recWormLen = currentOutput?.recommended_worm_length_mm;
-        const isCustom = recWormLen != null && Math.abs(mfg.worm_length_mm - recWormLen) > 0.01;
-        const note = isCustom ? `(${fmt(recWormLen, 1)} mm recommended)` : '(recommended)';
-        wormRows.push(['Length', `${fmt(mfg.worm_length_mm, 1)} mm ${note}`]);
-    }
-    if (wormType === 'globoid' && worm.throat_curvature_radius_mm) {
-        wormRows.push(['Throat Pitch Radius', `${fmt(worm.throat_curvature_radius_mm)} mm`]);
-    }
-    if (wormType === 'globoid' && worm.throat_reduction_mm) {
-        wormRows.push(['Throat Reduction', `${fmt(worm.throat_reduction_mm)} mm`]);
-    }
-    drawSection('Worm', wormRows);
-
-    // WHEEL
-    const wheelRows = [
-        ['Tip Diameter', `${fmt(wheel.tip_diameter_mm)} mm`],
-        ['Pitch Diameter', `${fmt(wheel.pitch_diameter_mm)} mm`],
-        ['Root Diameter', `${fmt(wheel.root_diameter_mm)} mm`],
-        ['Teeth', `${wheel.num_teeth}`],
-    ];
-    if (mfg.wheel_width_mm) {
-        const recWheelW = currentOutput?.recommended_wheel_width_mm;
-        const isCustom = recWheelW != null && Math.abs(mfg.wheel_width_mm - recWheelW) > 0.01;
-        const note = isCustom ? `(${fmt(recWheelW, 1)} mm recommended)` : '(recommended)';
-        wheelRows.push(['Face Width', `${fmt(mfg.wheel_width_mm, 1)} mm ${note}`]);
-    }
-    if (wheel.helix_angle_deg) wheelRows.push(['Helix Angle', `${fmt(wheel.helix_angle_deg, 1)}\u00b0`]);
-    wheelRows.push(['Throated', mfg.throated_wheel ? 'Yes' : 'No']);
-    if (wormType === 'globoid' && worm.throat_reduction_mm) {
-        const arcR = worm.tip_diameter_mm / 2 - worm.throat_reduction_mm;
-        const mg = worm.addendum_mm + 0.5 * wheel.addendum_mm;
-        const minBlankR = asm.centre_distance_mm - arcR + mg;
-        const throatOD = 2 * Math.min(wheel.tip_diameter_mm / 2, minBlankR);
-        wheelRows.push(['Min OD at Throat', `${fmt(throatOD)} mm`]);
-    }
-    drawSection('Wheel', wheelRows);
-
-    // ASSEMBLY
-    drawSection('Assembly', [
-        ['Pressure Angle', `${fmt(asm.pressure_angle_deg, 1)}\u00b0`],
-        ['Backlash', `${fmt(asm.backlash_mm, 3)} mm`],
-        ['Efficiency', asm.efficiency_percent != null ? `~${Math.round(asm.efficiency_percent)}%` : '\u2014'],
-        ['Self-Locking', asm.self_locking ? 'Yes' : 'No'],
-    ]);
-
-    // SHAFT INTERFACE
-    const shaftRows = [];
-    const wormF = features.worm || {};
-    const wheelF = features.wheel || {};
-    if (wormF.bore_type === 'custom' && wormF.bore_diameter_mm) {
-        let s = `${fmt(wormF.bore_diameter_mm, 1)} mm`;
-        if (wormF.anti_rotation === 'DIN6885') s += ' + DIN 6885 keyway';
-        else if (wormF.anti_rotation === 'ddcut') s += ' + DD-cut';
-        shaftRows.push(['Worm Bore', s]);
-    } else if (wormF.bore_type === 'none') {
-        shaftRows.push(['Worm Bore', 'Solid (no bore)']);
-    }
-    if (wheelF.bore_type === 'custom' && wheelF.bore_diameter_mm) {
-        let s = `${fmt(wheelF.bore_diameter_mm, 1)} mm`;
-        if (wheelF.anti_rotation === 'DIN6885') s += ' + DIN 6885 keyway';
-        else if (wheelF.anti_rotation === 'ddcut') s += ' + DD-cut';
-        shaftRows.push(['Wheel Bore', s]);
-    } else if (wheelF.bore_type === 'none') {
-        shaftRows.push(['Wheel Bore', 'Solid (no bore)']);
-    }
-    if (shaftRows.length > 0) drawSection('Shaft Interface', shaftRows);
+    // Render all sections from shared row data
+    drawSection('Overview', rows.overview);
+    drawSection('Worm', rows.worm);
+    drawSection('Wheel', rows.wheel);
+    drawSection('Assembly', rows.assembly);
+    if (rows.shaft.length > 0) drawSection('Shaft Interface', rows.shaft);
 
     // Footer
     y += 4;
