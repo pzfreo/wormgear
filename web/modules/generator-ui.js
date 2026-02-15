@@ -4,8 +4,7 @@
  * Handles generator tab UI functions: console output, progress, file loading.
  */
 
-// getCalculatorPyodide no longer needed — markdown is generated in the
-// generator worker via generate_package() and included in the pre-built ZIP.
+import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, formatBoreStr } from './format-utils.js';
 
 // Track hobbing progress for time estimation
 let hobbingStartTime = null;
@@ -54,18 +53,12 @@ export function updateDesignSummary(design) {
     const moduleStr = `m${Number(worm.module_mm).toFixed(1)}`;
     const ratioStr = `r${assembly.ratio}`;
     const profileStr = manufacturing.profile || 'ZA';
-    const profileLabels = { 'ZA': 'ZA (straight)', 'ZK': 'ZK (convex)', 'ZI': 'ZI (involute)' };
 
     // Compact one-liner banner
     if (banner) {
         banner.textContent = `Design: ${moduleStr} ${ratioStr} ${wormType} ${profileStr}`;
         banner.style.display = 'block';
     }
-
-    // Helpers
-    const fmt = (v, d = 2) => v != null ? Number(v).toFixed(d) : '\u2014';
-    const fmtMm = (v, d = 2) => v != null ? `${Number(v).toFixed(d)} mm` : '\u2014';
-    const fmtDeg = (v, d = 1) => v != null ? `${Number(v).toFixed(d)}\u00b0` : '\u2014';
 
     function section(title, rows, open = false) {
         const openAttr = open ? ' open' : '';
@@ -85,7 +78,7 @@ export function updateDesignSummary(design) {
         ['Module', fmtMm(worm.module_mm, 3)],
         ['Ratio', `${assembly.ratio}:1`],
         ['Centre Distance', fmtMm(assembly.centre_distance_mm)],
-        ['Profile', profileLabels[profileStr] || profileStr],
+        ['Profile', PROFILE_LABELS[profileStr] || profileStr],
     ];
     if (wormType === 'globoid') overviewRows.push(['Worm Type', 'Globoid']);
     html += section('Overview', overviewRows, true);
@@ -126,23 +119,11 @@ export function updateDesignSummary(design) {
     const wormF = features.worm || {};
     const wheelF = features.wheel || {};
 
-    if (wormF.bore_type === 'custom' && wormF.bore_diameter_mm) {
-        let s = `${fmt(wormF.bore_diameter_mm, 1)} mm`;
-        if (wormF.anti_rotation === 'DIN6885') s += ' + keyway';
-        else if (wormF.anti_rotation === 'ddcut') s += ' + DD-cut';
-        shaftRows.push(['Worm Bore', s]);
-    } else if (wormF.bore_type === 'none') {
-        shaftRows.push(['Worm Bore', 'Solid']);
-    }
+    const wormBoreStr = formatBoreStr(wormF, { verbose: false });
+    if (wormBoreStr) shaftRows.push(['Worm Bore', wormBoreStr]);
 
-    if (wheelF.bore_type === 'custom' && wheelF.bore_diameter_mm) {
-        let s = `${fmt(wheelF.bore_diameter_mm, 1)} mm`;
-        if (wheelF.anti_rotation === 'DIN6885') s += ' + keyway';
-        else if (wheelF.anti_rotation === 'ddcut') s += ' + DD-cut';
-        shaftRows.push(['Wheel Bore', s]);
-    } else if (wheelF.bore_type === 'none') {
-        shaftRows.push(['Wheel Bore', 'Solid']);
-    }
+    const wheelBoreStr = formatBoreStr(wheelF, { verbose: false });
+    if (wheelBoreStr) shaftRows.push(['Wheel Bore', wheelBoreStr]);
 
     if (shaftRows.length > 0) {
         html += section('Shaft Interface', shaftRows);

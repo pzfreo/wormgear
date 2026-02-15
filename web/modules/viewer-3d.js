@@ -16,6 +16,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { base64ToArrayBuffer } from './format-utils.js';
 
 let renderer = null;
 let scene = null;
@@ -31,19 +32,6 @@ let speedMultiplier = 1.0;
 let initialized = false;
 
 const BASE_SPEED = 0.02; // radians per frame for worm
-
-/**
- * Decode base64 string to ArrayBuffer.
- */
-function base64ToArrayBuffer(base64) {
-    const binary = atob(base64);
-    const buffer = new ArrayBuffer(binary.length);
-    const view = new Uint8Array(buffer);
-    for (let i = 0; i < binary.length; i++) {
-        view[i] = binary.charCodeAt(i);
-    }
-    return buffer;
-}
 
 /**
  * Parse a 3MF base64 string into a BufferGeometry by manually
