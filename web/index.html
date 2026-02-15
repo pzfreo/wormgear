@@ -67,6 +67,7 @@
                             <option value="from-centre-distance">From Centre Distance</option>
                             <option value="from-wheel">From Wheel OD</option>
                             <option value="envelope">Envelope (both ODs)</option>
+                            <option value="from-arc-angle" class="globoid-only-option" style="display: none;">From Arc Angle (globoid)</option>
                         </select>
                         <small class="hint">Choose how to define your gear pair. "From Module" is the most common starting point.</small>
                         <small class="hint-expanded"><strong>From Module</strong> is the standard starting point when you know the tooth size you need. <strong>From Centre Distance</strong> is useful when your shafts are already positioned. <strong>From Wheel OD</strong> constrains the wheel to fit a specific space. <strong>Envelope</strong> constrains both parts to fit within given outer diameters.</small>
@@ -109,6 +110,22 @@
                                 <label for="target-lead-angle">Target Lead Angle (degrees):</label>
                                 <input type="number" id="target-lead-angle" value="8" step="0.1">
                                 <small class="hint">Lead angle affects efficiency. Below 3 deg = self-locking but low efficiency.</small>
+                            </div>
+
+                            <!-- From Arc Angle mode inputs (globoid) -->
+                            <div class="input-group" data-mode="from-arc-angle" style="display: none;">
+                                <label for="arc-angle-faa">Arc Angle &beta; (degrees):</label>
+                                <input type="number" id="arc-angle-faa" value="90" step="5" min="10" max="180">
+                                <small class="hint">Controls hourglass curvature tightness (10&deg;&ndash;180&deg;).</small>
+                                <small class="hint-expanded">The arc angle (&beta;) controls how tightly the hourglass curves. A large angle (e.g. 180&deg;) produces tight curvature with a small radius, while a small angle (e.g. 60&deg;) produces a gentler curve. This mode forces globoid worm type and uses the arc angle as a primary design parameter.</small>
+
+                                <label for="module-faa">Module (mm):</label>
+                                <input type="number" id="module-faa" value="2.0" step="0.01" min="0.1">
+                                <small class="hint">Tooth size. Standard modules: 0.5, 0.8, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0</small>
+
+                                <label for="ratio-faa">Ratio:</label>
+                                <input type="number" id="ratio-faa" value="30" step="1" min="1">
+                                <small class="hint">Wheel teeth per worm start. Higher = more reduction.</small>
                             </div>
 
                             <!-- Envelope mode inputs -->

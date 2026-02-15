@@ -128,6 +128,11 @@ export function getInputs(mode, wormType = 'cylindrical') {
             rawInputs.centre_distance = safeParseFloat(getValue('centre-distance'));
             rawInputs.ratio = safeParseInt(getValue('ratio-fcd'));
             break;
+        case 'from-arc-angle':
+            rawInputs.module = safeParseFloat(getValue('module-faa'));
+            rawInputs.ratio = safeParseInt(getValue('ratio-faa'));
+            rawInputs.throat_arc_angle = safeParseFloat(getValue('arc-angle-faa')) || 0;
+            break;
     }
 
     // Validate and return

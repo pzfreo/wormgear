@@ -18,7 +18,7 @@ const VALID_PROFILES = ['ZA', 'ZK', 'ZI'];
 const VALID_WORM_TYPES = ['cylindrical', 'globoid'];
 const VALID_BORE_TYPES = ['none', 'custom'];  // 'custom' with null diameter = auto-calculate
 const VALID_ANTI_ROTATION = ['none', 'DIN6885', 'ddcut'];
-const VALID_MODES = ['from-module', 'from-centre-distance', 'from-wheel', 'envelope'];
+const VALID_MODES = ['from-module', 'from-centre-distance', 'from-wheel', 'envelope', 'from-arc-angle'];
 const VALID_SEVERITIES = ['error', 'warning', 'info'];
 
 // ============================================================================
@@ -174,6 +174,7 @@ export function validateCalculatorInputs(inputs) {
         profile: requireEnum(inputs.profile?.toUpperCase() || 'ZA', VALID_PROFILES, 'profile'),
         worm_type: requireEnum(inputs.worm_type?.toLowerCase() || 'cylindrical', VALID_WORM_TYPES, 'worm_type'),
         throat_reduction: requireNumber(inputs.throat_reduction ?? 0, 'throat_reduction'),
+        throat_arc_angle: requireNumber(inputs.throat_arc_angle ?? 0, 'throat_arc_angle'),
         wheel_throated: typeof inputs.wheel_throated === 'boolean' ? inputs.wheel_throated : false,
         bore: validateBoreSettings(inputs.bore),
         manufacturing: validateManufacturingSettings(inputs.manufacturing)

@@ -129,12 +129,23 @@ function loadDesignIntoDesignTab(design) {
         designTab.dataset.wormType = wormType;
         document.getElementById('worm-type').value = wormType;
 
-        // --- 2. Mode: always use from-module (module + ratio are in every JSON) ---
+        // --- 2. Mode: use from-arc-angle for globoid with arc angle, else from-module ---
         const modeEl = document.getElementById('mode');
-        modeEl.value = 'from-module';
+        updateArcAngleModeVisibility(wormType);
+
+        if (wormType === 'globoid' && worm.throat_arc_angle_deg && worm.throat_arc_angle_deg > 0) {
+            modeEl.value = 'from-arc-angle';
+            // Set from-arc-angle inputs
+            document.getElementById('arc-angle-faa').value = worm.throat_arc_angle_deg;
+            document.getElementById('module-faa').value = worm.module_mm;
+            document.getElementById('ratio-faa').value = asm.ratio;
+        } else {
+            modeEl.value = 'from-module';
+        }
         document.querySelectorAll('.input-group').forEach(group => {
-            group.style.display = group.dataset.mode === 'from-module' ? 'block' : 'none';
+            group.style.display = group.dataset.mode === modeEl.value ? 'block' : 'none';
         });
+        updateArcAngleGroupVisibility(modeEl.value);
 
         // --- 3. Core inputs ---
         document.getElementById('module').value = worm.module_mm;
@@ -424,6 +435,49 @@ function updateThroatReductionAutoHint() {
     }
 }
 
+/**
+ * Show/hide the "From Arc Angle" option in the mode dropdown based on worm type.
+ * When switching away from globoid while from-arc-angle is selected, fall back to from-module.
+ * @param {string} wormType - 'cylindrical' or 'globoid'
+ */
+function updateArcAngleModeVisibility(wormType) {
+    const arcAngleOption = document.querySelector('#mode option[value="from-arc-angle"]');
+    if (!arcAngleOption) return;
+
+    if (wormType === 'globoid') {
+        arcAngleOption.style.display = '';
+    } else {
+        arcAngleOption.style.display = 'none';
+        // If currently on from-arc-angle, switch to from-module
+        const modeEl = document.getElementById('mode');
+        if (modeEl.value === 'from-arc-angle') {
+            modeEl.value = 'from-module';
+            modeEl.dispatchEvent(new Event('change'));
+        }
+    }
+}
+
+/**
+ * Hide the separate arc-angle-group control when "From Arc Angle" mode is active
+ * (it's redundant since arc angle is the primary input in that mode).
+ * @param {string} mode - Current design mode
+ */
+function updateArcAngleGroupVisibility(mode) {
+    const arcAngleGroup = document.getElementById('arc-angle-group');
+    if (!arcAngleGroup) return;
+
+    if (mode === 'from-arc-angle') {
+        arcAngleGroup.style.display = 'none';
+    } else {
+        // Only show if globoid is selected (CSS class handles this via data attribute,
+        // but we need to restore visibility when switching away from from-arc-angle)
+        const wormType = getActiveWormType();
+        if (wormType === 'globoid') {
+            arcAngleGroup.style.display = '';
+        }
+    }
+}
+
 // ============================================================================
 // TAB SWITCHING
 // ============================================================================
@@ -673,19 +727,22 @@ function loadFromUrl() {
 
     if (params.has('mode')) {
         const mode = params.get('mode');
+
+        // Handle worm_type from URL FIRST - needed so from-arc-angle option is visible
+        if (params.has('worm_type')) {
+            const wormType = params.get('worm_type');
+            document.getElementById('worm-type').value = wormType;
+            document.getElementById('design-tab').dataset.wormType = wormType;
+            updateArcAngleModeVisibility(wormType);
+        }
+
         document.getElementById('mode').value = mode;
 
         // Trigger mode change to show correct input group
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = group.dataset.mode === mode ? 'block' : 'none';
         });
-
-        // Handle worm_type from URL - set dropdown and data attribute
-        if (params.has('worm_type')) {
-            const wormType = params.get('worm_type');
-            document.getElementById('worm-type').value = wormType;
-            document.getElementById('design-tab').dataset.wormType = wormType;
-        }
+        updateArcAngleGroupVisibility(mode);
 
         // Set inputs based on mode
         params.forEach((value, key) => {
@@ -725,7 +782,8 @@ function getModeSuffix(mode) {
     const suffixes = {
         'from-wheel': 'fw',
         'from-module': 'fm',
-        'from-centre-distance': 'fcd'
+        'from-centre-distance': 'fcd',
+        'from-arc-angle': 'faa'
     };
     return suffixes[mode] || '';
 }
@@ -1355,6 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('worm-type').addEventListener('change', (e) => {
         document.getElementById('design-tab').dataset.wormType = e.target.value;
         updateGenerationMethodForWormType(e.target.value);
+        updateArcAngleModeVisibility(e.target.value);
     });
 
     // Mode switching
@@ -1362,6 +1421,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = group.dataset.mode === e.target.value ? 'block' : 'none';
         });
+
+        // When from-arc-angle is selected, force worm type to globoid
+        if (e.target.value === 'from-arc-angle') {
+            const wormTypeEl = document.getElementById('worm-type');
+            if (wormTypeEl.value !== 'globoid') {
+                wormTypeEl.value = 'globoid';
+                wormTypeEl.dispatchEvent(new Event('change'));
+            }
+        }
+
+        // Hide/show the separate arc-angle-group when mode changes
+        updateArcAngleGroupVisibility(e.target.value);
     });
 
     // Throat reduction mode switching (auto vs custom)

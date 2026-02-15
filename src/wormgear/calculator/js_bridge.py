@@ -92,7 +92,7 @@ class CalculatorInputs(BaseModel):
     model_config = ConfigDict(extra='ignore')
 
     # Calculation mode
-    mode: str = "from-module"  # "from-module" | "from-centre-distance" | "from-wheel" | "envelope"
+    mode: str = "from-module"  # "from-module" | "from-centre-distance" | "from-wheel" | "envelope" | "from-arc-angle"
 
     # Common parameters
     pressure_angle: float = 20.0
@@ -390,6 +390,18 @@ def _call_design_function(mode: str, inputs: CalculatorInputs, kwargs: Dict[str,
             ratio=inputs.ratio,
             od_as_maximum=inputs.od_as_maximum,
             use_standard_module=inputs.use_standard_module,
+            **kwargs
+        )
+    elif mode == 'from-arc-angle':
+        if inputs.module is None or inputs.ratio is None:
+            raise ValueError("module and ratio are required for from-arc-angle mode")
+        # Force globoid worm type and pass arc angle
+        kwargs['worm_type'] = WormType.GLOBOID
+        if inputs.throat_arc_angle and inputs.throat_arc_angle > 0:
+            kwargs['throat_arc_angle'] = inputs.throat_arc_angle
+        return design_from_module(
+            module=inputs.module,
+            ratio=inputs.ratio,
             **kwargs
         )
     else:
