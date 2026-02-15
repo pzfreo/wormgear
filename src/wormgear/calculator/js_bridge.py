@@ -103,6 +103,7 @@ class CalculatorInputs(BaseModel):
     profile: str = "ZA"
     worm_type: str = "cylindrical"
     throat_reduction: float = 0.0
+    throat_arc_angle: float = 0.0  # 0 = auto (derive from wheel pitch radius)
     wheel_throated: bool = False
 
     # Mode-specific parameters (optional, presence depends on mode)
@@ -332,11 +333,13 @@ def _build_calculator_kwargs(inputs: CalculatorInputs) -> Dict[str, Any]:
         'profile_shift': inputs.profile_shift,
     }
 
-    # Add user-specified throat reduction for globoid worms
+    # Add user-specified throat reduction and arc angle for globoid worms
     # (auto-default is calculated after design, when we have the pitch diameter)
     if inputs.worm_type == 'globoid':
         if inputs.throat_reduction and inputs.throat_reduction > 0:
             kwargs['throat_reduction'] = inputs.throat_reduction
+        if inputs.throat_arc_angle and inputs.throat_arc_angle > 0:
+            kwargs['throat_arc_angle'] = inputs.throat_arc_angle
 
     # Add wheel throated flag
     if inputs.wheel_throated:

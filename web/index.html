@@ -170,6 +170,23 @@
                                 <small class="hint" id="throat-reduction-auto-value">Calculated from worm/wheel geometry</small>
                             </div>
                         </div>
+
+                        <div id="arc-angle-group" class="globoid-only" style="display: none; margin-top: 8px;">
+                            <label for="arc-angle-mode">Arc Angle (&beta;):</label>
+                            <select id="arc-angle-mode">
+                                <option value="auto" selected>Auto (from wheel geometry)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <small class="hint">Controls curvature tightness. Larger = tighter curve, smaller = gentler.</small>
+                            <small class="hint-expanded">The arc angle (&beta;) controls how tightly the hourglass curves for a given throat reduction. A large angle (e.g. 180&deg;) produces tight curvature with a small curvature radius, while a small angle (e.g. 60&deg;) produces a gentler curve. Auto mode derives the angle from wheel pitch geometry (current default behavior).</small>
+                            <div id="arc-angle-custom" style="display: none;">
+                                <input type="number" id="arc-angle" value="90" step="5" min="10" max="180">
+                                <small class="hint">&deg; (10&ndash;180). Larger = tighter curvature.</small>
+                            </div>
+                            <div id="arc-angle-auto-hint">
+                                <small class="hint" id="arc-angle-auto-value">Derived from wheel pitch geometry</small>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ====== Step 2: Advanced Gear Options (collapsed) ====== -->

@@ -181,6 +181,21 @@ function loadDesignIntoDesignTab(design) {
                 }
             }
 
+            // Arc angle
+            const arcAngleMode = document.getElementById('arc-angle-mode');
+            if (arcAngleMode) {
+                if (worm.throat_arc_angle_deg && worm.throat_arc_angle_deg > 0) {
+                    arcAngleMode.value = 'custom';
+                    document.getElementById('arc-angle').value = worm.throat_arc_angle_deg;
+                    document.getElementById('arc-angle-custom').style.display = 'block';
+                    document.getElementById('arc-angle-auto-hint').style.display = 'none';
+                } else {
+                    arcAngleMode.value = 'auto';
+                    document.getElementById('arc-angle-custom').style.display = 'none';
+                    document.getElementById('arc-angle-auto-hint').style.display = 'block';
+                }
+            }
+
             // Trim to min engagement
             const trimEl = document.getElementById('trim-to-min-engagement');
             if (trimEl) trimEl.checked = !!mfg.trim_to_min_engagement;
@@ -400,6 +415,12 @@ function updateThroatReductionAutoHint() {
         hint.textContent = `\u2248 ${throatReduction.toFixed(2)}mm (geometric: worm_r - (CD - wheel_r))`;
     } else {
         hint.textContent = `Calculated from worm/wheel geometry`;
+    }
+
+    // Also update arc angle auto hint
+    const arcHint = document.getElementById('arc-angle-auto-value');
+    if (arcHint && currentDesign?.worm?.throat_arc_angle_deg) {
+        arcHint.textContent = `\u2248 ${currentDesign.worm.throat_arc_angle_deg.toFixed(1)}\u00b0`;
     }
 }
 
@@ -1359,6 +1380,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 throatReduction = currentDesign.worm.pitch_diameter_mm * 0.02; // fallback
             }
             document.getElementById('throat-reduction').value = throatReduction.toFixed(2);
+        }
+    });
+
+    // Arc angle mode switching (auto vs custom)
+    document.getElementById('arc-angle-mode')?.addEventListener('change', (e) => {
+        const isCustom = e.target.value === 'custom';
+        document.getElementById('arc-angle-custom').style.display = isCustom ? 'block' : 'none';
+        document.getElementById('arc-angle-auto-hint').style.display = isCustom ? 'none' : 'block';
+        if (isCustom && currentDesign?.worm?.throat_arc_angle_deg) {
+            document.getElementById('arc-angle').value = Math.round(currentDesign.worm.throat_arc_angle_deg);
         }
     });
 

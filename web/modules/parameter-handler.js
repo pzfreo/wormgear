@@ -91,6 +91,9 @@ export function getInputs(mode, wormType = 'cylindrical') {
         throat_reduction: getValue('throat-reduction-mode') === 'custom'
             ? safeParseFloat(getValue('throat-reduction')) || 0
             : 0,  // 0 = auto (Python calculates 15% of module)
+        throat_arc_angle: getValue('arc-angle-mode') === 'custom'
+            ? safeParseFloat(getValue('arc-angle')) || 0
+            : 0,  // 0 = auto (Python derives from wheel pitch radius)
         wheel_throated: getChecked('wheel-throated'),
         bore: bore,
         manufacturing: manufacturing,

@@ -130,8 +130,19 @@ class GloboidWormGeometry(BaseGeometry):
             logger.info(f"Note: Aggressive throat reduction ({throat_reduction*100:.1f}%). "
                   f"Throat radius={self.throat_pitch_radius:.2f}mm vs nominal={self.nominal_pitch_radius:.2f}mm")
 
-        # The curvature radius (how much the hourglass curves) matches wheel pitch
-        self.throat_curvature_radius = wheel_pitch_radius
+        # The curvature radius (how much the hourglass curves)
+        # If arc angle is specified, derive R_c from it; otherwise use wheel pitch radius
+        if params.throat_arc_angle_deg and params.throat_arc_angle_deg > 0 and self.throat_reduction_mm > 0:
+            arc_angle_rad = math.radians(params.throat_arc_angle_deg)
+            denom = 1 - math.cos(arc_angle_rad / 2)
+            if denom > 1e-10:
+                self.throat_curvature_radius = self.throat_reduction_mm / denom
+            else:
+                self.throat_curvature_radius = wheel_pitch_radius
+        elif params.throat_curvature_radius_mm and params.throat_curvature_radius_mm > 0:
+            self.throat_curvature_radius = params.throat_curvature_radius_mm
+        else:
+            self.throat_curvature_radius = wheel_pitch_radius
 
         # Determine worm length (support both length and face_width for backwards compatibility)
         if length is not None:

@@ -33,6 +33,7 @@ export type ProfileShift = number;
 export type WormType = "cylindrical" | "globoid";
 export type ThroatReductionMm = number | null;
 export type ThroatCurvatureRadiusMm = number | null;
+export type ThroatArcAngleDeg = number | null;
 export type LengthMm = number | null;
 export type ModuleMm1 = number;
 export type NumTeeth = number;
@@ -179,6 +180,7 @@ export interface WormParams {
   type?: WormType | null;
   throat_reduction_mm?: ThroatReductionMm;
   throat_curvature_radius_mm?: ThroatCurvatureRadiusMm;
+  throat_arc_angle_deg?: ThroatArcAngleDeg;
   length_mm?: LengthMm;
 }
 /**
