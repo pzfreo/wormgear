@@ -80,6 +80,58 @@ export function formatBoreStr(feature, { verbose = true } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Filename generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a descriptive filename (without extension) from a design object.
+ *
+ * Format: wormgear-m2.0-30t1s-cyl
+ *   module, teeth count, starts, worm type abbreviation
+ *
+ * @param {object} design - Full design JSON object
+ * @returns {string} Filename without extension
+ */
+export function createDesignFilename(design) {
+    if (!design) return 'wormgear-design';
+    try {
+        const m = design.worm?.module_mm;
+        const teeth = design.wheel?.num_teeth;
+        const starts = design.worm?.num_starts ?? 1;
+        const wormType = design.worm?.type ?? design.manufacturing?.worm_type ?? 'cylindrical';
+        const typeStr = wormType === 'globoid' ? 'glob' : 'cyl';
+
+        const parts = ['wormgear'];
+        if (m != null) parts.push(`m${Number(m).toFixed(1)}`);
+        if (teeth != null) parts.push(`${teeth}t${starts}s`);
+        parts.push(typeStr);
+        return parts.join('-');
+    } catch {
+        return 'wormgear-design';
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Validation message counting
+// ---------------------------------------------------------------------------
+
+/**
+ * Count errors and warnings in a validation messages array.
+ *
+ * @param {Array} messages - Array of {severity: 'error'|'warning', ...} objects
+ * @returns {{ errors: number, warnings: number }}
+ */
+export function countValidationMessages(messages) {
+    let errors = 0;
+    let warnings = 0;
+    for (const m of messages) {
+        if (m.severity === 'error') errors++;
+        else if (m.severity === 'warning') warnings++;
+    }
+    return { errors, warnings };
+}
+
+// ---------------------------------------------------------------------------
 // Spec sheet row builder
 // ---------------------------------------------------------------------------
 

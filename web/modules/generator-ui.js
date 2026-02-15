@@ -4,7 +4,7 @@
  * Handles generator tab UI functions: console output, progress, file loading.
  */
 
-import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, formatBoreStr } from './format-utils.js';
+import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, formatBoreStr, createDesignFilename, countValidationMessages } from './format-utils.js';
 
 // Track hobbing progress for time estimation
 let hobbingStartTime = null;
@@ -147,8 +147,7 @@ export function updateGeneratorValidation(valid, messages) {
         return;
     }
 
-    const errors = messages.filter(m => m.severity === 'error').length;
-    const warnings = messages.filter(m => m.severity === 'warning').length;
+    const { errors, warnings } = countValidationMessages(messages);
 
     badge.classList.add('visible');
     badge.classList.remove('status-valid', 'status-error', 'status-warning');
@@ -555,29 +554,7 @@ export async function handleGenerateComplete(data) {
     hideCancelButton();
 }
 
-/**
- * Create descriptive filename from design parameters
- * @param {object} design - Design data
- * @returns {string} Descriptive filename
- */
-function createFilename(design) {
-    try {
-        const module = design.worm.module_mm || 1;
-        const ratio = design.assembly.ratio || 30;
-        const starts = design.worm.num_starts || 1;
-        const teeth = design.wheel.num_teeth || 30;
-        const wormType = design.manufacturing?.worm_type || 'cylindrical';
-
-        // Format: wormgear_m2.0_30-1_cylindrical
-        const moduleStr = module.toFixed(1).replace('.', '_');
-        const typeStr = wormType === 'cylindrical' ? 'cyl' : 'glob';
-
-        return `wormgear_m${moduleStr}_${teeth}-${starts}_${typeStr}`;
-    } catch (error) {
-        console.error('Error creating filename:', error);
-        return 'wormgear_design';
-    }
-}
+// createFilename removed — use createDesignFilename from format-utils.js
 
 /**
  * Download the pre-built ZIP from Python (same code/naming as CLI).
@@ -604,7 +581,7 @@ function downloadPreBuiltZip() {
         }
 
         const blob = new Blob([zipBytes], { type: 'application/zip' });
-        const filename = createFilename(design);
+        const filename = createDesignFilename(design);
 
         // Trigger download
         const url = URL.createObjectURL(blob);

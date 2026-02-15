@@ -5,6 +5,8 @@
  * Individual messages are rendered inline in the spec sheet by renderSpecSheet().
  */
 
+import { countValidationMessages } from './format-utils.js';
+
 /**
  * Update validation status indicator.
  * Messages are rendered inline by renderSpecSheet() — this only updates the badge.
@@ -14,8 +16,7 @@
 export function updateValidationUI(valid, messages) {
     const statusDiv = document.getElementById('validation-status');
 
-    const errorCount = messages.filter(m => m.severity === 'error').length;
-    const warningCount = messages.filter(m => m.severity === 'warning').length;
+    const { errors: errorCount, warnings: warningCount } = countValidationMessages(messages);
 
     if (valid && warningCount === 0) {
         statusDiv.className = 'status-valid';
