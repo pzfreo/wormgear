@@ -91,37 +91,6 @@ class TestCreateBore:
 class TestWormWithBore:
     """Tests for worm geometry with bore feature."""
 
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
-
     def test_worm_with_bore(self, worm_params, assembly_params):
         """Test worm with bore has reduced volume."""
         worm_no_bore = WormGeometry(
@@ -154,53 +123,6 @@ class TestWormWithBore:
 
 class TestWheelWithBore:
     """Tests for wheel geometry with bore feature."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        """Create WheelParams from sample design."""
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     def test_wheel_with_bore(self, wheel_params, worm_params, assembly_params):
         """Test wheel with bore has reduced volume."""
@@ -328,34 +250,6 @@ class TestFromJsonFile:
 class TestWormWithDDCut:
     """Tests for worm geometry with DD-cut feature."""
 
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right", profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
-
     def test_worm_with_ddcut(self, worm_params, assembly_params):
         """Test worm with bore and DD-cut."""
         worm_bore = WormGeometry(
@@ -399,49 +293,6 @@ class TestWormWithDDCut:
 
 class TestWheelWithDDCut:
     """Tests for wheel geometry with DD-cut feature."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right", profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     def test_wheel_with_ddcut(self, wheel_params, worm_params, assembly_params):
         wheel_bore = WheelGeometry(

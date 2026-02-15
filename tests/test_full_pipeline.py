@@ -10,8 +10,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from build123d import export_step, import_step
-
 from wormgear.calculator.core import design_from_module
 from wormgear.calculator.validation import validate_design
 from wormgear.io.loaders import load_design_json, save_design_json
@@ -26,8 +24,11 @@ from wormgear.core import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers (also available from conftest for use by other test files)
 # ---------------------------------------------------------------------------
+
+from build123d import export_step, import_step
+
 
 def _assert_valid_part(part, min_volume: float = 1.0):
     """Assert a built Part is valid and has meaningful volume."""
