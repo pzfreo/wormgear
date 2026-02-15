@@ -145,7 +145,7 @@ function loadDesignIntoDesignTab(design) {
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = group.dataset.mode === modeEl.value ? 'block' : 'none';
         });
-        updateArcAngleGroupVisibility(modeEl.value);
+        updateDesignTabMode(modeEl.value);
 
         // --- 3. Core inputs ---
         document.getElementById('module').value = worm.module_mm;
@@ -458,23 +458,14 @@ function updateArcAngleModeVisibility(wormType) {
 }
 
 /**
- * Hide the separate arc-angle-group control when "From Arc Angle" mode is active
- * (it's redundant since arc angle is the primary input in that mode).
+ * Sync the data-mode attribute on #design-tab so CSS can hide redundant controls.
+ * When "From Arc Angle" mode is active, CSS hides #arc-angle-group (redundant).
  * @param {string} mode - Current design mode
  */
-function updateArcAngleGroupVisibility(mode) {
-    const arcAngleGroup = document.getElementById('arc-angle-group');
-    if (!arcAngleGroup) return;
-
-    if (mode === 'from-arc-angle') {
-        arcAngleGroup.style.display = 'none';
-    } else {
-        // Only show if globoid is selected (CSS class handles this via data attribute,
-        // but we need to restore visibility when switching away from from-arc-angle)
-        const wormType = getActiveWormType();
-        if (wormType === 'globoid') {
-            arcAngleGroup.style.display = '';
-        }
+function updateDesignTabMode(mode) {
+    const designTab = document.getElementById('design-tab');
+    if (designTab) {
+        designTab.dataset.mode = mode;
     }
 }
 
@@ -742,7 +733,7 @@ function loadFromUrl() {
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = group.dataset.mode === mode ? 'block' : 'none';
         });
-        updateArcAngleGroupVisibility(mode);
+        updateDesignTabMode(mode);
 
         // Set inputs based on mode
         params.forEach((value, key) => {
@@ -1432,7 +1423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Hide/show the separate arc-angle-group when mode changes
-        updateArcAngleGroupVisibility(e.target.value);
+        updateDesignTabMode(e.target.value);
     });
 
     // Throat reduction mode switching (auto vs custom)
