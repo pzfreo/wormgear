@@ -125,6 +125,44 @@ def repair_geometry(part: Part) -> Part:
         return part
 
 
+def normalize_geometry(part: Part) -> Part:
+    """
+    Normalize geometry via STEP roundtrip to fix boolean operation issues.
+
+    After groove-cut boolean operations, the resulting solid can be topologically
+    valid but have an internal representation that confuses subsequent boolean
+    cuts (e.g. relief grooves). A STEP export/reimport normalizes the
+    representation, making further boolean operations reliable.
+
+    Unlike repair_geometry(), this runs unconditionally — the problem it
+    fixes is NOT detectable by BRepCheck_Analyzer (the solid reports as valid).
+
+    Args:
+        part: Part to normalize.
+
+    Returns:
+        Normalized Part (or original if roundtrip fails).
+    """
+    import tempfile
+    from pathlib import Path
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".step", delete=False) as f:
+            step_path = Path(f.name)
+
+        export_step(part, str(step_path))
+        reimported = import_step(str(step_path))
+        step_path.unlink(missing_ok=True)
+
+        logger.debug("Geometry normalized via STEP roundtrip")
+        return reimported
+    except Exception as e:
+        logger.warning(f"Geometry normalization failed: {e}")
+        if 'step_path' in dir():
+            step_path.unlink(missing_ok=True)
+        return part
+
+
 def simplify_geometry(part: Part, description: str = "") -> Part:
     """
     Preventive simplification before complex boolean operations.
