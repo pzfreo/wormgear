@@ -7,7 +7,7 @@ import { getInputs } from './modules/parameter-handler.js';
 import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
-import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
+import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, invalidate, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
 import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, buildSpecRows, createDesignFilename } from './modules/format-utils.js';
 
 // Global state
@@ -1142,6 +1142,7 @@ function setupWorkerMessageHandler(worker) {
             case 'GENERATE_COMPLETE':
                 if (isGenerating) {
                     isGenerating = false;
+                    invalidate();  // Clear stale preview so it reloads with new meshes
                     handleGenerateComplete(e.data);
                 } else {
                     console.log('[Generator] Ignoring completion from cancelled generation');
