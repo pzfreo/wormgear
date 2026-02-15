@@ -264,10 +264,12 @@ def generate_package(
             log(msg)
 
     # --- Mesh rotation ---
+    # Virtual hobbing cuts teeth with hob at +X, but position_for_mesh()
+    # places worm at +Y — a 90° azimuthal offset. Compensate with -90°.
     if mesh_rotation_deg is not None:
         files.mesh_rotation_deg = mesh_rotation_deg
     elif virtual_hobbing:
-        files.mesh_rotation_deg = 0.0
+        files.mesh_rotation_deg = -90.0
     elif worm is not None and wheel is not None:
         _log("Calculating mesh alignment...")
         from ..core.mesh_alignment import find_optimal_mesh_rotation
