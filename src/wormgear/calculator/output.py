@@ -103,7 +103,7 @@ def to_json(
     if 'wheel' in design_dict:
         design_dict['wheel'].pop('width_mm', None)  # Comes from manufacturing settings
 
-    if 'manufacturing' in design_dict:
+    if design_dict.get('manufacturing') is not None:
         design_dict['manufacturing'].pop('worm_type', None)  # Duplicates worm.type
         design_dict['manufacturing'].pop('worm_features', None)  # In features section
         design_dict['manufacturing'].pop('wheel_features', None)  # In features section

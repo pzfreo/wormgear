@@ -190,6 +190,15 @@ class TestToJson:
         assert len(data["validation"]["infos"]) == 1
         assert data["validation"]["errors"][0]["code"] == "LEAD_ANGLE_LOW"
 
+    def test_json_with_no_manufacturing(self, basic_design):
+        """to_json should not crash when manufacturing is None."""
+        basic_design.manufacturing = None
+        data = json.loads(to_json(basic_design))
+
+        assert data["schema_version"] == SCHEMA_VERSION
+        assert "worm" in data
+        assert data.get("manufacturing") is None
+
     def test_json_with_valid_validation(self, basic_design, valid_result):
         data = json.loads(to_json(basic_design, validation=valid_result))
 
