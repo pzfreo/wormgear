@@ -1140,22 +1140,22 @@ function setupWorkerMessageHandler(worker) {
                 }
                 break;
             case 'GENERATE_COMPLETE':
-                if (isGenerating) {
+                if (isGenerating && e.data.generationId === currentGenerationId) {
                     isGenerating = false;
                     invalidate();  // Clear stale preview so it reloads with new meshes
                     handleGenerateComplete(e.data);
                 } else {
-                    console.log('[Generator] Ignoring completion from cancelled generation');
+                    console.log(`[Generator] Ignoring completion from generation ${e.data.generationId} (current: ${currentGenerationId})`);
                 }
                 break;
             case 'GENERATE_ERROR':
-                if (isGenerating) {
+                if (isGenerating && e.data.generationId === currentGenerationId) {
                     isGenerating = false;
                     appendToConsole(`\u2717 Generation error: ${error}`);
                     if (stack) console.error('Worker error stack:', stack);
                     hideProgressIndicator();
                 } else {
-                    console.log('[Generator] Ignoring error from cancelled generation');
+                    console.log(`[Generator] Ignoring error from generation ${e.data.generationId} (current: ${currentGenerationId})`);
                 }
                 break;
         }
@@ -1336,9 +1336,10 @@ async function generateGeometry(type) {
         // Store design data globally for download
         window.currentGeneratedDesign = designData;
 
-        // Send generation request to worker
+        // Send generation request to worker (include ID for cancellation tracking)
         generatorWorker.postMessage({
             type: 'GENERATE',
+            generationId: currentGenerationId,
             data: {
                 designData,
                 generateType: type,

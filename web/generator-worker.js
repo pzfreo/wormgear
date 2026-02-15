@@ -8,12 +8,12 @@ let loadComplete = false;
 
 // Listen for messages from main thread
 self.onmessage = async (e) => {
-    const { type, data } = e.data;
+    const { type, data, generationId } = e.data;
 
     if (type === 'INIT') {
         await initializePyodide();
     } else if (type === 'GENERATE') {
-        await generateGeometry(data);
+        await generateGeometry(data, generationId);
     }
 };
 
@@ -178,7 +178,7 @@ print(f"✓ wormgear package loaded (version {wormgear.__version__})")
     self.postMessage({ type: 'LOG', message: '✓ wormgear package ready' });
 }
 
-async function generateGeometry(data) {
+async function generateGeometry(data, generationId) {
     if (!loadComplete) {
         self.postMessage({
             type: 'GENERATE_ERROR',
@@ -518,6 +518,7 @@ elif generate_type == 'both':
 
         self.postMessage({
             type: 'GENERATE_COMPLETE',
+            generationId,
             success: success,
             zip: zipB64,
             worm_3mf: worm3mfB64,
@@ -536,6 +537,7 @@ elif generate_type == 'both':
 
         self.postMessage({
             type: 'GENERATE_ERROR',
+            generationId,
             error: errorMessage,
             stack: errorStack
         });
