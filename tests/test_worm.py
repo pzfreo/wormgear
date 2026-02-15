@@ -13,37 +13,6 @@ pytestmark = pytest.mark.slow
 class TestWormGeometry:
     """Tests for WormGeometry class."""
 
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
-
     def test_worm_geometry_creation(self, worm_params, assembly_params):
         """Test creating a WormGeometry instance."""
         worm_geo = WormGeometry(
@@ -246,37 +215,6 @@ class TestWormGeometry:
 
 class TestWormProfileTypes:
     """Tests for DIN 3975 profile types (ZA/ZK)."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     def test_worm_profile_za_default(self, worm_params, assembly_params):
         """Test that ZA profile is the default."""

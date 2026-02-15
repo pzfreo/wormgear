@@ -3,10 +3,21 @@ Tests for the command-line interface.
 """
 
 import json
-import subprocess
-import sys
 import pytest
 from pathlib import Path
+
+import subprocess
+import sys
+
+
+def run_wormgear_cli(*args, timeout=120):
+    """Run the wormgear CLI as a subprocess."""
+    return subprocess.run(
+        [sys.executable, "-m", "wormgear.cli.generate"] + [str(a) for a in args],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
 
 
 pytestmark = pytest.mark.slow
@@ -25,11 +36,7 @@ class TestCLIEntryPoints:
 
     def test_entry_point_via_subprocess(self):
         """Test entry point works when invoked as module."""
-        result = subprocess.run(
-            [sys.executable, "-m", "wormgear.cli.generate", "--help"],
-            capture_output=True,
-            text=True
-        )
+        result = run_wormgear_cli("--help")
         assert result.returncode == 0
 
 
@@ -38,21 +45,13 @@ class TestCLIBasic:
 
     def test_cli_help(self):
         """Test that --help works."""
-        result = subprocess.run(
-            [sys.executable, "-m", "wormgear.cli.generate", "--help"],
-            capture_output=True,
-            text=True
-        )
+        result = run_wormgear_cli("--help")
         assert result.returncode == 0
         assert "wormgear-geometry" in result.stdout.lower() or "usage" in result.stdout.lower()
 
     def test_cli_missing_file(self):
         """Test error handling for missing input file."""
-        result = subprocess.run(
-            [sys.executable, "-m", "wormgear.cli.generate", "nonexistent.json", "--no-save"],
-            capture_output=True,
-            text=True
-        )
+        result = run_wormgear_cli("nonexistent.json", "--no-save")
         assert result.returncode != 0
 
     def test_cli_invalid_json(self, tmp_path):
@@ -60,11 +59,7 @@ class TestCLIBasic:
         invalid_file = tmp_path / "invalid.json"
         invalid_file.write_text("not valid json {")
 
-        result = subprocess.run(
-            [sys.executable, "-m", "wormgear.cli.generate", str(invalid_file), "--no-save"],
-            capture_output=True,
-            text=True
-        )
+        result = run_wormgear_cli(str(invalid_file), "--no-save")
         assert result.returncode != 0
 
 
@@ -76,17 +71,11 @@ class TestCLIGeneration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -102,18 +91,12 @@ class TestCLIGeneration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--worm-only",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--worm-only",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -129,16 +112,10 @@ class TestCLIGeneration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--wheel-only"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--wheel-only"
         )
 
         assert result.returncode == 0
@@ -151,17 +128,11 @@ class TestCLIGeneration:
 
     def test_cli_no_save(self, temp_json_file):
         """Test --no-save option doesn't create files."""
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "--no-save",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "--no-save",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -173,18 +144,12 @@ class TestCLIGeneration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--worm-only",
-                "--worm-length", "25",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--worm-only",
+            "--worm-length", "25",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -194,17 +159,11 @@ class TestCLIGeneration:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--wheel-only",
-                "--wheel-width", "6"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--wheel-only",
+            "--wheel-width", "6"
         )
 
         assert result.returncode == 0
@@ -219,18 +178,12 @@ class TestCLIGeneration:
         output_dir.mkdir()
 
         for sections in [8, 24, 72]:
-            result = subprocess.run(
-                [
-                    sys.executable, "-m", "wormgear.cli.generate",
-                    str(temp_json_file),
-                    "-o", str(output_dir),
-                    "--worm-only",
-                    "--worm-length", "10",
-                    "--sections", str(sections)
-                ],
-                capture_output=True,
-                text=True,
-                timeout=120
+            result = run_wormgear_cli(
+                str(temp_json_file),
+                "-o", str(output_dir),
+                "--worm-only",
+                "--worm-length", "10",
+                "--sections", str(sections)
             )
 
             assert result.returncode == 0, f"Failed with sections={sections}"
@@ -241,17 +194,11 @@ class TestCLIOutput:
 
     def test_cli_design_summary(self, temp_json_file):
         """Test that design summary is printed."""
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "--no-save",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "--no-save",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -262,17 +209,11 @@ class TestCLIOutput:
 
     def test_cli_volume_reported(self, temp_json_file):
         """Test that volumes are reported."""
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "--no-save",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "--no-save",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -292,17 +233,11 @@ class TestCLIWithExamples:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(example_file),
-                "-o", str(output_dir),
-                "--worm-length", "7",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(example_file),
+            "-o", str(output_dir),
+            "--worm-length", "7",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -315,18 +250,12 @@ class TestCLIGloboid:
 
     def test_cli_globoid_flag_accepted(self, temp_json_file):
         """Test that --globoid flag is accepted."""
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "--no-save",
-                "--globoid",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "--no-save",
+            "--globoid",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -337,18 +266,12 @@ class TestCLIGloboid:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--globoid",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--globoid",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -360,19 +283,13 @@ class TestCLIGloboid:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--globoid",
-                "--worm-only",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--globoid",
+            "--worm-only",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -387,20 +304,14 @@ class TestCLIGloboid:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--globoid",
-                "--worm-only",
-                "--worm-bore", "6",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--globoid",
+            "--worm-only",
+            "--worm-bore", "6",
+            "--worm-length", "10",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -412,19 +323,13 @@ class TestCLIGloboid:
         output_dir.mkdir()
         json_output = tmp_path / "complete_design.json"
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "-o", str(output_dir),
-                "--globoid",
-                "--worm-length", "12",
-                "--save-json", str(json_output),
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "-o", str(output_dir),
+            "--globoid",
+            "--worm-length", "12",
+            "--save-json", str(json_output),
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -447,18 +352,12 @@ class TestCLIGloboid:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(example_file),
-                "-o", str(output_dir),
-                "--globoid",
-                "--worm-length", "12",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
+        result = run_wormgear_cli(
+            str(example_file),
+            "-o", str(output_dir),
+            "--globoid",
+            "--worm-length", "12",
+            "--sections", "12"
         )
 
         assert result.returncode == 0
@@ -472,18 +371,13 @@ class TestCLIInterferenceCheck:
     @pytest.mark.skip(reason="--check-interference flag not yet implemented in CLI")
     def test_cli_interference_check_passes(self, temp_json_file):
         """Test that interference check passes for well-formed gears."""
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "--no-save",
-                "--check-interference",
-                "--interference-steps", "12",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "--no-save",
+            "--check-interference",
+            "--interference-steps", "12",
+            "--worm-length", "10",
+            "--sections", "12",
             timeout=180
         )
 
@@ -499,20 +393,15 @@ class TestCLIInterferenceCheck:
         Note: This test is marked slow as it can take >5 minutes with
         virtual hobbing + interference checking combined.
         """
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "wormgear.cli.generate",
-                str(temp_json_file),
-                "--no-save",
-                "--check-interference",
-                "--interference-steps", "8",
-                "--virtual-hobbing",
-                "--hobbing-steps", "18",
-                "--worm-length", "10",
-                "--sections", "12"
-            ],
-            capture_output=True,
-            text=True,
+        result = run_wormgear_cli(
+            str(temp_json_file),
+            "--no-save",
+            "--check-interference",
+            "--interference-steps", "8",
+            "--virtual-hobbing",
+            "--hobbing-steps", "18",
+            "--worm-length", "10",
+            "--sections", "12",
             timeout=300
         )
 

@@ -18,37 +18,6 @@ class TestGloboidWormGeometry:
     """Tests for GloboidWormGeometry class."""
 
     @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
-
-    @pytest.fixture
     def wheel_pitch_diameter(self, sample_design_7mm):
         """Get wheel pitch diameter from sample design."""
         return sample_design_7mm["wheel"]["pitch_diameter_mm"]
@@ -471,37 +440,6 @@ class TestGloboidWormFromJsonFile:
 
 class TestGloboidWormProfileTypes:
     """Tests for DIN 3975 profile types (ZA/ZK) on globoid worm."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     @pytest.fixture
     def wheel_pitch_diameter(self, sample_design_7mm):

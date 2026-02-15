@@ -9,7 +9,6 @@ import math
 import pytest
 
 from wormgear import (
-    WormParams, WheelParams, AssemblyParams,
     VirtualHobbingWheelGeometry, WheelGeometry,
 )
 
@@ -18,53 +17,6 @@ pytestmark = pytest.mark.slow
 
 class TestVirtualHobbingWheelGeometry:
     """Tests for VirtualHobbingWheelGeometry class."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        """Create WheelParams from sample design."""
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     def test_virtual_hobbing_creation(self, wheel_params, worm_params, assembly_params):
         """Test creating a VirtualHobbingWheelGeometry instance."""
@@ -161,53 +113,6 @@ class TestVirtualHobbingWheelGeometry:
 class TestVirtualHobbingProfileTypes:
     """Tests for DIN 3975 profile types (ZA/ZK) with virtual hobbing."""
 
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        """Create WheelParams from sample design."""
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
-
     def test_virtual_hobbing_profile_za_default(self, wheel_params, worm_params, assembly_params):
         """Test that ZA profile is the default for virtual hobbing."""
         wheel_geo = VirtualHobbingWheelGeometry(
@@ -250,53 +155,6 @@ class TestVirtualHobbingProfileTypes:
 
 class TestVirtualHobbingVsStandardWheel:
     """Comparison tests between virtual hobbing and standard wheel generation."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        """Create WheelParams from sample design."""
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     def test_virtual_hobbing_produces_similar_volume_to_throated(
         self, wheel_params, worm_params, assembly_params
@@ -359,53 +217,6 @@ class TestVirtualHobbingVsStandardWheel:
 
 class TestVirtualHobbingWithFeatures:
     """Tests for virtual hobbing with bore, keyway, and hub features."""
-
-    @pytest.fixture
-    def worm_params(self, sample_design_7mm):
-        """Create WormParams from sample design."""
-        module_mm = sample_design_7mm["worm"]["module_mm"]
-        return WormParams(
-            module_mm=module_mm,
-            num_starts=sample_design_7mm["worm"]["num_starts"],
-            pitch_diameter_mm=sample_design_7mm["worm"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["worm"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["worm"]["root_diameter_mm"],
-            lead_mm=sample_design_7mm["worm"]["lead_mm"],
-            axial_pitch_mm=module_mm * math.pi,
-            lead_angle_deg=sample_design_7mm["worm"]["lead_angle_deg"],
-            addendum_mm=sample_design_7mm["worm"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["worm"]["dedendum_mm"],
-            thread_thickness_mm=sample_design_7mm["worm"]["thread_thickness_mm"],
-            hand="right",
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def wheel_params(self, sample_design_7mm):
-        """Create WheelParams from sample design."""
-        return WheelParams(
-            module_mm=sample_design_7mm["wheel"]["module_mm"],
-            num_teeth=sample_design_7mm["wheel"]["num_teeth"],
-            pitch_diameter_mm=sample_design_7mm["wheel"]["pitch_diameter_mm"],
-            tip_diameter_mm=sample_design_7mm["wheel"]["tip_diameter_mm"],
-            root_diameter_mm=sample_design_7mm["wheel"]["root_diameter_mm"],
-            throat_diameter_mm=sample_design_7mm["wheel"]["throat_diameter_mm"],
-            helix_angle_deg=sample_design_7mm["wheel"]["helix_angle_deg"],
-            addendum_mm=sample_design_7mm["wheel"]["addendum_mm"],
-            dedendum_mm=sample_design_7mm["wheel"]["dedendum_mm"],
-            profile_shift=0.0
-        )
-
-    @pytest.fixture
-    def assembly_params(self, sample_design_7mm):
-        """Create AssemblyParams from sample design."""
-        return AssemblyParams(
-            centre_distance_mm=sample_design_7mm["assembly"]["centre_distance_mm"],
-            pressure_angle_deg=sample_design_7mm["assembly"]["pressure_angle_deg"],
-            backlash_mm=sample_design_7mm["assembly"]["backlash_mm"],
-            hand=sample_design_7mm["assembly"]["hand"],
-            ratio=sample_design_7mm["assembly"]["ratio"]
-        )
 
     def test_virtual_hobbing_with_bore(self, wheel_params, worm_params, assembly_params):
         """Test virtual hobbing wheel with bore feature."""
