@@ -41,6 +41,27 @@ export function getCalculatedBores() {
 }
 
 /**
+ * Render a single bore recommendation into a DOM element.
+ * @param {string} elementId - ID of the element to update
+ * @param {object|null} bore - Bore recommendation {diameter_mm, has_warning, too_small_for_keyway}
+ */
+function renderBoreRecommendation(elementId, bore) {
+    const el = document.getElementById(elementId);
+    if (bore?.diameter_mm != null) {
+        let html = `${bore.diameter_mm.toFixed(1)} mm`;
+        const warnings = [];
+        if (bore.too_small_for_keyway) warnings.push('too small for DIN 6885');
+        if (bore.has_warning) warnings.push('thin rim');
+        if (warnings.length > 0) {
+            html += ` <span style="color: #c75; font-style: italic;">(${warnings.join(', ')})</span>`;
+        }
+        el.innerHTML = html;
+    } else {
+        el.innerHTML = `<span style="color: #c75; font-style: italic;">Gear too small for bore</span>`;
+    }
+}
+
+/**
  * Update bore displays using Python's recommended values
  * @param {object} design - Current gear design object
  * @param {object} wormBore - Python's recommended worm bore {diameter_mm, has_warning, too_small_for_keyway}
@@ -61,43 +82,8 @@ export function updateBoreDisplaysAndDefaults(design, wormBore, wheelBore) {
     document.getElementById('worm-bore-info').style.display = 'block';
     document.getElementById('wheel-bore-info').style.display = 'block';
 
-    // Display worm bore recommendation
-    const wormBoreEl = document.getElementById('worm-bore-recommended');
-    if (wormBore?.diameter_mm != null) {
-        let html = `${wormBore.diameter_mm.toFixed(1)} mm`;
-        const warnings = [];
-        if (wormBore.too_small_for_keyway) {
-            warnings.push('too small for DIN 6885');
-        }
-        if (wormBore.has_warning) {
-            warnings.push('thin rim');
-        }
-        if (warnings.length > 0) {
-            html += ` <span style="color: #c75; font-style: italic;">(${warnings.join(', ')})</span>`;
-        }
-        wormBoreEl.innerHTML = html;
-    } else {
-        wormBoreEl.innerHTML = `<span style="color: #c75; font-style: italic;">Gear too small for bore</span>`;
-    }
-
-    // Display wheel bore recommendation
-    const wheelBoreEl = document.getElementById('wheel-bore-recommended');
-    if (wheelBore?.diameter_mm != null) {
-        let html = `${wheelBore.diameter_mm.toFixed(1)} mm`;
-        const warnings = [];
-        if (wheelBore.too_small_for_keyway) {
-            warnings.push('too small for DIN 6885');
-        }
-        if (wheelBore.has_warning) {
-            warnings.push('thin rim');
-        }
-        if (warnings.length > 0) {
-            html += ` <span style="color: #c75; font-style: italic;">(${warnings.join(', ')})</span>`;
-        }
-        wheelBoreEl.innerHTML = html;
-    } else {
-        wheelBoreEl.innerHTML = `<span style="color: #c75; font-style: italic;">Gear too small for bore</span>`;
-    }
+    renderBoreRecommendation('worm-bore-recommended', wormBore);
+    renderBoreRecommendation('wheel-bore-recommended', wheelBore);
 
     // Update anti-rotation options
     updateAntiRotationOptions();
@@ -185,34 +171,31 @@ function updateAntiRotationForPart(partName, recommendedBore) {
 }
 
 /**
+ * Wire up the bore-type dropdown for one part (worm or wheel).
+ * @param {string} partName - 'worm' or 'wheel'
+ * @param {function} getRecommendedBore - Returns the current recommended bore object
+ */
+function setupBoreTypeHandler(partName, getRecommendedBore) {
+    document.getElementById(`${partName}-bore-type`).addEventListener('change', (e) => {
+        const customDiv = document.getElementById(`${partName}-bore-custom`);
+        customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
+
+        // Pre-fill custom bore with recommended value (skip during JSON loading)
+        const rec = getRecommendedBore();
+        if (e.target.value === 'custom' && rec?.diameter_mm && !_isLoading) {
+            document.getElementById(`${partName}-bore-diameter`).value = rec.diameter_mm.toFixed(1);
+        }
+
+        updateAntiRotationOptions();
+    });
+}
+
+/**
  * Setup event listeners for bore controls
  */
 export function setupBoreEventListeners() {
-    // Worm bore type change
-    document.getElementById('worm-bore-type').addEventListener('change', (e) => {
-        const customDiv = document.getElementById('worm-bore-custom');
-        customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
-
-        // Set custom bore to recommended value when switching to custom
-        // (skip during JSON loading to preserve loaded values)
-        if (e.target.value === 'custom' && recommendedWormBore?.diameter_mm && !_isLoading) {
-            document.getElementById('worm-bore-diameter').value = recommendedWormBore.diameter_mm.toFixed(1);
-        }
-
-        updateAntiRotationOptions();
-    });
-
-    // Wheel bore type change
-    document.getElementById('wheel-bore-type').addEventListener('change', (e) => {
-        const customDiv = document.getElementById('wheel-bore-custom');
-        customDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
-
-        if (e.target.value === 'custom' && recommendedWheelBore?.diameter_mm && !_isLoading) {
-            document.getElementById('wheel-bore-diameter').value = recommendedWheelBore.diameter_mm.toFixed(1);
-        }
-
-        updateAntiRotationOptions();
-    });
+    setupBoreTypeHandler('worm', () => recommendedWormBore);
+    setupBoreTypeHandler('wheel', () => recommendedWheelBore);
 
     // Custom bore diameter changes
     document.getElementById('worm-bore-diameter').addEventListener('change', updateAntiRotationOptions);

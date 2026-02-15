@@ -8,7 +8,7 @@ import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
 import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
-import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, buildSpecRows } from './modules/format-utils.js';
+import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, buildSpecRows, createDesignFilename } from './modules/format-utils.js';
 
 // Global state
 let currentDesign = null;
@@ -714,15 +714,7 @@ function getModeSuffix(mode) {
 // ============================================================================
 
 function getDesignFilename() {
-    if (!currentDesign) return 'wormgear-design';
-    const m = currentDesign.worm?.module_mm;
-    const r = currentDesign.assembly?.ratio;
-    const type = currentDesign.worm?.type === 'globoid' ? 'globoid' : 'cyl';
-    const parts = ['wormgear'];
-    if (m != null) parts.push(`m${m}`);
-    if (r != null) parts.push(`r${r}`);
-    parts.push(type);
-    return parts.join('-');
+    return createDesignFilename(currentDesign);
 }
 
 function copyJSON() {
