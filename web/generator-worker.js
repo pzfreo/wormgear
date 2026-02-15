@@ -354,6 +354,7 @@ worm_type_value = getattr(worm_params.type, 'value', worm_params.type) if hasatt
 is_globoid = (worm_type_value == 'globoid') or \
              (hasattr(worm_params, 'throat_curvature_radius_mm') and worm_params.throat_curvature_radius_mm is not None)
 print(f"Worm type: {worm_type_value}, is_globoid: {is_globoid}")
+print(f"Generate type: {generate_type}, virtual_hobbing: {virtual_hobbing_val!r}, hobbing_steps: {hobbing_steps_val}")
 
 # Generate worm if requested
 if generate_type in ['worm', 'both']:
@@ -400,6 +401,7 @@ if generate_type in ['wheel', 'both']:
         print("  Creating wheel geometry object...")
 
         # Use VirtualHobbingWheelGeometry if virtual_hobbing enabled, otherwise regular WheelGeometry
+        print(f"  virtual_hobbing_val={virtual_hobbing_val!r} (type={type(virtual_hobbing_val).__name__})")
         if virtual_hobbing_val:
             # Virtual hobbing supports progress callbacks
             print(f"  Using virtual hobbing with {hobbing_steps_val} steps...")
