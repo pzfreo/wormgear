@@ -4,8 +4,8 @@
  * Handles generator tab UI functions: console output, progress, file loading.
  */
 
-import { getCalculatorPyodide } from './pyodide-init.js';
-import { exportAssemblyGLB } from './viewer-3d.js';
+// getCalculatorPyodide no longer needed — markdown is generated in the
+// generator worker via generate_package() and included in the pre-built ZIP.
 
 // Track hobbing progress for time estimation
 let hobbingStartTime = null;
@@ -514,17 +514,15 @@ export function hideProgressIndicator() {
  */
 export async function handleGenerateComplete(data) {
     console.log('[DEBUG] handleGenerateComplete received:', {
-        hasWorm: !!data.worm,
-        hasWheel: !!data.wheel,
+        hasZip: !!data.zip,
         hasWorm3mf: !!data.worm_3mf,
         hasWheel3mf: !!data.wheel_3mf,
         hasWormStl: !!data.worm_stl,
         hasWheelStl: !!data.wheel_stl,
-        hasAssembly3mf: !!data.assembly_3mf,
         success: data.success
     });
 
-    const { worm, wheel, worm_3mf, wheel_3mf, worm_stl, wheel_stl, assembly_3mf, mesh_rotation_deg, success } = data;
+    const { zip, worm_3mf, wheel_3mf, worm_stl, wheel_stl, mesh_rotation_deg, success } = data;
 
     if (!success) {
         appendToConsole('⚠️ Generation completed with errors');
@@ -544,75 +542,23 @@ export async function handleGenerateComplete(data) {
 
     appendToConsole('✓ Generation complete');
 
-    // Generate markdown using calculator Pyodide (which has wormcalc module loaded)
-    appendToConsole('Generating documentation...');
-    let markdown = '';
-
-    try {
-        // Get calculator Pyodide instance
-        const calculatorPyodide = getCalculatorPyodide();
-
-        if (calculatorPyodide && window.currentGeneratedDesign) {
-            // Set design data in Python
-            calculatorPyodide.globals.set('design_json_str', JSON.stringify(window.currentGeneratedDesign));
-
-            // Generate markdown
-            const result = calculatorPyodide.runPython(`
-import json
-from wormgear.calculator import validate_design, to_markdown
-from wormgear.io import WormGearDesign, WormParams, WheelParams, AssemblyParams
-from wormgear.enums import Hand, WormProfile, WormType
-
-# Parse design
-design_data = json.loads(design_json_str)
-
-# Create parameter objects from JSON (unified package uses _mm/_deg suffixes already)
-worm_params = WormParams(**design_data['worm'])
-wheel_params = WheelParams(**design_data['wheel'])
-assembly_params = AssemblyParams(**design_data['assembly'])
-
-# Create WormGearDesign
-design = WormGearDesign(
-    worm=worm_params,
-    wheel=wheel_params,
-    assembly=assembly_params
-)
-
-# Validate and generate markdown
-validation = validate_design(design)
-to_markdown(design)
-            `);
-
-            // Convert Pyodide result to string
-            markdown = String(result);
-            console.log('[DEBUG] Generated markdown length:', markdown.length);
-            appendToConsole(`✓ Documentation generated (${markdown.length} bytes)`);
-        } else {
-            appendToConsole('⚠️ Calculator not loaded - markdown will be empty');
-        }
-    } catch (error) {
-        console.error('Error generating markdown:', error);
-        appendToConsole(`⚠️ Could not generate markdown: ${error.message}`);
-    }
-
-    // Store data for ZIP creation and 3D preview
+    // Store data for ZIP download and 3D preview
+    // ZIP is pre-built by Python (includes design.json, design.md, and all geometry files
+    // with the same naming as CLI output)
     window.generatedSTEP = {
-        worm: worm,
-        wheel: wheel,
+        zip: zip,  // Pre-built ZIP from Python (same code/names as CLI)
         worm_3mf: worm_3mf,
         wheel_3mf: wheel_3mf,
         worm_stl: worm_stl,
         wheel_stl: wheel_stl,
-        assembly_3mf: assembly_3mf,
         mesh_rotation_deg: mesh_rotation_deg || 0,
-        markdown: markdown
     };
 
     // Enable download button and show downloads section
     const downloadBtn = document.getElementById('download-zip');
     if (downloadBtn) {
         downloadBtn.disabled = false;
-        downloadBtn.onclick = createAndDownloadZip;
+        downloadBtn.onclick = downloadPreBuiltZip;
     }
     showDownloadsSection();
 
@@ -653,155 +599,30 @@ function createFilename(design) {
 }
 
 /**
- * Create and download ZIP file with all outputs
+ * Download the pre-built ZIP from Python (same code/naming as CLI).
+ *
+ * The ZIP is created by create_package_zip() in the generator worker,
+ * using the same shared package module as the CLI. This ensures
+ * identical file names and contents between web and CLI output.
  */
-async function createAndDownloadZip() {
+function downloadPreBuiltZip() {
     try {
-        appendToConsole('Creating ZIP package...');
-
-        if (!window.JSZip) {
-            throw new Error('JSZip library not loaded');
-        }
-
         const design = window.currentGeneratedDesign;
         const stepData = window.generatedSTEP;
 
-        if (!design || !stepData) {
-            throw new Error('No generated data available');
+        if (!stepData?.zip) {
+            appendToConsole('✗ No ZIP data available');
+            return;
         }
 
-        console.log('[DEBUG] Creating ZIP with:', {
-            hasDesign: !!design,
-            hasWorm: !!stepData.worm,
-            hasWheel: !!stepData.wheel,
-            hasWorm3mf: !!stepData.worm_3mf,
-            hasWheel3mf: !!stepData.wheel_3mf,
-            hasWormStl: !!stepData.worm_stl,
-            hasWheelStl: !!stepData.wheel_stl,
-            hasAssembly3mf: !!stepData.assembly_3mf,
-            hasMarkdown: !!stepData.markdown,
-            markdownLength: stepData.markdown ? stepData.markdown.length : 0
-        });
-
-        // Create ZIP
-        const zip = new JSZip();
-
-        // Add JSON file
-        zip.file('design.json', JSON.stringify(design, null, 2));
-
-        // Add markdown file
-        if (stepData.markdown && stepData.markdown.length > 0) {
-            zip.file('design.md', stepData.markdown);
-            appendToConsole(`  ✓ Added design.md (${stepData.markdown.length} bytes)`);
-        } else {
-            appendToConsole('  ⚠️ No markdown documentation available');
+        // Decode base64 ZIP
+        const zipBinary = atob(stepData.zip);
+        const zipBytes = new Uint8Array(zipBinary.length);
+        for (let i = 0; i < zipBinary.length; i++) {
+            zipBytes[i] = zipBinary.charCodeAt(i);
         }
 
-        // Add STEP files (decode from base64)
-        if (stepData.worm) {
-            const wormBinary = atob(stepData.worm);
-            const wormBytes = new Uint8Array(wormBinary.length);
-            for (let i = 0; i < wormBinary.length; i++) {
-                wormBytes[i] = wormBinary.charCodeAt(i);
-            }
-            zip.file('worm.step', wormBytes);
-            appendToConsole(`  ✓ Added worm.step (${(wormBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        if (stepData.wheel) {
-            const wheelBinary = atob(stepData.wheel);
-            const wheelBytes = new Uint8Array(wheelBinary.length);
-            for (let i = 0; i < wheelBinary.length; i++) {
-                wheelBytes[i] = wheelBinary.charCodeAt(i);
-            }
-            zip.file('wheel.step', wheelBytes);
-            appendToConsole(`  ✓ Added wheel.step (${(wheelBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        // Add 3MF files (preferred for 3D printing - explicit units and better precision)
-        if (stepData.worm_3mf) {
-            const worm3mfBinary = atob(stepData.worm_3mf);
-            const worm3mfBytes = new Uint8Array(worm3mfBinary.length);
-            for (let i = 0; i < worm3mfBinary.length; i++) {
-                worm3mfBytes[i] = worm3mfBinary.charCodeAt(i);
-            }
-            zip.file('worm.3mf', worm3mfBytes);
-            appendToConsole(`  ✓ Added worm.3mf (${(worm3mfBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        if (stepData.wheel_3mf) {
-            const wheel3mfBinary = atob(stepData.wheel_3mf);
-            const wheel3mfBytes = new Uint8Array(wheel3mfBinary.length);
-            for (let i = 0; i < wheel3mfBinary.length; i++) {
-                wheel3mfBytes[i] = wheel3mfBinary.charCodeAt(i);
-            }
-            zip.file('wheel.3mf', wheel3mfBytes);
-            appendToConsole(`  ✓ Added wheel.3mf (${(wheel3mfBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        // Add assembly 3MF (pre-positioned by Python - correct geometry)
-        if (stepData.assembly_3mf) {
-            const asm3mfBinary = atob(stepData.assembly_3mf);
-            const asm3mfBytes = new Uint8Array(asm3mfBinary.length);
-            for (let i = 0; i < asm3mfBinary.length; i++) {
-                asm3mfBytes[i] = asm3mfBinary.charCodeAt(i);
-            }
-            zip.file('assembly.3mf', asm3mfBytes);
-            appendToConsole(`  ✓ Added assembly.3mf (${(asm3mfBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        // Generate assembly GLB (both parts positioned at correct centre distance)
-        const hasMesh = stepData.assembly_3mf || (stepData.worm_3mf && stepData.wheel_3mf) || (stepData.worm_stl && stepData.wheel_stl);
-        if (hasMesh && design) {
-            try {
-                appendToConsole('  Generating assembly.glb...');
-                const glbBuffer = await exportAssemblyGLB(
-                    {
-                        assembly_3mf: stepData.assembly_3mf,
-                        worm_3mf: stepData.worm_3mf,
-                        wheel_3mf: stepData.wheel_3mf,
-                        worm_stl: stepData.worm_stl,
-                        wheel_stl: stepData.wheel_stl,
-                    },
-                    {
-                        centre_distance_mm: design.assembly.centre_distance_mm,
-                        mesh_rotation_deg: stepData.mesh_rotation_deg || 0,
-                    }
-                );
-                zip.file('assembly.glb', glbBuffer);
-                appendToConsole(`  ✓ Added assembly.glb (${(glbBuffer.byteLength / 1024).toFixed(1)} KB)`);
-            } catch (err) {
-                console.error('GLB export failed:', err);
-                appendToConsole(`  ⚠️ assembly.glb failed: ${err.message}`);
-            }
-        }
-
-        // Add STL files (for compatibility)
-        if (stepData.worm_stl) {
-            const wormStlBinary = atob(stepData.worm_stl);
-            const wormStlBytes = new Uint8Array(wormStlBinary.length);
-            for (let i = 0; i < wormStlBinary.length; i++) {
-                wormStlBytes[i] = wormStlBinary.charCodeAt(i);
-            }
-            zip.file('worm.stl', wormStlBytes);
-            appendToConsole(`  ✓ Added worm.stl (${(wormStlBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        if (stepData.wheel_stl) {
-            const wheelStlBinary = atob(stepData.wheel_stl);
-            const wheelStlBytes = new Uint8Array(wheelStlBinary.length);
-            for (let i = 0; i < wheelStlBinary.length; i++) {
-                wheelStlBytes[i] = wheelStlBinary.charCodeAt(i);
-            }
-            zip.file('wheel.stl', wheelStlBytes);
-            appendToConsole(`  ✓ Added wheel.stl (${(wheelStlBytes.length / 1024).toFixed(1)} KB)`);
-        }
-
-        // Generate ZIP blob
-        appendToConsole('Compressing files...');
-        const blob = await zip.generateAsync({ type: 'blob' });
-
-        // Create descriptive filename
+        const blob = new Blob([zipBytes], { type: 'application/zip' });
         const filename = createFilename(design);
 
         // Trigger download
@@ -815,10 +636,10 @@ async function createAndDownloadZip() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        appendToConsole(`✓ Downloaded ${filename}.zip`);
+        appendToConsole(`✓ Downloaded ${filename}.zip (${(zipBytes.length / 1024).toFixed(1)} KB)`);
 
     } catch (error) {
-        console.error('Error creating ZIP:', error);
-        appendToConsole(`✗ Error creating ZIP: ${error.message}`);
+        console.error('Error downloading ZIP:', error);
+        appendToConsole(`✗ Error downloading ZIP: ${error.message}`);
     }
 }

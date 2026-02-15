@@ -455,8 +455,8 @@ def save_package_to_dir(
 def create_package_zip(files: PackageFiles, design: WormGearDesign) -> bytes:
     """Create ZIP archive from PackageFiles.
 
-    ZIP filename base follows the web convention:
-    wormgear_m{module}_{teeth}-{starts}_{type}
+    Uses the same descriptive filenames as save_package_to_dir:
+        worm_m{module}_z{starts}.step, wheel_m{module}_z{teeth}.step, etc.
 
     Args:
         files: PackageFiles from generate_package().
@@ -466,17 +466,18 @@ def create_package_zip(files: PackageFiles, design: WormGearDesign) -> bytes:
         ZIP file contents as bytes.
     """
     buf = io.BytesIO()
+    names = _cli_file_names(design)
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         file_map = {
-            "worm.step": files.worm_step,
-            "wheel.step": files.wheel_step,
-            "worm.3mf": files.worm_3mf,
-            "wheel.3mf": files.wheel_3mf,
-            "worm.stl": files.worm_stl,
-            "wheel.stl": files.wheel_stl,
-            "assembly.3mf": files.assembly_3mf,
-            "assembly.glb": files.assembly_glb,
+            names["worm_step"]: files.worm_step,
+            names["wheel_step"]: files.wheel_step,
+            names["worm_3mf"]: files.worm_3mf,
+            names["wheel_3mf"]: files.wheel_3mf,
+            names["worm_stl"]: files.worm_stl,
+            names["wheel_stl"]: files.wheel_stl,
+            names["assembly_3mf"]: files.assembly_3mf,
+            names["assembly_glb"]: files.assembly_glb,
         }
 
         for name, data in file_map.items():

@@ -238,8 +238,9 @@ runner.suite('Progress Indicator State Transitions', ({ test, beforeEach, afterE
         window.currentGeneratedDesign = null; // Skip markdown generation
         await handleGenerateComplete({
             success: true,
-            worm: 'mock-base64-worm',
-            wheel: 'mock-base64-wheel',
+            zip: 'mock-base64-zip',
+            worm_3mf: 'mock-base64-worm-3mf',
+            wheel_3mf: 'mock-base64-wheel-3mf',
             worm_stl: 'mock-base64-worm-stl',
             wheel_stl: 'mock-base64-wheel-stl'
         });

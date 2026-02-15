@@ -452,7 +452,7 @@ design_obj = WormGearDesign(
 )
 
 # Export all files using shared package module
-from wormgear.io.package import generate_package
+from wormgear.io.package import generate_package, create_package_zip
 print("📦 Exporting files (STEP, 3MF, STL, assembly)...")
 files = generate_package(
     design=design_obj,
@@ -462,67 +462,68 @@ files = generate_package(
     log=print,
 )
 
-# Base64 encode for JS transport
-worm_b64 = base64.b64encode(files.worm_step).decode() if files.worm_step else None
-wheel_b64 = base64.b64encode(files.wheel_step).decode() if files.wheel_step else None
+# Build ZIP using shared code (same naming as CLI)
+print("📦 Creating ZIP archive...")
+zip_bytes = create_package_zip(files, design_obj)
+zip_b64 = base64.b64encode(zip_bytes).decode()
+print(f"  ZIP: {len(zip_bytes) / 1024:.1f} KB")
+
+# Individual mesh files for 3D preview (viewer needs these separately)
 worm_3mf_b64 = base64.b64encode(files.worm_3mf).decode() if files.worm_3mf else None
 wheel_3mf_b64 = base64.b64encode(files.wheel_3mf).decode() if files.wheel_3mf else None
 worm_stl_b64 = base64.b64encode(files.worm_stl).decode() if files.worm_stl else None
 wheel_stl_b64 = base64.b64encode(files.wheel_stl).decode() if files.wheel_stl else None
-assembly_3mf_b64 = base64.b64encode(files.assembly_3mf).decode() if files.assembly_3mf else None
 
 # Report results
-if generate_type == 'worm' and worm_b64:
+has_worm = files.worm_step is not None
+has_wheel = files.wheel_step is not None
+if generate_type == 'worm' and has_worm:
     print("✅ Worm generated successfully!")
-elif generate_type == 'wheel' and wheel_b64:
+elif generate_type == 'wheel' and has_wheel:
     print("✅ Wheel generated successfully!")
 elif generate_type == 'both':
-    if worm_b64 and wheel_b64:
+    if has_worm and has_wheel:
         print("✅ Both parts generated successfully!")
-    elif worm_b64:
+    elif has_worm:
         print("⚠️  Only worm generated (wheel failed)")
-    elif wheel_b64:
+    elif has_wheel:
         print("⚠️  Only wheel generated (worm failed)")
     else:
         print("❌ Both parts failed to generate")
 
-# Return results (markdown will be generated on main thread using calculator Pyodide)
+# Return results
+# - zip_b64: complete ZIP archive (same files/names as CLI)
+# - mesh files: individual base64 for 3D preview only
 {
-    'worm': worm_b64,
-    'wheel': wheel_b64,
+    'zip': zip_b64,
     'worm_3mf': worm_3mf_b64,
     'wheel_3mf': wheel_3mf_b64,
     'worm_stl': worm_stl_b64,
     'wheel_stl': wheel_stl_b64,
-    'assembly_3mf': assembly_3mf_b64,
     'mesh_rotation_deg': files.mesh_rotation_deg,
-    'success': (generate_type == 'worm' and worm_b64 is not None) or
-               (generate_type == 'wheel' and wheel_b64 is not None) or
-               (generate_type == 'both' and worm_b64 is not None and wheel_b64 is not None)
+    'success': (generate_type == 'worm' and has_worm) or
+               (generate_type == 'wheel' and has_wheel) or
+               (generate_type == 'both' and has_worm and has_wheel)
 }
         `);
 
         // Send results back to main thread
         const success = result.get('success');
-        const wormB64 = result.get('worm');
-        const wheelB64 = result.get('wheel');
+        const zipB64 = result.get('zip');
         const worm3mfB64 = result.get('worm_3mf');
         const wheel3mfB64 = result.get('wheel_3mf');
         const wormStlB64 = result.get('worm_stl');
         const wheelStlB64 = result.get('wheel_stl');
-        const assembly3mfB64 = result.get('assembly_3mf');
         const meshRotationDeg = result.get('mesh_rotation_deg') || 0;
 
         self.postMessage({
             type: 'GENERATE_COMPLETE',
             success: success,
-            worm: wormB64,
-            wheel: wheelB64,
+            zip: zipB64,
             worm_3mf: worm3mfB64,
             wheel_3mf: wheel3mfB64,
             worm_stl: wormStlB64,
             wheel_stl: wheelStlB64,
-            assembly_3mf: assembly3mfB64,
             mesh_rotation_deg: meshRotationDeg
         });
 
