@@ -1799,7 +1799,7 @@ summary.gen-spec-toggle::before {
 .preview-container {
     position: relative;
     width: 100%;
-    height: calc(100vh - 130px);
+    height: calc(100dvh - 200px);
     background: #1a1a2e;
     border-radius: 8px;
     overflow: hidden;
