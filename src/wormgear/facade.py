@@ -1,0 +1,264 @@
+"""Build123d-friendly facade for worm gear construction (Phase 2 of #191).
+
+``WormGear`` and ``WormWheel`` are ``BasePartObject`` subclasses that take
+**engineering parameters** as input and return a ``build123d.Part`` you can
+immediately compose, ``show()``, or ``export_step()``.
+
+This is the on-ramp for the build123d ecosystem (gggears, bd_warehouse,
+etc.) — three lines instead of the four-step calculator → params →
+geometry → build dance:
+
+    >>> from wormgear import WormGear, WormWheel
+    >>> worm = WormGear(module=2.0, num_starts=1, length=40)
+    >>> wheel = WormWheel(module=2.0, num_teeth=30)
+
+Internally they delegate to the existing ``WormGeometry`` /
+``WheelGeometry`` classes — geometric behavior is identical, pinned by
+the Phase 0 golden tests. The classes do not provide an ``API`` that the
+calculator's full param-set lacks; they are an ergonomic re-shaping of
+the existing surface.
+
+Layering: the facade lives in ``wormgear/`` (not ``wormgear/core/``) and
+lazy-imports both calculator and core inside ``__init__``. The calculator
+runs the same DIN-3975 derivation it always does; the user just doesn't
+see the Pydantic models unless they want to.
+"""
+
+from __future__ import annotations
+
+from typing import Optional, Union
+
+from build123d import Align, BasePartObject, Mode, RotationLike
+
+from .enums import Hand, WormProfile
+
+__all__ = ["WormGear", "WormWheel"]
+
+
+# ---------------------------------------------------------------------------
+# WormGear — the worm (driving gear)
+# ---------------------------------------------------------------------------
+
+
+class WormGear(BasePartObject):
+    """A worm (the driving gear) as a build123d ``Part``.
+
+    Parameters
+    ----------
+    module:
+        Axial module in mm. Standard ISO 54 values: 0.5, 1.0, 1.5, 2.0, ...
+    num_starts:
+        Number of thread starts (typically 1-4). Default 1.
+    length:
+        Worm length in mm.
+    target_lead_angle:
+        Target lead angle in degrees; controls pitch diameter. Default 7°
+        (a balanced compromise between efficiency and back-driving).
+    hand:
+        Thread hand, ``"right"`` or ``"left"`` (or ``Hand`` enum). Default
+        ``"right"``.
+    profile:
+        Tooth profile per DIN-3975: ``"ZA"`` (straight flanks, CNC default)
+        or ``"ZK"`` (slightly convex flanks, better for 3D printing).
+        Default ``"ZA"``.
+    pressure_angle:
+        Pressure angle in degrees. Default 20.
+    backlash:
+        Backlash allowance in mm. Default 0.
+    profile_shift:
+        Profile shift coefficient. Default 0.
+    sections_per_turn:
+        Helical sweep resolution. Default 36 (matches ``WormGeometry``).
+    bore, keyway, ddcut, set_screw:
+        Optional feature objects (see ``wormgear.core.features``).
+    rotation, align, mode:
+        Standard build123d Part placement parameters.
+    """
+
+    def __init__(
+        self,
+        module: float,
+        num_starts: int = 1,
+        length: float = 30.0,
+        *,
+        target_lead_angle: float = 7.0,
+        hand: Union[Hand, str] = "right",
+        profile: Union[WormProfile, str] = "ZA",
+        pressure_angle: float = 20.0,
+        backlash: float = 0.0,
+        profile_shift: float = 0.0,
+        sections_per_turn: int = 36,
+        bore=None,
+        keyway=None,
+        ddcut=None,
+        set_screw=None,
+        rotation: RotationLike = (0, 0, 0),
+        align: Optional[Align] = None,
+        mode: Mode = Mode.ADD,
+    ):
+        # Lazy imports — keeps the facade module load-time clean and avoids
+        # build123d/Pydantic loading until the user actually constructs a part.
+        from .calculator import design_from_module
+        from .core.worm import WormGeometry
+
+        # The calculator wants a ratio context. WormGear alone doesn't care
+        # about wheel teeth, but the calculator's worm derivation does depend
+        # on num_starts + target_lead_angle to compute pitch diameter — none
+        # of which involves the wheel side. We pass a placeholder ratio of 10
+        # solely to satisfy the function signature; the worm dimensions are
+        # identical for any ratio.
+        design = design_from_module(
+            module=module,
+            ratio=10,  # placeholder — worm dims don't depend on wheel teeth
+            num_starts=num_starts,
+            target_lead_angle=target_lead_angle,
+            hand=hand,
+            profile=profile,
+            pressure_angle=pressure_angle,
+            backlash=backlash,
+            profile_shift=profile_shift,
+        )
+
+        geo = WormGeometry(
+            params=design.worm,
+            assembly_params=design.assembly,
+            length=length,
+            sections_per_turn=sections_per_turn,
+            profile=profile,
+            bore=bore,
+            keyway=keyway,
+            ddcut=ddcut,
+            set_screw=set_screw,
+        )
+        part = geo.build()
+
+        # Stash the engineering inputs as attributes so downstream code
+        # (notably check_mesh and Phase 3 from_design) can introspect.
+        self._params = design.worm
+        self._assembly_params = design.assembly
+        self.module = module
+        self.num_starts = num_starts
+        self.length = length
+        self.hand = design.worm.hand
+        self.profile = profile.upper() if isinstance(profile, str) else profile.value
+
+        super().__init__(part=part, rotation=rotation, align=align, mode=mode)
+
+
+# ---------------------------------------------------------------------------
+# WormWheel — the driven gear
+# ---------------------------------------------------------------------------
+
+
+class WormWheel(BasePartObject):
+    """A worm wheel (the driven gear) as a build123d ``Part``.
+
+    Parameters
+    ----------
+    module:
+        Axial module in mm. Must match the worm's module.
+    num_teeth:
+        Number of teeth on the wheel.
+    face_width:
+        Wheel face width in mm. ``None`` (default) auto-calculates from worm
+        tip diameter following the calculator's recommendation.
+    profile:
+        Tooth profile, ``"ZA"`` or ``"ZK"``. Default ``"ZA"``.
+    worm_num_starts:
+        Worm starts (controls helix angle). Default 1.
+    worm_target_lead_angle:
+        Worm lead angle in degrees (controls helix angle). Default 7°.
+        ``helix_angle = 90 - worm_lead_angle`` for perpendicular meshing.
+    hand:
+        Thread hand of the mating worm (must match for perpendicular
+        meshing). Default ``"right"``.
+    throated:
+        If True, generate a throated wheel for accurate worm engagement.
+        Default False (simple helical wheel).
+    pressure_angle, backlash, profile_shift:
+        Standard gear parameters. Defaults match calculator.
+    bore, keyway, ddcut, set_screw:
+        Optional features.
+    rotation, align, mode:
+        build123d placement.
+    """
+
+    def __init__(
+        self,
+        module: float,
+        num_teeth: int,
+        face_width: Optional[float] = None,
+        *,
+        profile: Union[WormProfile, str] = "ZA",
+        worm_num_starts: int = 1,
+        worm_target_lead_angle: float = 7.0,
+        hand: Union[Hand, str] = "right",
+        throated: bool = False,
+        pressure_angle: float = 20.0,
+        backlash: float = 0.0,
+        profile_shift: float = 0.0,
+        bore=None,
+        keyway=None,
+        ddcut=None,
+        set_screw=None,
+        rotation: RotationLike = (0, 0, 0),
+        align: Optional[Align] = None,
+        mode: Mode = Mode.ADD,
+    ):
+        from .calculator import design_from_module
+        from .core.wheel import WheelGeometry
+
+        # The wheel needs full worm + assembly context for derivation.
+        # We derive an effective ratio from num_teeth and worm_num_starts.
+        ratio = num_teeth // worm_num_starts
+        # Sanity: if num_teeth isn't divisible by num_starts, design's
+        # wheel.num_teeth may differ. Patch by re-emitting wheel params.
+        design = design_from_module(
+            module=module,
+            ratio=ratio,
+            num_starts=worm_num_starts,
+            target_lead_angle=worm_target_lead_angle,
+            hand=hand,
+            profile=profile,
+            pressure_angle=pressure_angle,
+            backlash=backlash,
+            profile_shift=profile_shift,
+        )
+
+        # Defensive: if the calculator's derived num_teeth differs from
+        # what the user asked for, override.
+        if design.wheel.num_teeth != num_teeth:
+            design.wheel = design.wheel.model_copy(
+                update={
+                    "num_teeth": num_teeth,
+                    "pitch_diameter_mm": module * num_teeth,
+                    "tip_diameter_mm": module * num_teeth + 2 * design.wheel.addendum_mm,
+                    "root_diameter_mm": module * num_teeth - 2 * design.wheel.dedendum_mm,
+                }
+            )
+
+        geo = WheelGeometry(
+            params=design.wheel,
+            worm_params=design.worm,
+            assembly_params=design.assembly,
+            face_width=face_width,
+            profile=profile,
+            throated=throated,
+            bore=bore,
+            keyway=keyway,
+            ddcut=ddcut,
+            set_screw=set_screw,
+        )
+        part = geo.build()
+
+        # Stash params for check_mesh / from_design introspection
+        self._params = design.wheel
+        self._worm_params = design.worm
+        self._assembly_params = design.assembly
+        self.module = module
+        self.num_teeth = num_teeth
+        self.face_width = geo.face_width  # auto-calc may differ from user input
+        self.profile = profile.upper() if isinstance(profile, str) else profile.value
+        self.throated = throated
+
+        super().__init__(part=part, rotation=rotation, align=align, mode=mode)
