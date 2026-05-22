@@ -201,8 +201,10 @@ def to_markdown(
     asm = design_dict["assembly"]
     mfg = design_dict.get("manufacturing") or {}
 
-    # Get worm type
-    worm_type = worm.get("type", "cylindrical")
+    # Get worm type. ``.get("type", "cylindrical")`` is not enough because
+    # WormParams.type defaults to None (not unset), so the key is present
+    # with a None value — ``.get`` returns None, not the default.
+    worm_type = worm.get("type") or "cylindrical"
     if hasattr(worm_type, 'value'):
         worm_type = worm_type.value
 
