@@ -32,7 +32,17 @@ from build123d import Align, BasePartObject, Mode, RotationLike
 
 from .enums import Hand, WormProfile
 
-__all__ = ["WormGear", "WormWheel"]
+__all__ = ["WormGear", "WormWheel", "make_pair"]
+
+
+def _design_profile(design) -> str:
+    """Extract profile from design.manufacturing if present, else ``"ZA"``."""
+    mfg = getattr(design, "manufacturing", None)
+    if mfg is not None:
+        profile = getattr(mfg, "profile", None)
+        if profile is not None:
+            return profile.value if hasattr(profile, "value") else str(profile)
+    return "ZA"
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +153,42 @@ class WormGear(BasePartObject):
         self.profile = profile.upper() if isinstance(profile, str) else profile.value
 
         super().__init__(part=part, rotation=rotation, align=align, mode=mode)
+
+    @classmethod
+    def from_design(cls, design, length: float, **overrides) -> "WormGear":
+        """Build a ``WormGear`` from a calculator-produced ``WormGearDesign``.
+
+        Useful when you already have a ``WormGearDesign`` in hand — loaded
+        from JSON, produced by ``design_from_module``, etc. The classmethod
+        unpacks the relevant fields into the regular ``__init__`` so the
+        result is bit-identical to constructing directly.
+
+        Parameters
+        ----------
+        design:
+            A ``WormGearDesign`` (calculator output).
+        length:
+            Worm length in mm. Not stored in the design — caller decides.
+        **overrides:
+            Any ``WormGear.__init__`` parameter can be overridden here.
+
+        Returns
+        -------
+        WormGear
+        """
+        kwargs = dict(
+            module=design.worm.module_mm,
+            num_starts=design.worm.num_starts,
+            length=length,
+            target_lead_angle=design.worm.lead_angle_deg,
+            hand=design.worm.hand,
+            profile=_design_profile(design),
+            pressure_angle=design.assembly.pressure_angle_deg,
+            backlash=design.assembly.backlash_mm,
+            profile_shift=design.worm.profile_shift,
+        )
+        kwargs.update(overrides)
+        return cls(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -262,3 +308,122 @@ class WormWheel(BasePartObject):
         self.throated = throated
 
         super().__init__(part=part, rotation=rotation, align=align, mode=mode)
+
+    @classmethod
+    def from_design(
+        cls,
+        design,
+        face_width: Optional[float] = None,
+        **overrides,
+    ) -> "WormWheel":
+        """Build a ``WormWheel`` from a calculator-produced ``WormGearDesign``.
+
+        Mirror of :meth:`WormGear.from_design`. Extracts the relevant worm
+        and wheel fields and passes them into the regular constructor.
+
+        Parameters
+        ----------
+        design:
+            A ``WormGearDesign`` (calculator output).
+        face_width:
+            Wheel face width in mm. ``None`` = auto from worm tip diameter.
+        **overrides:
+            Any ``WormWheel.__init__`` parameter can be overridden here.
+
+        Returns
+        -------
+        WormWheel
+        """
+        kwargs = dict(
+            module=design.wheel.module_mm,
+            num_teeth=design.wheel.num_teeth,
+            face_width=face_width,
+            profile=_design_profile(design),
+            worm_num_starts=design.worm.num_starts,
+            worm_target_lead_angle=design.worm.lead_angle_deg,
+            hand=design.assembly.hand,
+            pressure_angle=design.assembly.pressure_angle_deg,
+            backlash=design.assembly.backlash_mm,
+            profile_shift=design.wheel.profile_shift,
+        )
+        kwargs.update(overrides)
+        return cls(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# make_pair — top-level convenience for the "I don't want to think" path
+# ---------------------------------------------------------------------------
+
+
+def make_pair(
+    module: float,
+    ratio: int,
+    length: float,
+    face_width: Optional[float] = None,
+    *,
+    num_starts: int = 1,
+    target_lead_angle: float = 7.0,
+    hand: Union[Hand, str] = "right",
+    profile: Union[WormProfile, str] = "ZA",
+    pressure_angle: float = 20.0,
+    backlash: float = 0.0,
+    profile_shift: float = 0.0,
+    throated: bool = False,
+    sections_per_turn: int = 36,
+) -> "tuple[WormGear, WormWheel]":
+    """Build a matched ``(WormGear, WormWheel)`` pair from engineering parameters.
+
+    The one-liner alternative to constructing each gear separately. The
+    pair is guaranteed compatible (passes ``check_mesh``) because it goes
+    through the same calculator path that the individual constructors do.
+
+    Parameters
+    ----------
+    module:
+        Gear module in mm. Shared by both gears.
+    ratio:
+        Gear ratio (typically ``wheel_teeth / worm_starts``).
+    length:
+        Worm length in mm.
+    face_width:
+        Wheel face width. ``None`` = auto.
+    num_starts, target_lead_angle, hand, profile, pressure_angle,
+    backlash, profile_shift, throated, sections_per_turn:
+        Standard kwargs forwarded to ``WormGear`` and ``WormWheel``.
+
+    Returns
+    -------
+    (WormGear, WormWheel)
+        Matched pair, guaranteed kinematically compatible.
+
+    Examples
+    --------
+    >>> from wormgear import make_pair, check_mesh
+    >>> worm, wheel = make_pair(module=2.0, ratio=30, length=40.0)
+    >>> assert check_mesh(worm._params, wheel._params, worm._assembly_params).ok
+    """
+    from .calculator import design_from_module
+
+    design = design_from_module(
+        module=module,
+        ratio=ratio,
+        num_starts=num_starts,
+        target_lead_angle=target_lead_angle,
+        hand=hand,
+        profile=profile,
+        pressure_angle=pressure_angle,
+        backlash=backlash,
+        profile_shift=profile_shift,
+    )
+
+    worm = WormGear.from_design(
+        design,
+        length=length,
+        sections_per_turn=sections_per_turn,
+    )
+    wheel = WormWheel.from_design(
+        design,
+        face_width=face_width,
+        throated=throated,
+    )
+    return worm, wheel

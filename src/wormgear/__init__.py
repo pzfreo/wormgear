@@ -41,6 +41,8 @@ _CALCULATOR = {
     "Severity",
     "ValidationResult",
     "calculate_default_bore",
+    "check_mesh",  # #191 Phase 1 — top-level reexport for ergonomics
+    "MeshReport",
 }
 
 _IO = {
@@ -86,6 +88,7 @@ _CORE = {
 _FACADE = {
     "WormGear",
     "WormWheel",
+    "make_pair",
 }
 
 # Cache for lazy-loaded modules
@@ -133,9 +136,10 @@ __all__ = [
     # Version
     "__version__",
 
-    # BD-style facade (lazy loaded from facade) — #191 Phase 2
+    # BD-style facade (lazy loaded from facade) — #191 Phase 2/3
     "WormGear",
     "WormWheel",
+    "make_pair",
 
     # Geometry classes (lazy loaded from core)
     "WormGeometry",
@@ -183,6 +187,8 @@ __all__ = [
     "validate_design",
     "Severity",
     "ValidationResult",
+    "check_mesh",
+    "MeshReport",
 
     # IO (lazy loaded from io)
     "load_design_json",
