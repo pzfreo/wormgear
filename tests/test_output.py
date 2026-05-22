@@ -295,6 +295,60 @@ class TestToMarkdown:
         md = to_markdown(basic_design)
         assert "straight flanks" in md
 
+    def test_markdown_handles_worm_type_none(self, tmp_path):
+        """to_markdown must not crash when design.worm.type is None.
+
+        Regression test (#192 / #194): when JSON omits the ``type`` field
+        in the worm section, Pydantic deserialises ``WormParams.type=None``
+        (the dataclass default). Earlier code did
+        ``worm.get("type", "cylindrical")`` which returns None when the
+        key exists with a None value, causing ``.title()`` to crash
+        downstream in the markdown export. Surfaced by Phase 0 slow-tests
+        CI job which was the first to actually run the CLI end-to-end.
+        """
+        import json
+        from wormgear.io import load_design_json
+
+        # JSON without a "type" key in worm section — what the web calculator
+        # produces for cylindrical designs and what conftest's _design_7mm
+        # contains.
+        design_dict = {
+            "schema_version": "2.0",
+            "worm": {
+                "module_mm": 0.5, "num_starts": 1,
+                "pitch_diameter_mm": 6.0, "tip_diameter_mm": 7.0,
+                "root_diameter_mm": 4.75, "lead_mm": 1.571,
+                "axial_pitch_mm": 1.571, "lead_angle_deg": 4.76,
+                "addendum_mm": 0.5, "dedendum_mm": 0.625,
+                "thread_thickness_mm": 0.685, "hand": "right",
+            },
+            "wheel": {
+                "module_mm": 0.5, "num_teeth": 12,
+                "pitch_diameter_mm": 6.0, "tip_diameter_mm": 7.3,
+                "root_diameter_mm": 5.05, "throat_diameter_mm": 6.5,
+                "helix_angle_deg": 85.24, "addendum_mm": 0.65,
+                "dedendum_mm": 0.475,
+            },
+            "assembly": {
+                "centre_distance_mm": 6.0, "ratio": 12,
+                "pressure_angle_deg": 25, "backlash_mm": 0.1,
+                "hand": "right",
+            },
+        }
+        json_file = tmp_path / "no_type.json"
+        json_file.write_text(json.dumps(design_dict))
+        design = load_design_json(json_file)
+
+        # Precondition: the JSON path produces worm.type=None
+        assert design.worm.type is None, (
+            "Precondition: JSON without 'type' field deserialises to None"
+        )
+
+        # The fix: to_markdown should produce sensible output, not crash
+        md = to_markdown(design)
+        assert "Worm Type" in md
+        assert "Cylindrical" in md
+
     def test_markdown_zk_profile_note(self):
         design = design_from_module(module=2.0, ratio=30, profile="ZK")
         md = to_markdown(design, manufacturing_settings={"profile": "ZK"})

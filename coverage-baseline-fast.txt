@@ -1,0 +1,50 @@
+# Coverage baseline — fast tests (Phase 0)
+#
+# Captured on the feat/phase-0-regression-net branch immediately before
+# Phase 0 tests were added. This represents the "fast suite" — what runs
+# in CI on every PR (`-m "not slow"`).
+#
+# To regenerate:
+#   uv run --extra dev pytest tests/ -m "not slow" \
+#     --ignore=tests/test_torture.py \
+#     --cov=wormgear --cov-report=term
+#
+# CI gate: --cov-fail-under=40 (small buffer below this baseline).
+#
+# Geometry coverage is intentionally low here because geometry tests are
+# marked `slow` and excluded from this run. See coverage-baseline-full.txt
+# for the slow-tests-included number.
+
+Name                                          Stmts   Miss  Cover
+-------------------------------------------------------------------
+src/wormgear/__init__.py                         29      1    97%
+src/wormgear/calculator/__init__.py              11      0   100%
+src/wormgear/calculator/constants.py             40      0   100%
+src/wormgear/calculator/core.py                 204     45    78%
+src/wormgear/calculator/js_bridge.py            190     16    92%
+src/wormgear/calculator/json_schema.py          138     24    83%
+src/wormgear/calculator/output.py               233      8    97%
+src/wormgear/calculator/validation.py           362     26    93%
+src/wormgear/cli/__init__.py                      1      0   100%
+src/wormgear/cli/generate.py                    474    429     9%
+src/wormgear/core/__init__.py                    12      2    83%
+src/wormgear/core/bore_sizing.py                 22      3    86%
+src/wormgear/core/features.py                   404    266    34%
+src/wormgear/core/geometry_base.py               27     20    26%
+src/wormgear/core/geometry_repair.py            108     95    12%
+src/wormgear/core/globoid_worm.py               785    724     8%
+src/wormgear/core/mesh_alignment.py             113     90    20%
+src/wormgear/core/rim_thickness.py               79     57    28%
+src/wormgear/core/virtual_hobbing.py            426    396     7%
+src/wormgear/core/wheel.py                      216    180    17%
+src/wormgear/core/worm.py                       454    405    11%
+src/wormgear/enums.py                            18      0   100%
+src/wormgear/io/__init__.py                       7      2    71%
+src/wormgear/io/loaders.py                      281     28    90%
+src/wormgear/io/package.py                      212    174    18%
+src/wormgear/io/schema.py                        92     27    71%
+-------------------------------------------------------------------
+TOTAL                                          7919   4600    42%
+
+# 381 tests passed, 1 skipped, 257 deselected as slow.
+# Run time: ~15 seconds.

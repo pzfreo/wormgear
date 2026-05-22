@@ -38,7 +38,11 @@ jobs:
         if: matrix.python-version == '3.12'
         run: |
           pip install pytest-cov
-          pytest tests/ -v --cov=wormgear --cov-report=xml --ignore=tests/test_torture.py -m "not slow"
+          pytest tests/ -v --cov=wormgear --cov-report=xml --cov-fail-under=40 \
+                 --ignore=tests/test_torture.py -m "not slow"
+        # --cov-fail-under=40 gates against coverage regression.
+        # Baseline at Phase 0 was 42 % (fast suite); 40 % leaves a small
+        # buffer for noise without masking real drops.
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.12'
@@ -46,6 +50,45 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  # Phase 0 regression net: golden volumes, geometry determinism, and layer
+  # checks all run here. These are slow (~5-10 min) so they live in their
+  # own job rather than the main fast-test loop. Layering tests are fast
+  # but kept with the rest of the regression net for cohesion.
+  slow-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libglu1-mesa
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Phase 0 regression net
+        run: |
+          pytest tests/test_layering.py \
+                 tests/test_golden_volumes.py \
+                 tests/test_geometry_determinism.py \
+                 -v --tb=short
+
+      # NOTE: the broader slow-test suite (test_worm, test_wheel,
+      # test_cli, test_features, etc.) is *not* run here. Those tests
+      # have never been in CI — they were excluded by the original
+      # `-m "not slow"` filter — and bringing them in is its own
+      # cleanup. They run locally with `pytest -m slow`. Adding them
+      # here mid-Phase-0 expanded scope beyond the regression net's
+      # purpose. Track that work separately if/when needed.
 
   typecheck:
     runs-on: ubuntu-latest

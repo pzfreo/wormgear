@@ -1179,6 +1179,63 @@ wormgear/
    - Verify toolpath generation succeeds
    - Check for unmachineable features
 
+## Phase 0 Regression Net (Issue #192)
+
+The repo has a small but load-bearing set of tests that catch silent drift
+during refactors. Three files, each with a specific purpose:
+
+| File | What it pins | Speed |
+|------|--------------|-------|
+| `tests/test_layering.py` | Architectural import rules: calculator and core don't import each other; calculator runs without build123d (the Pyodide story) | Fast (~15s) |
+| `tests/test_golden_volumes.py` | Exact volume / bounding box / face count for 8 canonical designs, within 0.1 % / 0.01 mm / exact match | Slow (~5 min) |
+| `tests/test_geometry_determinism.py` | Two builds of the same design produce identical volumes (in-process and cross-process), within 0.001 % | Slow (~1 min) |
+
+### The bore_sizing exception
+
+`wormgear.core.bore_sizing` is the **only sanctioned cross-layer import**.
+It is a pure-Python helper that lives under `core/` for historical reasons
+but has no build123d dependency. Both calculator and io may import it at
+module scope. If you find yourself wanting a second exception, that's a
+signal to move the helper out of its current layer instead.
+
+### Regenerating golden values
+
+When `build123d` is upgraded or a deliberate geometry change is made,
+regenerate the recorded values:
+
+```bash
+uv run --extra dev python scripts/record_golden_volumes.py
+```
+
+Paste the output into `GOLDEN_VALUES` in `tests/test_golden_volumes.py`
+and **review the diff carefully**. Any volume change > 0.1 % or any
+face-count change must be explained in the commit message. Unexplained
+drift means something has changed that shouldn't have.
+
+### Coverage gate
+
+CI fails if fast-test line coverage drops below 40 %. The baseline at
+Phase 0 was 42 % (mostly because geometry code is exercised only by slow
+tests, which CI now runs in a separate `slow-tests` job). To check
+locally:
+
+```bash
+pytest --cov=wormgear -m "not slow" --ignore=tests/test_torture.py --cov-fail-under=40
+```
+
+If you legitimately need to lower the gate (e.g., removing a large module),
+update both the CI workflow and CLAUDE.md in the same PR with the reason.
+
+### When to update Phase 0 tests
+
+- **Golden values**: see "Regenerating" above.
+- **Layering rules**: only loosen with a documented architectural decision
+  (e.g., creating a new sanctioned shared module). Tightening (catching
+  more cases) is always welcome.
+- **Determinism tolerance**: only loosen if a build123d / OCC kernel update
+  legitimately introduces sub-0.001 % nondeterminism. Tightening once we
+  have evidence is fine.
+
 ## Quick Reference
 
 ### Running Tests
