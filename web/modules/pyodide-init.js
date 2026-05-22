@@ -97,7 +97,7 @@ export async function initCalculator(onComplete) {
         calculatorPyodide.FS.writeFile('/home/pyodide/wormgear/enums.py', enumsContent);
 
         // Load calculator module files (including js_bridge for clean JS<->Python interface)
-        const calcFiles = ['__init__.py', 'core.py', 'validation.py', 'output.py', 'constants.py', 'js_bridge.py', 'json_schema.py'];
+        const calcFiles = ['__init__.py', 'core.py', 'validation.py', 'output.py', 'constants.py', 'js_bridge.py', 'json_schema.py', 'check_mesh.py'];
         for (const file of calcFiles) {
             const response = await fetch(`wormgear/calculator/${file}?v=${cacheBuster}`);
             if (!response.ok) throw new Error(`Failed to load calculator/${file}: ${response.status}`);

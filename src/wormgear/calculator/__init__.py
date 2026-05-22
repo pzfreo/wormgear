@@ -51,6 +51,12 @@ from .validation import (
     ValidationResult,
 )
 
+from .check_mesh import (
+    # Kinematic mesh compatibility (Phase 1 of #191)
+    MeshReport,
+    check_mesh,
+)
+
 from ..enums import (
     # Type-safe enums
     Hand,
@@ -131,6 +137,10 @@ __all__ = [
     "Severity",
     "ValidationMessage",
     "ValidationResult",
+
+    # Kinematic mesh compatibility (Phase 1 of #191)
+    "MeshReport",
+    "check_mesh",
 
     # Output formatters
     "to_json",

@@ -37,6 +37,7 @@ CALCULATOR_FILES = [
     "calculator/constants.py",
     "calculator/js_bridge.py",
     "calculator/json_schema.py",
+    "calculator/check_mesh.py",  # Phase 1 of #191
     "core/__init__.py",  # Only for bore_sizing import
     "core/bore_sizing.py",
     "io/__init__.py",
