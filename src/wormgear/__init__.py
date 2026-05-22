@@ -83,6 +83,11 @@ _CORE = {
     "mesh_alignment_to_dict",
 }
 
+_FACADE = {
+    "WormGear",
+    "WormWheel",
+}
+
 # Cache for lazy-loaded modules
 _modules = {}
 
@@ -115,12 +120,22 @@ def __getattr__(name):
             _modules["core"] = core
         return getattr(_modules["core"], name)
 
+    if name in _FACADE:
+        if "facade" not in _modules:
+            from . import facade
+            _modules["facade"] = facade
+        return getattr(_modules["facade"], name)
+
     raise AttributeError(f"module 'wormgear' has no attribute {name!r}")
 
 
 __all__ = [
     # Version
     "__version__",
+
+    # BD-style facade (lazy loaded from facade) — #191 Phase 2
+    "WormGear",
+    "WormWheel",
 
     # Geometry classes (lazy loaded from core)
     "WormGeometry",
