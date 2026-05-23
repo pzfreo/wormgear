@@ -61,10 +61,9 @@ _IO = {
 }
 
 _CORE = {
-    "WormGeometry",
-    "WheelGeometry",
-    "GloboidWormGeometry",
-    "VirtualHobbingWheelGeometry",
+    # WormGeometry / WheelGeometry / GloboidWormGeometry /
+    # VirtualHobbingWheelGeometry were removed in 0.1.0 (#200). The
+    # ``__getattr__`` below gives a migration-hint ImportError.
     "HOBBING_PRESETS",
     "get_hobbing_preset",
     "get_preset_steps",
@@ -73,6 +72,7 @@ _CORE = {
     "DDCutFeature",
     "SetScrewFeature",
     "HubFeature",
+    "ReliefGrooveFeature",
     "calculate_default_ddcut",
     "get_din_6885_keyway",
     # Mesh alignment
@@ -83,6 +83,13 @@ _CORE = {
     "position_for_mesh",
     "create_axis_markers",
     "mesh_alignment_to_dict",
+}
+
+_REMOVED_IN_010 = {
+    "WormGeometry": "wormgear.WormGear",
+    "WheelGeometry": "wormgear.WormWheel",
+    "GloboidWormGeometry": "wormgear.make_pair(globoid=True)",
+    "VirtualHobbingWheelGeometry": "wormgear.advanced.virtual_hobbing",
 }
 
 _FACADE = {
@@ -129,6 +136,12 @@ def __getattr__(name):
             _modules["facade"] = facade
         return getattr(_modules["facade"], name)
 
+    if name in _REMOVED_IN_010:
+        raise ImportError(
+            f"{name} was removed in wormgear 0.1.0. "
+            f"Use {_REMOVED_IN_010[name]} instead. See #200 for migration."
+        )
+
     raise AttributeError(f"module 'wormgear' has no attribute {name!r}")
 
 
@@ -136,16 +149,12 @@ __all__ = [
     # Version
     "__version__",
 
-    # BD-style facade (lazy loaded from facade) — #191 Phase 2/3
+    # BD-style facade — public construction API
     "WormGear",
     "WormWheel",
     "make_pair",
 
-    # Geometry classes (lazy loaded from core)
-    "WormGeometry",
-    "WheelGeometry",
-    "GloboidWormGeometry",
-    "VirtualHobbingWheelGeometry",
+    # Hobbing presets (used by virtual hobbing wheel via wormgear.advanced)
     "HOBBING_PRESETS",
     "get_hobbing_preset",
     "get_preset_steps",

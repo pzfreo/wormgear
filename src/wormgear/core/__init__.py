@@ -1,85 +1,84 @@
-"""
-Wormgear Core - Pure geometry generation engine.
+"""Wormgear core — internal geometry routines and public feature/utility classes.
 
-This module provides the core 3D geometry generation capabilities using build123d.
-No JSON dependencies - pure Python API.
+The geometry **classes** (``_WormGeometry``, ``_WheelGeometry``,
+``_GloboidWormGeometry``, ``_VirtualHobbingWheelGeometry``) are private as
+of 0.1.0; the public construction surface is ``wormgear.WormGear`` /
+``wormgear.WormWheel`` / ``wormgear.make_pair``.
 
-Example:
-    >>> from wormgear.core import WormGeometry
-    >>> from wormgear.io import WormParams, AssemblyParams
-    >>>
-    >>> worm_params = WormParams(
-    ...     module_mm=2.0,
-    ...     num_starts=1,
-    ...     pitch_diameter_mm=16.0,
-    ...     # ... other params
-    ... )
-    >>>
-    >>> assembly_params = AssemblyParams(
-    ...     centre_distance_mm=38.0,
-    ...     pressure_angle_deg=20.0,
-    ...     # ... other params
-    ... )
-    >>>
-    >>> worm = WormGeometry(worm_params, assembly_params, length=40.0)
-    >>> part = worm.build()
-    >>> part.export_step("worm.step")
+What remains exported from this module:
+
+  * **Feature classes** (``BoreFeature``, ``KeywayFeature``, etc.) — used
+    as kwargs to the facade constructors. Public.
+  * **Mesh alignment** helpers (``find_optimal_mesh_rotation``, etc.) —
+    public utility for analysing built pairs.
+  * **Rim thickness** measurement utilities — public.
+  * **bore_sizing** helpers — pure-Python, always available.
+
+Example::
+
+    >>> from wormgear import WormGear, WormWheel
+    >>> from wormgear.core import BoreFeature, KeywayFeature
+    >>> worm = WormGear(module=2.0, length=40.0, bore=BoreFeature(diameter=8.0))
 """
 
-# Bore sizing is always available (no build123d dependency)
+# bore_sizing has no build123d dependency — always available.
 from .bore_sizing import calculate_default_bore
 
-# Geometry classes require build123d - make import conditional
-# This allows calculator (in Pyodide) to import core.bore_sizing without build123d
-try:
-    from .worm import WormGeometry
-    from .wheel import WheelGeometry
-    from .globoid_worm import GloboidWormGeometry
-    from .virtual_hobbing import VirtualHobbingWheelGeometry, HOBBING_PRESETS, get_hobbing_preset, get_preset_steps
+# Removed in 0.1.0 (#200) — kept here so ``__getattr__`` can give a helpful
+# error when users hit ``from wormgear.core import WormGeometry`` etc.
+_REMOVED_IN_010 = {
+    "WormGeometry": "wormgear.WormGear",
+    "WheelGeometry": "wormgear.WormWheel",
+    "GloboidWormGeometry": "wormgear.make_pair(globoid=True)",
+    "VirtualHobbingWheelGeometry": "wormgear.advanced.virtual_hobbing",
+}
 
-    # Features (also require build123d)
+# Everything else requires build123d. If it's not installed (Pyodide path),
+# only bore_sizing + the removed-name __getattr__ are available.
+try:
+    # Features — public, used as facade kwargs.
     from .features import (
         BoreFeature,
-        KeywayFeature,
         DDCutFeature,
-        SetScrewFeature,
         HubFeature,
+        KeywayFeature,
         ReliefGrooveFeature,
+        SetScrewFeature,
         calculate_default_ddcut,
         get_din_6885_keyway,
     )
 
-    # Mesh alignment
+    # Mesh alignment — public utility.
     from .mesh_alignment import (
         MeshAlignmentResult,
-        find_optimal_mesh_rotation,
         calculate_mesh_rotation,
         calculate_tolerance_mm3,
         check_interference,
-        position_for_mesh,
         create_axis_markers,
+        find_optimal_mesh_rotation,
         mesh_alignment_to_dict,
+        position_for_mesh,
     )
 
-    # Rim thickness measurement
+    # Rim thickness — public utility.
     from .rim_thickness import (
+        WHEEL_RIM_WARNING_THRESHOLD_MM,
+        WORM_RIM_WARNING_THRESHOLD_MM,
         RimThicknessResult,
         measure_rim_thickness,
         rim_thickness_to_dict,
-        WHEEL_RIM_WARNING_THRESHOLD_MM,
-        WORM_RIM_WARNING_THRESHOLD_MM,
+    )
+
+    # Hobbing presets — used by virtual hobbing. Re-exported from
+    # ``wormgear.advanced.virtual_hobbing`` post-#203; kept here for
+    # backwards compatibility with the (now-private) hobbing wheel.
+    from .virtual_hobbing import (
+        HOBBING_PRESETS,
+        get_hobbing_preset,
+        get_preset_steps,
     )
 
     __all__ = [
-        # Geometry classes
-        "WormGeometry",
-        "WheelGeometry",
-        "GloboidWormGeometry",
-        "VirtualHobbingWheelGeometry",
-        "HOBBING_PRESETS",
-        "get_hobbing_preset",
-        "get_preset_steps",
-
         # Features
         "BoreFeature",
         "KeywayFeature",
@@ -90,7 +89,6 @@ try:
         "calculate_default_bore",
         "calculate_default_ddcut",
         "get_din_6885_keyway",
-
         # Mesh alignment
         "MeshAlignmentResult",
         "find_optimal_mesh_rotation",
@@ -100,17 +98,27 @@ try:
         "position_for_mesh",
         "create_axis_markers",
         "mesh_alignment_to_dict",
-
-        # Rim thickness measurement
+        # Rim thickness
         "RimThicknessResult",
         "measure_rim_thickness",
         "rim_thickness_to_dict",
         "WHEEL_RIM_WARNING_THRESHOLD_MM",
         "WORM_RIM_WARNING_THRESHOLD_MM",
+        # Hobbing presets
+        "HOBBING_PRESETS",
+        "get_hobbing_preset",
+        "get_preset_steps",
     ]
 except ImportError:
-    # build123d not available (e.g., in Pyodide calculator without geometry)
-    # Only expose bore_sizing functions
-    __all__ = [
-        "calculate_default_bore",
-    ]
+    # Pyodide path — no build123d.
+    __all__ = ["calculate_default_bore"]
+
+
+def __getattr__(name):
+    """Helpful error for removed names (#200, removed in 0.1.0)."""
+    if name in _REMOVED_IN_010:
+        raise ImportError(
+            f"{name} was removed in wormgear 0.1.0. "
+            f"Use {_REMOVED_IN_010[name]} instead. See #200 for migration."
+        )
+    raise AttributeError(f"module 'wormgear.core' has no attribute {name!r}")

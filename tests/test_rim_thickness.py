@@ -2,8 +2,8 @@
 
 import pytest
 from wormgear.io.loaders import load_design_json
-from wormgear.core.wheel import WheelGeometry
-from wormgear.core.worm import WormGeometry
+from wormgear.core.wheel import _WheelGeometry
+from wormgear.core.worm import _WormGeometry
 from wormgear.core.features import BoreFeature, KeywayFeature, DDCutFeature
 from wormgear.core.rim_thickness import (
     measure_rim_thickness,
@@ -32,7 +32,7 @@ def wheel_with_bore(design):
     """Build a wheel with a 15mm bore and keyway."""
     bore = BoreFeature(diameter=15.0)
     keyway = KeywayFeature()
-    wheel_geo = WheelGeometry(
+    wheel_geo = _WheelGeometry(
         params=design.wheel,
         worm_params=design.worm,
         assembly_params=design.assembly,
@@ -46,7 +46,7 @@ def wheel_with_bore(design):
 def wheel_with_bore_no_keyway(design):
     """Build a wheel with a 15mm bore but no keyway."""
     bore = BoreFeature(diameter=15.0)
-    wheel_geo = WheelGeometry(
+    wheel_geo = _WheelGeometry(
         params=design.wheel,
         worm_params=design.worm,
         assembly_params=design.assembly,
@@ -59,7 +59,7 @@ def wheel_with_bore_no_keyway(design):
 def worm_with_bore(design):
     """Build a worm with a 4mm bore."""
     bore = BoreFeature(diameter=4.0)
-    worm_geo = WormGeometry(
+    worm_geo = _WormGeometry(
         params=design.worm,
         assembly_params=design.assembly,
         length=40.0,
@@ -122,7 +122,7 @@ class TestRimThicknessMeasurement:
         # Use a large bore to create thin rim
         large_bore = design.wheel.root_diameter_mm - 1.0  # Very thin rim
         bore = BoreFeature(diameter=large_bore)
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -145,7 +145,7 @@ class TestRimThicknessMeasurement:
         # Use a large bore to create thin rim
         large_bore = design.worm.root_diameter_mm - 1.5  # Very thin rim
         bore = BoreFeature(diameter=large_bore)
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=40.0,
@@ -234,7 +234,7 @@ class TestRimThicknessEdgeCases:
     def test_small_bore(self, design):
         """Test measurement with small bore diameter."""
         bore = BoreFeature(diameter=2.0)  # Very small bore
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=40.0,
@@ -300,7 +300,7 @@ class TestRimThicknessWithDDCut:
         bore = BoreFeature(diameter=15.0)
         # DD-cut with 25% depth is deeper than typical keyway
         ddcut = DDCutFeature(depth=15.0 * 0.25)  # 3.75mm depth
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,

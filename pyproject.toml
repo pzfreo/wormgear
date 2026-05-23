@@ -4,17 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wormgear"
-version = "0.0.51"
-description = "Unified worm gear calculator and CNC-ready 3D geometry generator"
+version = "0.1.0"
+description = "Worm gears for build123d, with DIN-3975 engineering analysis"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
     {name = "Paul Fremantle", email = "paul@fremantle.org"}
 ]
-keywords = ["worm gear", "gear calculator", "CAD", "build123d", "CNC", "STEP", "manufacturing"]
+keywords = [
+    "worm gear",
+    "gear calculator",
+    "CAD",
+    "build123d",
+    "CNC",
+    "STEP",
+    "manufacturing",
+    "3d printing",
+    "helical",
+    "mechanism",
+    "DIN 3975",
+    "mechanical engineering",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Manufacturing",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
@@ -23,6 +36,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mechanical",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
 ]
 
 dependencies = [
@@ -60,17 +75,6 @@ python_classes = "Test*"
 python_functions = "test_*"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
-# The old geometry constructors (WormGeometry / WheelGeometry / etc.) emit
-# DeprecationWarning to nudge users toward the WormGear / WormWheel facade
-# (#191 Phase 5). The existing test suite intentionally still exercises the
-# old constructors (Phase 0 goldens are pinned through them). Silence the
-# noise in our own runs; users see the warnings in their code.
-filterwarnings = [
-    "ignore:WormGeometry is deprecated:DeprecationWarning",
-    "ignore:WheelGeometry is deprecated:DeprecationWarning",
-    "ignore:GloboidWormGeometry is deprecated:DeprecationWarning",
-    "ignore:VirtualHobbingWheelGeometry is deprecated:DeprecationWarning",
 ]
 
 [tool.black]

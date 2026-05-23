@@ -54,14 +54,8 @@ from typing import Any
 
 import pytest
 
-from wormgear import WormGear, WormWheel
-from wormgear.calculator import calculate_design_from_module
-from wormgear.core import (
-    BoreFeature,
-    GloboidWormGeometry,  # globoid migrates to make_pair(globoid=True) in #202
-    KeywayFeature,
-    WheelGeometry,  # only used for globoid wheel path; cylindrical uses WormWheel
-)
+from wormgear import WormGear, WormWheel, make_pair
+from wormgear.core import BoreFeature, KeywayFeature
 
 pytestmark = pytest.mark.slow
 
@@ -230,43 +224,22 @@ def build_pair(spec: DesignSpec):
     wheel_keyway = KeywayFeature() if spec.keyways and wheel_bore is not None else None
 
     if spec.globoid:
-        # Globoid stays on legacy until #202 lands make_pair(globoid=True).
-        extra: dict[str, Any] = {}
-        if spec.target_lead_angle is not None:
-            extra["target_lead_angle"] = spec.target_lead_angle
-        design = calculate_design_from_module(
+        # Globoid goes through make_pair(globoid=True) — the BD-style API.
+        # Note: make_pair doesn't accept features (bore/keyway) directly;
+        # those would need to flow via overrides or post-construction edits.
+        # The current globoid golden has no features, so make_pair suffices.
+        return make_pair(
             module=spec.module,
             ratio=spec.ratio,
+            length=spec.worm_length,
+            face_width=spec.wheel_face_width,
             num_starts=spec.num_starts,
+            target_lead_angle=spec.target_lead_angle or 7.0,
             hand=spec.hand,
             profile=spec.profile,
             globoid=True,
-            **extra,
-        )
-        worm_geo = GloboidWormGeometry(
-            params=design.worm,
-            assembly_params=design.assembly,
-            wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
-            length=spec.worm_length,
             sections_per_turn=spec.sections_per_turn,
-            profile=spec.profile,
-            bore=worm_bore,
-            keyway=worm_keyway,
         )
-        worm = worm_geo.build()
-
-        wheel_geo = WheelGeometry(
-            params=design.wheel,
-            worm_params=design.worm,
-            assembly_params=design.assembly,
-            face_width=spec.wheel_face_width,
-            profile=spec.profile,
-            throated=spec.throated_wheel,
-            bore=wheel_bore,
-            keyway=wheel_keyway,
-        )
-        wheel = wheel_geo.build()
-        return worm, wheel
 
     # Cylindrical path — BD-style facade
     worm = WormGear(

@@ -207,45 +207,34 @@ class TestGeneratorEnvironment:
         sys.modules.update(original_modules)
 
     def test_geometry_imports_work(self, generator_env):
-        """Verify all geometry imports work with build123d."""
+        """Verify all geometry imports work with build123d (post-0.1.0 surface)."""
+        # The public API in 0.1.0 is the facade.
+        from wormgear import WormGear, WormWheel, make_pair, check_mesh
         from wormgear.core import (
-            WormGeometry,
-            WheelGeometry,
-            GloboidWormGeometry,
-            VirtualHobbingWheelGeometry,
             BoreFeature,
             KeywayFeature,
             DDCutFeature,
             calculate_default_bore,
         )
 
-        # Verify the classes/functions exist
-        assert WormGeometry is not None
-        assert WheelGeometry is not None
-        assert GloboidWormGeometry is not None
-        assert VirtualHobbingWheelGeometry is not None
+        assert WormGear is not None
+        assert WormWheel is not None
+        assert callable(make_pair)
+        assert callable(check_mesh)
         assert BoreFeature is not None
         assert KeywayFeature is not None
         assert DDCutFeature is not None
         assert callable(calculate_default_bore)
 
     def test_generator_worker_imports_match_python(self, generator_env):
-        """Verify the imports in generator-worker.js can be satisfied."""
-        # This is the import statement from generator-worker.js
-        from wormgear.core import (
-            WormGeometry,
-            WheelGeometry,
-            GloboidWormGeometry,
-            VirtualHobbingWheelGeometry,
-            BoreFeature,
-            KeywayFeature,
-            DDCutFeature,
-            calculate_default_bore,
-        )
+        """Verify the imports the generator worker needs are satisfied."""
+        # Post-0.1.0: the worker uses the facade.
+        from wormgear import WormGear, WormWheel
+        from wormgear.core import BoreFeature, KeywayFeature, DDCutFeature
         from wormgear.io import WormParams, WheelParams, AssemblyParams
 
-        # These should all be importable
-        assert WormGeometry is not None
+        assert WormGear is not None
+        assert WormWheel is not None
         assert WormParams is not None
 
 

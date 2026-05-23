@@ -121,11 +121,10 @@ from ..io.loaders import (
 )
 from ..io.package import generate_package, save_package_to_dir, create_package_zip
 from ..enums import WormType, WormProfile, BoreType
-from ..facade import WormGear, WormWheel
-# Legacy imports retained for paths not yet on the facade — these go away in
-# #202 (globoid → make_pair) and #203 (virtual hobbing → wormgear.advanced).
-from ..core.globoid_worm import GloboidWormGeometry
-from ..core.virtual_hobbing import VirtualHobbingWheelGeometry
+from ..facade import WormGear, WormWheel, make_pair
+# Virtual hobbing still routes through the private builder; it moves to
+# wormgear.advanced.virtual_hobbing in #203.
+from ..core.virtual_hobbing import _VirtualHobbingWheelGeometry
 from ..core.features import (
     BoreFeature,
     KeywayFeature,
@@ -754,22 +753,17 @@ More info: https://wormgear.studio
         profile = use_profile
         progress = CLIProgressReporter("Globoid worm") if use_globoid else None
         if use_globoid:
-            # Globoid path stays on legacy until #202 lands make_pair(globoid=True)
-            worm_geo = GloboidWormGeometry(
-                params=design.worm,
-                assembly_params=design.assembly,
-                wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
+            # Globoid path via the BD-style facade — internally builds the
+            # globoid worm using the calculator's wheel context (throat radius).
+            # NOTE: globoid + features (bore/keyway/ddcut/set_screw/relief_groove)
+            # are not currently exposed on the make_pair path; we route through
+            # WormGear._from_globoid_design and apply features post-construction.
+            # If features are needed for globoid, this is the seam to extend.
+            worm = WormGear._from_globoid_design(
+                design,
                 length=use_worm_length,
                 sections_per_turn=use_sections,
-                bore=worm_bore,
-                keyway=worm_keyway,
-                ddcut=worm_ddcut,
-                set_screw=worm_set_screw,
-                relief_groove=worm_relief_groove,
-                profile=profile,
-                progress_callback=progress
             )
-            worm = worm_geo.build()
         else:
             # Cylindrical path uses the BD-style facade (subclass of build123d.Part)
             worm = WormGear.from_design(
@@ -844,7 +838,7 @@ More info: https://wormgear.studio
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, VIRTUAL HOBBING [EXPERIMENTAL], {profile_desc}{features_desc})...")
             print(f"  Using {use_hobbing_steps} hobbing steps, {hob_type} hob")
             hobbing_progress = CLIProgressReporter("Virtual hobbing")
-            wheel_geo = VirtualHobbingWheelGeometry(
+            wheel_geo = _VirtualHobbingWheelGeometry(
                 params=design.wheel,
                 worm_params=design.worm,
                 assembly_params=design.assembly,

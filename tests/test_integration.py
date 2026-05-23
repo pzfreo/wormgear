@@ -7,7 +7,9 @@ import pytest
 from pathlib import Path
 import tempfile
 
-from wormgear import load_design_json, WormGeometry, WheelGeometry
+from wormgear import load_design_json
+from wormgear.core.worm import _WormGeometry
+from wormgear.core.wheel import _WheelGeometry
 
 pytestmark = pytest.mark.slow
 
@@ -109,7 +111,7 @@ class TestFromExampleFiles:
         design = load_design_json(example_file)
 
         # Generate worm
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=7.0,
@@ -118,7 +120,7 @@ class TestFromExampleFiles:
         worm = worm_geo.build()
 
         # Generate wheel
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly

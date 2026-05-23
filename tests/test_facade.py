@@ -3,8 +3,8 @@
 Verifies that ``WormGear`` and ``WormWheel``:
   1. Subclass ``build123d.BasePartObject`` so ``isinstance(x, Part)`` works
      (#187 — bd_warehouse convention)
-  2. Produce **identical geometry** to the existing ``WormGeometry`` /
-     ``WheelGeometry`` constructors for the same engineering inputs
+  2. Produce **identical geometry** to the existing ``_WormGeometry`` /
+     ``_WheelGeometry`` constructors for the same engineering inputs
      (Phase 0 goldens guarantee no drift if equivalence holds)
   3. Expose the engineering inputs as attributes for introspection
      (downstream ``check_mesh`` and Phase 3 ``from_design`` rely on this)
@@ -19,7 +19,8 @@ from build123d import Part
 
 from wormgear import WormGear, WormWheel
 from wormgear.calculator import calculate_design_from_module
-from wormgear.core import WheelGeometry, WormGeometry
+from wormgear.core.wheel import _WheelGeometry
+from wormgear.core.worm import _WormGeometry
 
 pytestmark = pytest.mark.slow
 
@@ -78,7 +79,7 @@ EQUIVALENCE_MATRIX = [
     ids=[x[0] for x in EQUIVALENCE_MATRIX],
 )
 def test_worm_gear_equivalent_to_worm_geometry(label, design_kwargs, length, face_width):
-    """WormGear(...) must produce identical geometry to WormGeometry(...).
+    """WormGear(...) must produce identical geometry to _WormGeometry(...).
 
     Mirrors the inputs through the calculator (which both paths use) to
     confirm no drift between the BD-style constructor and the existing one.
@@ -97,8 +98,8 @@ def test_worm_gear_equivalent_to_worm_geometry(label, design_kwargs, length, fac
         sections_per_turn=12,
     )
 
-    # The reference: existing WormGeometry built from the same design
-    old_worm = WormGeometry(
+    # The reference: existing _WormGeometry built from the same design
+    old_worm = _WormGeometry(
         params=design.worm,
         assembly_params=design.assembly,
         length=length,
@@ -108,7 +109,7 @@ def test_worm_gear_equivalent_to_worm_geometry(label, design_kwargs, length, fac
 
     rel = abs(new_worm.volume - old_worm.volume) / old_worm.volume
     assert rel < EQUIVALENCE_TOL, (
-        f"{label}: WormGear volume drifted from WormGeometry: "
+        f"{label}: WormGear volume drifted from _WormGeometry: "
         f"new={new_worm.volume:.4f}, old={old_worm.volume:.4f}, rel={rel:.2e}"
     )
 
@@ -119,7 +120,7 @@ def test_worm_gear_equivalent_to_worm_geometry(label, design_kwargs, length, fac
     ids=[x[0] for x in EQUIVALENCE_MATRIX],
 )
 def test_worm_wheel_equivalent_to_wheel_geometry(label, design_kwargs, length, face_width):
-    """WormWheel(...) must produce identical geometry to WheelGeometry(...)."""
+    """WormWheel(...) must produce identical geometry to _WheelGeometry(...)."""
     design = calculate_design_from_module(**design_kwargs)
 
     new_wheel = WormWheel(
@@ -133,7 +134,7 @@ def test_worm_wheel_equivalent_to_wheel_geometry(label, design_kwargs, length, f
         pressure_angle=design.assembly.pressure_angle_deg,
     )
 
-    old_wheel = WheelGeometry(
+    old_wheel = _WheelGeometry(
         params=design.wheel,
         worm_params=design.worm,
         assembly_params=design.assembly,
@@ -143,7 +144,7 @@ def test_worm_wheel_equivalent_to_wheel_geometry(label, design_kwargs, length, f
 
     rel = abs(new_wheel.volume - old_wheel.volume) / old_wheel.volume
     assert rel < EQUIVALENCE_TOL, (
-        f"{label}: WormWheel volume drifted from WheelGeometry: "
+        f"{label}: WormWheel volume drifted from _WheelGeometry: "
         f"new={new_wheel.volume:.4f}, old={old_wheel.volume:.4f}, rel={rel:.2e}"
     )
 

@@ -7,15 +7,15 @@ import pytest
 
 from wormgear import (
     load_design_json, WormParams, AssemblyParams,
-    GloboidWormGeometry,
     BoreFeature, KeywayFeature, SetScrewFeature,
 )
+from wormgear.core.globoid_worm import _GloboidWormGeometry
 
 pytestmark = pytest.mark.slow
 
 
 class TestGloboidWormGeometry:
-    """Tests for GloboidWormGeometry class."""
+    """Tests for _GloboidWormGeometry class."""
 
     @pytest.fixture
     def wheel_pitch_diameter(self, sample_design_7mm):
@@ -23,8 +23,8 @@ class TestGloboidWormGeometry:
         return sample_design_7mm["wheel"]["pitch_diameter_mm"]
 
     def test_globoid_worm_geometry_creation(self, worm_params, assembly_params, wheel_pitch_diameter):
-        """Test creating a GloboidWormGeometry instance."""
-        globoid_geo = GloboidWormGeometry(
+        """Test creating a _GloboidWormGeometry instance."""
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -39,7 +39,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_hourglass_parameters(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that hourglass parameters are calculated correctly using geometry-based formula."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -60,7 +60,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_auto_length_calculation(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test auto-calculation of worm length when not specified."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter
@@ -73,7 +73,7 @@ class TestGloboidWormGeometry:
     def test_globoid_custom_length(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test specifying custom worm length."""
         custom_length = 12.0
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -84,7 +84,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_build_returns_solid(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that build() returns a valid solid."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -101,7 +101,7 @@ class TestGloboidWormGeometry:
     def test_globoid_volume_reasonable(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that globoid volume is within reasonable bounds."""
         length = 10.0
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -124,7 +124,7 @@ class TestGloboidWormGeometry:
     def test_globoid_different_lengths(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test globoid generation with different lengths."""
         for length in [5.0, 20.0]:
-            globoid_geo = GloboidWormGeometry(
+            globoid_geo = _GloboidWormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
                 wheel_pitch_diameter=wheel_pitch_diameter,
@@ -138,7 +138,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_helix_points_generation(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that varying-radius helix points are generated correctly."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -185,7 +185,7 @@ class TestGloboidWormGeometry:
             profile_shift=0.0
         )
 
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -224,7 +224,7 @@ class TestGloboidWormGeometry:
         )
         wheel_pitch_diameter = sample_design_left_hand["wheel"]["pitch_diameter_mm"]
 
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -239,7 +239,7 @@ class TestGloboidWormGeometry:
     def test_globoid_thread_tapering(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that thread ends are tapered smoothly."""
         # This is tested indirectly - if tapering is broken, lofting fails or creates invalid geometry
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -254,7 +254,7 @@ class TestGloboidWormGeometry:
 
     def test_globoid_is_watertight(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that the globoid geometry is watertight (valid solid)."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -269,7 +269,7 @@ class TestGloboidWormGeometry:
     def test_globoid_bounding_box_reasonable(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that globoid bounding box matches expected dimensions."""
         length = 15.0
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -293,7 +293,7 @@ class TestGloboidWormGeometry:
     def test_globoid_with_bore(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test globoid worm with bore feature."""
         bore = BoreFeature(diameter=4.0)
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -315,7 +315,7 @@ class TestGloboidWormGeometry:
         assert globoid.is_valid
 
         # Volume should be less than solid version due to bore
-        globoid_solid = GloboidWormGeometry(
+        globoid_solid = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -332,7 +332,7 @@ class TestGloboidWormGeometry:
         bore = BoreFeature(diameter=2.0)
         keyway = KeywayFeature(width=1.0, depth=0.5)  # Custom dimensions for small bore
 
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -356,7 +356,7 @@ class TestGloboidWormGeometry:
         bore = BoreFeature(diameter=2.0)
         set_screw = SetScrewFeature(count=2)
 
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -377,7 +377,7 @@ class TestGloboidWormGeometry:
     def test_globoid_sections_per_turn_affects_smoothness(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that more sections per turn doesn't break geometry."""
         for sections in [12, 72]:
-            globoid_geo = GloboidWormGeometry(
+            globoid_geo = _GloboidWormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
                 wheel_pitch_diameter=wheel_pitch_diameter,
@@ -400,7 +400,7 @@ class TestGloboidWormFromJsonFile:
             pytest.skip("Example file not found")
 
         design = load_design_json(example_file)
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
@@ -420,7 +420,7 @@ class TestGloboidWormFromJsonFile:
             pytest.skip("Example file not found")
 
         design = load_design_json(example_file)
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
@@ -448,7 +448,7 @@ class TestGloboidWormProfileTypes:
 
     def test_globoid_profile_za_default(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that ZA profile is the default."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -459,7 +459,7 @@ class TestGloboidWormProfileTypes:
 
     def test_globoid_profile_za_explicit(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test ZA profile can be explicitly set."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -475,7 +475,7 @@ class TestGloboidWormProfileTypes:
 
     def test_globoid_profile_zk(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test ZK profile (convex flanks for 3D printing)."""
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -492,7 +492,7 @@ class TestGloboidWormProfileTypes:
     def test_globoid_profile_case_insensitive(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that profile parameter is case-insensitive."""
         for profile in ["za", "Za", "ZA", "zk", "Zk", "ZK"]:
-            globoid_geo = GloboidWormGeometry(
+            globoid_geo = _GloboidWormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
                 wheel_pitch_diameter=wheel_pitch_diameter,
@@ -504,7 +504,7 @@ class TestGloboidWormProfileTypes:
 
     def test_globoid_za_and_zk_both_valid(self, worm_params, assembly_params, wheel_pitch_diameter):
         """Test that both ZA and ZK profiles produce valid geometry."""
-        globoid_za = GloboidWormGeometry(
+        globoid_za = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,
@@ -513,7 +513,7 @@ class TestGloboidWormProfileTypes:
             profile="ZA"
         ).build()
 
-        globoid_zk = GloboidWormGeometry(
+        globoid_zk = _GloboidWormGeometry(
             params=worm_params,
             assembly_params=assembly_params,
             wheel_pitch_diameter=wheel_pitch_diameter,

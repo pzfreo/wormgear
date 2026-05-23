@@ -35,15 +35,12 @@ ProfileType = Literal["ZA", "ZK", "ZI"]
 logger = logging.getLogger(__name__)
 
 
-class WheelGeometry(BaseGeometry):
-    """
-    Generates 3D geometry for a worm wheel.
+class _WheelGeometry(BaseGeometry):
+    """Internal wheel geometry builder.
 
-    Supports two tooth types:
-    - helical: Pure helical gear teeth (no throat cut) - simpler geometry
-    - hobbed: Helical teeth with toroidal throat cut - attempts to match worm
-
-    Optionally adds bore and keyway features.
+    Used by the ``WormWheel`` facade. Not part of the public API — direct
+    use was removed in 0.1.0; users should construct via ``WormWheel`` or
+    ``WormWheel.from_design()`` instead.
     """
 
     _part_name = "wheel"
@@ -82,13 +79,6 @@ class WheelGeometry(BaseGeometry):
             trim_to_min_engagement: If True, cap throated blank OD to throat
                      minimum (removes flared edges). Only affects globoid worms.
         """
-        warnings.warn(
-            "WheelGeometry is deprecated; use wormgear.WormWheel for the "
-            "BD-style facade. Old constructor remains functional for one "
-            "minor release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         self.params = params
         self.worm_params = worm_params
         self.assembly_params = assembly_params

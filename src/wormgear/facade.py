@@ -45,6 +45,15 @@ def _design_profile(design) -> str:
     return "ZA"
 
 
+def _design_is_globoid(design) -> bool:
+    """Return True if ``design.worm.type`` indicates a globoid worm."""
+    t = getattr(design.worm, "type", None)
+    if t is None:
+        return False
+    value = t.value if hasattr(t, "value") else str(t)
+    return value.lower() == "globoid"
+
+
 # ---------------------------------------------------------------------------
 # WormGear — the worm (driving gear)
 # ---------------------------------------------------------------------------
@@ -114,7 +123,7 @@ class WormGear(BasePartObject):
         # Lazy imports — keeps the facade module load-time clean and avoids
         # build123d/Pydantic loading until the user actually constructs a part.
         from .calculator import design_from_module
-        from .core.worm import WormGeometry
+        from .core.worm import _WormGeometry
 
         # The calculator wants a ratio context. WormGear alone doesn't care
         # about wheel teeth, but the calculator's worm derivation does depend
@@ -134,7 +143,7 @@ class WormGear(BasePartObject):
             profile_shift=profile_shift,
         )
 
-        geo = WormGeometry(
+        geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=length,
@@ -197,6 +206,48 @@ class WormGear(BasePartObject):
         kwargs.update(overrides)
         return cls(**kwargs)
 
+    @classmethod
+    def _from_globoid_design(
+        cls,
+        design,
+        length: float,
+        sections_per_turn: int = 36,
+    ) -> "WormGear":
+        """Internal: build a globoid worm from a calculator design.
+
+        Globoid construction requires wheel context (throat radius depends
+        on wheel pitch diameter), which is why this is reached only via
+        ``make_pair(globoid=True)`` rather than the public ``WormGear``
+        constructor. The returned instance is a ``WormGear`` (so users get
+        a uniform type for both cylindrical and globoid pairs).
+        """
+        from .core.globoid_worm import _GloboidWormGeometry
+
+        profile = _design_profile(design)
+        geo = _GloboidWormGeometry(
+            params=design.worm,
+            assembly_params=design.assembly,
+            wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
+            length=length,
+            sections_per_turn=sections_per_turn,
+            profile=profile,
+        )
+        part = geo.build()
+
+        # Bypass cylindrical __init__ — wrap the prebuilt globoid Part.
+        instance = cls.__new__(cls)
+        BasePartObject.__init__(instance, part=part)
+
+        # Stash attributes so introspection (check_mesh, etc.) works.
+        instance._params = design.worm
+        instance._assembly_params = design.assembly
+        instance.module = design.worm.module_mm
+        instance.num_starts = design.worm.num_starts
+        instance.length = length
+        instance.hand = design.worm.hand
+        instance.profile = profile.upper() if isinstance(profile, str) else profile.value
+        return instance
+
 
 # ---------------------------------------------------------------------------
 # WormWheel — the driven gear
@@ -250,6 +301,7 @@ class WormWheel(BasePartObject):
         worm_target_lead_angle: float = 7.0,
         hand: Union[Hand, str] = "right",
         throated: bool = False,
+        globoid: bool = False,
         pressure_angle: float = 20.0,
         backlash: float = 0.0,
         profile_shift: float = 0.0,
@@ -264,7 +316,7 @@ class WormWheel(BasePartObject):
         mode: Mode = Mode.ADD,
     ):
         from .calculator import design_from_module
-        from .core.wheel import WheelGeometry
+        from .core.wheel import _WheelGeometry
 
         # The wheel needs full worm + assembly context for derivation.
         # We derive an effective ratio from num_teeth and worm_num_starts.
@@ -281,6 +333,7 @@ class WormWheel(BasePartObject):
             pressure_angle=pressure_angle,
             backlash=backlash,
             profile_shift=profile_shift,
+            globoid=globoid,
         )
 
         # Defensive: if the calculator's derived num_teeth differs from
@@ -295,7 +348,7 @@ class WormWheel(BasePartObject):
                 }
             )
 
-        geo = WheelGeometry(
+        geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -359,6 +412,7 @@ class WormWheel(BasePartObject):
             pressure_angle=design.assembly.pressure_angle_deg,
             backlash=design.assembly.backlash_mm,
             profile_shift=design.wheel.profile_shift,
+            globoid=_design_is_globoid(design),
         )
         kwargs.update(overrides)
         return cls(**kwargs)
@@ -382,6 +436,7 @@ def make_pair(
     pressure_angle: float = 20.0,
     backlash: float = 0.0,
     profile_shift: float = 0.0,
+    globoid: bool = False,
     throated: bool = False,
     sections_per_turn: int = 36,
 ) -> "tuple[WormGear, WormWheel]":
@@ -401,6 +456,11 @@ def make_pair(
         Worm length in mm.
     face_width:
         Wheel face width. ``None`` = auto.
+    globoid:
+        If True, the worm is a globoid (hourglass) shape. The throat radius
+        is computed from the wheel pitch diameter, which is why globoid
+        construction is only available through ``make_pair`` — the worm
+        intrinsically requires wheel context. Default False.
     num_starts, target_lead_angle, hand, profile, pressure_angle,
     backlash, profile_shift, throated, sections_per_turn:
         Standard kwargs forwarded to ``WormGear`` and ``WormWheel``.
@@ -428,13 +488,21 @@ def make_pair(
         pressure_angle=pressure_angle,
         backlash=backlash,
         profile_shift=profile_shift,
+        globoid=globoid,
     )
 
-    worm = WormGear.from_design(
-        design,
-        length=length,
-        sections_per_turn=sections_per_turn,
-    )
+    if globoid:
+        worm = WormGear._from_globoid_design(
+            design,
+            length=length,
+            sections_per_turn=sections_per_turn,
+        )
+    else:
+        worm = WormGear.from_design(
+            design,
+            length=length,
+            sections_per_turn=sections_per_turn,
+        )
     wheel = WormWheel.from_design(
         design,
         face_width=face_width,

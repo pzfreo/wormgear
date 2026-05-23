@@ -13,14 +13,11 @@ import pytest
 from wormgear.calculator.core import design_from_module
 from wormgear.calculator.validation import validate_design
 from wormgear.io.loaders import load_design_json, save_design_json
-from wormgear.core import (
-    WormGeometry,
-    WheelGeometry,
-    GloboidWormGeometry,
-    VirtualHobbingWheelGeometry,
-    BoreFeature,
-    KeywayFeature,
-)
+from wormgear.core import BoreFeature, KeywayFeature
+from wormgear.core.worm import _WormGeometry
+from wormgear.core.wheel import _WheelGeometry
+from wormgear.core.globoid_worm import _GloboidWormGeometry
+from wormgear.core.virtual_hobbing import _VirtualHobbingWheelGeometry
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +71,7 @@ class TestSaveLoadRoundtrip:
         assert loaded.assembly.centre_distance_mm == design.assembly.centre_distance_mm
 
         # Build worm from loaded design
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=loaded.worm,
             assembly_params=loaded.assembly,
             length=30.0,
@@ -84,7 +81,7 @@ class TestSaveLoadRoundtrip:
         _assert_step_roundtrip(worm, tmp_path, "worm")
 
         # Build wheel from loaded design
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=loaded.wheel,
             worm_params=loaded.worm,
             assembly_params=loaded.assembly,
@@ -103,7 +100,7 @@ class TestSaveLoadRoundtrip:
 
         loaded = load_design_json(json_path)
 
-        globoid = GloboidWormGeometry(
+        globoid = _Globoid_WormGeometry(
             params=loaded.worm,
             assembly_params=loaded.assembly,
             wheel_pitch_diameter=loaded.wheel.pitch_diameter_mm,
@@ -121,7 +118,7 @@ class TestSaveLoadRoundtrip:
 
         loaded = load_design_json(json_path)
 
-        wheel = VirtualHobbingWheelGeometry(
+        wheel = _VirtualHobbing_WheelGeometry(
             params=loaded.wheel,
             worm_params=loaded.worm,
             assembly_params=loaded.assembly,
@@ -139,7 +136,7 @@ class TestSaveLoadRoundtrip:
         loaded = load_design_json(json_path)
 
         # Build worm — should work regardless of profile stored in design
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=loaded.worm,
             assembly_params=loaded.assembly,
             length=30.0,
@@ -161,14 +158,14 @@ class TestPairedGeometry:
         """Single design -> build worm + wheel -> both STEP exports valid."""
         design = design_from_module(module=2.0, ratio=30)
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
             sections_per_turn=12,
         ).build()
 
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -184,7 +181,7 @@ class TestPairedGeometry:
         """Worm with bore+keyway, wheel with bore+keyway -> both STEP valid."""
         design = design_from_module(module=2.0, ratio=30)
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -193,7 +190,7 @@ class TestPairedGeometry:
             keyway=KeywayFeature(),
         ).build()
 
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -243,7 +240,7 @@ class TestFeatureCombinations:
         """Build and export worm with various feature combinations."""
         design = design_from_module(module=2.0, ratio=30)
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -268,7 +265,7 @@ class TestFeatureCombinations:
         """Build and export wheel with various feature combinations."""
         design = design_from_module(module=2.0, ratio=30)
 
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -284,14 +281,14 @@ class TestFeatureCombinations:
         """Worm with bore should have less volume than solid."""
         design = design_from_module(module=2.0, ratio=30)
 
-        solid = WormGeometry(
+        solid = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
             sections_per_turn=12,
         ).build()
 
-        with_bore = WormGeometry(
+        with_bore = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -361,7 +358,7 @@ class TestScaleVariations:
         """Calculator -> geometry -> STEP across module scales."""
         design = design_from_module(module=module, ratio=ratio)
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=max(10.0, module * 10),
@@ -369,7 +366,7 @@ class TestScaleVariations:
         ).build()
         _assert_valid_part(worm, min_volume=0.1)
 
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -384,7 +381,7 @@ class TestScaleVariations:
         """Multi-start worm (2 starts) through full pipeline."""
         design = design_from_module(module=2.0, ratio=15, num_starts=2)
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -409,7 +406,7 @@ class TestValidationThenBuild:
         result = validate_design(design)
         assert result.valid, f"Expected valid design, got: {result.messages}"
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -423,7 +420,7 @@ class TestValidationThenBuild:
         result = validate_design(design)
         assert result.valid
 
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -437,7 +434,7 @@ class TestValidationThenBuild:
         result = validate_design(design)
         assert result.valid
 
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=20.0,
@@ -445,7 +442,7 @@ class TestValidationThenBuild:
         ).build()
         _assert_valid_part(worm)
 
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,

@@ -29,7 +29,7 @@ ProgressCallback = Callable[[str, float], None]  # (message, percent_complete)
 logger = logging.getLogger(__name__)
 
 
-class GloboidWormGeometry(BaseGeometry):
+class _GloboidWormGeometry(BaseGeometry):
     """
     Generates 3D geometry for a globoid (hourglass) worm.
 
@@ -77,14 +77,6 @@ class GloboidWormGeometry(BaseGeometry):
             progress_callback: Optional callback function(message, percent) for
                               progress reporting in WASM/browser environments.
         """
-        warnings.warn(
-            "GloboidWormGeometry is deprecated; the BD-style facade is "
-            "WormGear (cylindrical only at this stage). For globoid worms, "
-            "continue to use this class; deprecation is a heads-up that the "
-            "facade will subsume this case in a future release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         self.params = params
         self.assembly_params = assembly_params
         self.wheel_pitch_diameter = wheel_pitch_diameter
