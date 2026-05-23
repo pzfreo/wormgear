@@ -1,166 +1,93 @@
+"""Unified Workflow Example — wormgear package (BD-style facade).
+
+Demonstrates the four headline entry points:
+
+  - ``WormGear`` / ``WormWheel``    — direct construction from engineering params
+  - ``make_pair``                   — one-liner matched pair
+  - ``WormGear.from_design``        — adapter for calculator output (or JSON)
+  - ``check_mesh``                  — kinematic compatibility verification
+
+For the calculator + validation + JSON IO workflow (which produces the
+``WormGearDesign`` that ``from_design`` consumes), see the imports
+from ``wormgear.calculator`` and ``wormgear.io``.
 """
-Unified Workflow Example - wormgear package
 
-Demonstrates the complete workflow:
-1. Calculate design parameters
-2. Validate design
-3. Save to JSON
-4. Load from JSON
-5. Generate 3D geometry
+from build123d import export_step
 
-This replaces the old two-step process (wormgearcalc → wormgear-geometry)
-with a unified Python API.
-"""
-
-from wormgear import (
-    # Calculator functions
-    calculate_design_from_module,
-    validate_design,
-
-    # IO functions
-    save_design_json,
-    load_design_json,
-
-    # Geometry generation
-    WormGeometry,
-    WheelGeometry,
-    GloboidWormGeometry,
-
-    # Features
-    BoreFeature,
-    KeywayFeature,
-)
+from wormgear import WormGear, WormWheel, check_mesh, make_pair
+from wormgear.calculator import calculate_design_from_module, validate_design
+from wormgear.core import BoreFeature, KeywayFeature
+from wormgear.io import load_design_json, save_design_json
 
 
-def main():
+def headline_three_lines():
+    """The fast path: three lines, no JSON, no calculator in sight."""
     print("=" * 60)
-    print("Unified Wormgear Workflow Example")
+    print("1. Headline three-liner")
     print("=" * 60)
 
-    # Step 1: Calculate design
-    print("\n1. Calculate design from module and ratio...")
+    worm = WormGear(module=2.0, num_starts=1, length=40)
+    wheel = WormWheel(module=2.0, num_teeth=30)
+
+    export_step(worm, "/tmp/worm.step")
+    export_step(wheel, "/tmp/wheel.step")
+    print(f"   ✓ worm:  {worm.volume:.2f} mm³ → /tmp/worm.step")
+    print(f"   ✓ wheel: {wheel.volume:.2f} mm³ → /tmp/wheel.step")
+
+
+def one_liner_pair():
+    """make_pair builds a matched pair in one call."""
+    print("\n" + "=" * 60)
+    print("2. One-liner matched pair")
+    print("=" * 60)
+
+    worm, wheel = make_pair(module=2.0, ratio=30, length=40)
+
+    report = check_mesh(worm._params, wheel._params, worm._assembly_params)
+    print(f"   ✓ check_mesh.ok = {report.ok}")
+    print(f"   ✓ ratio = {report.ratio}, centre distance = {report.centre_distance_mm:.2f} mm")
+
+
+def calculator_then_facade():
+    """When you want DIN-3975 analysis up front."""
+    print("\n" + "=" * 60)
+    print("3. Calculator → validate → from_design")
+    print("=" * 60)
+
     design = calculate_design_from_module(
         module=2.0,
         ratio=30,
         target_lead_angle=7.0,
         pressure_angle=20.0,
         backlash=0.05,
-        profile="ZA"  # Straight flanks for CNC
+        profile="ZA",
     )
+    print(f"   ✓ Designed: {design.wheel.num_teeth}-tooth wheel at "
+          f"{design.assembly.centre_distance_mm:.2f}mm centre distance, "
+          f"{design.assembly.efficiency_percent:.1f}% efficiency")
 
-    print(f"   ✓ Worm: {design.worm.pitch_diameter_mm:.2f}mm pitch dia, {design.worm.lead_angle_deg:.2f}° lead angle")
-    print(f"   ✓ Wheel: {design.wheel.num_teeth} teeth, {design.wheel.pitch_diameter_mm:.2f}mm pitch dia")
-    print(f"   ✓ Centre distance: {design.assembly.centre_distance_mm:.2f}mm")
-    print(f"   ✓ Ratio: {design.assembly.ratio}:1")
-    print(f"   ✓ Efficiency: {design.assembly.efficiency_percent:.1f}%")
-    print(f"   ✓ Self-locking: {design.assembly.self_locking}")
+    result = validate_design(design)
+    print(f"   ✓ Validation: {len(result.errors)} errors, "
+          f"{len(result.warnings)} warnings")
 
-    # Step 2: Validate design
-    print("\n2. Validate design...")
-    validation = validate_design(design)
+    # Save / load to demonstrate the JSON round-trip
+    save_design_json(design, "/tmp/design.json")
+    loaded = load_design_json("/tmp/design.json")
 
-    print(f"   Valid: {validation.valid}")
-    print(f"   Errors: {len(validation.errors)}")
-    print(f"   Warnings: {len(validation.warnings)}")
-    print(f"   Infos: {len(validation.infos)}")
-
-    if validation.messages:
-        print("   Messages:")
-        for msg in validation.messages[:3]:  # Show first 3
-            print(f"     [{msg.severity.value.upper()}] {msg.message}")
-
-    # Step 3: Save to JSON
-    print("\n3. Save design to JSON...")
-    json_path = "/tmp/example_design.json"
-    save_design_json(design, json_path)
-    print(f"   ✓ Saved to {json_path}")
-
-    # Step 4: Load from JSON (simulating web calc → CLI workflow)
-    print("\n4. Load design from JSON...")
-    loaded_design = load_design_json(json_path)
-    print(f"   ✓ Loaded: {loaded_design.worm.pitch_diameter_mm:.2f}mm worm")
-
-    # Step 5: Generate 3D geometry
-    print("\n5. Generate 3D geometry...")
-
-    # Worm with bore and keyway
-    print("   Generating worm...")
-    worm_geo = WormGeometry(
-        params=loaded_design.worm,
-        assembly_params=loaded_design.assembly,
-        length=40.0,
-        sections_per_turn=36,
-        bore=BoreFeature(diameter=8.0),
-        keyway=KeywayFeature()  # DIN 6885 standard keyway
-    )
-    worm = worm_geo.build()
-    print(f"   ✓ Worm built: {worm.volume:.2f} mm³")
-
-    # Wheel with bore and keyway
-    print("   Generating wheel...")
-    wheel_geo = WheelGeometry(
-        params=loaded_design.wheel,
-        worm_params=loaded_design.worm,
-        assembly_params=loaded_design.assembly,
-        bore=BoreFeature(diameter=12.0),
-        keyway=KeywayFeature()
-    )
-    wheel = wheel_geo.build()
-    print(f"   ✓ Wheel built: {wheel.volume:.2f} mm³")
-
-    # Step 6: Export STEP files
-    print("\n6. Export STEP files...")
-    worm_geo.export_step("/tmp/worm_m2_z1.step")
-    wheel_geo.export_step("/tmp/wheel_m2_z30.step")
-    print("   ✓ worm_m2_z1.step")
-    print("   ✓ wheel_m2_z30.step")
-
-    print("\n" + "=" * 60)
-    print("✅ Complete workflow executed successfully!")
-    print("=" * 60)
-    print("\nFiles created:")
-    print(f"  - {json_path}")
-    print("  - /tmp/worm_m2_z1.step")
-    print("  - /tmp/wheel_m2_z30.step")
-
-
-def globoid_example():
-    """Example with globoid worm for better contact."""
-    print("\n" + "=" * 60)
-    print("Globoid Worm Example")
-    print("=" * 60)
-
-    # Calculate globoid design
-    print("\n1. Calculate globoid design...")
-    design = calculate_design_from_module(
-        module=2.0,
-        ratio=30,
-        globoid=True,
-        throat_reduction=0.1  # Creates hourglass shape
-    )
-
-    print(f"   ✓ Globoid worm design")
-    print(f"   ✓ Centre distance: {design.assembly.centre_distance_mm:.2f}mm (reduced for throat)")
-
-    # Save and load
-    save_design_json(design, "/tmp/globoid_design.json")
-    loaded = load_design_json("/tmp/globoid_design.json")
-
-    # Generate globoid geometry
-    print("\n2. Generate globoid worm...")
-    globoid_worm = GloboidWormGeometry(
-        params=loaded.worm,
-        assembly_params=loaded.assembly,
-        wheel_pitch_diameter=loaded.wheel.pitch_diameter_mm,
-        length=40.0
-    )
-    worm = globoid_worm.build()
-    print(f"   ✓ Globoid worm built: {worm.volume:.2f} mm³")
-
-    globoid_worm.export_step("/tmp/globoid_worm_m2_z1.step")
-    print("   ✓ Exported to globoid_worm_m2_z1.step")
+    worm = WormGear.from_design(loaded, length=40,
+                                bore=BoreFeature(diameter=8.0),
+                                keyway=KeywayFeature())
+    wheel = WormWheel.from_design(loaded,
+                                  bore=BoreFeature(diameter=12.0),
+                                  keyway=KeywayFeature())
+    print(f"   ✓ worm with bore + keyway: {worm.volume:.2f} mm³")
+    print(f"   ✓ wheel with bore + keyway: {wheel.volume:.2f} mm³")
 
 
 if __name__ == "__main__":
-    main()
-    globoid_example()
+    headline_three_lines()
+    one_liner_pair()
+    calculator_then_facade()
+    print("\n" + "=" * 60)
+    print("✅ Examples complete.")
+    print("=" * 60)

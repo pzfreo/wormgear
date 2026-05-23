@@ -69,29 +69,35 @@ def assembly_params_large(sample_design_large_module):
 
 
 @pytest.fixture(scope="module")
-def built_worm_7mm(worm_params_7mm, assembly_params_7mm):
-    """Module-scoped built worm geometry (7mm design, 10mm length)."""
-    from wormgear import WormGeometry
-    geo = WormGeometry(
-        params=worm_params_7mm,
-        assembly_params=assembly_params_7mm,
+def built_worm_7mm(sample_design_7mm_module):
+    """Module-scoped built worm Part (7mm design, 10mm length) via the BD facade."""
+    from wormgear import WormGear
+    d = sample_design_7mm_module
+    return WormGear(
+        module=d["worm"]["module_mm"],
+        num_starts=d["worm"]["num_starts"],
         length=10.0,
+        target_lead_angle=d["worm"]["lead_angle_deg"],
+        hand=d["assembly"]["hand"],
+        pressure_angle=d["assembly"]["pressure_angle_deg"],
         sections_per_turn=12,
     )
-    return geo.build()
 
 
 @pytest.fixture(scope="module")
-def built_wheel_7mm(wheel_params_7mm, worm_params_7mm, assembly_params_7mm):
-    """Module-scoped built wheel geometry (7mm design, 4mm face width)."""
-    from wormgear import WheelGeometry
-    geo = WheelGeometry(
-        params=wheel_params_7mm,
-        worm_params=worm_params_7mm,
-        assembly_params=assembly_params_7mm,
+def built_wheel_7mm(sample_design_7mm_module):
+    """Module-scoped built wheel Part (7mm design, 4mm face width) via the BD facade."""
+    from wormgear import WormWheel
+    d = sample_design_7mm_module
+    return WormWheel(
+        module=d["wheel"]["module_mm"],
+        num_teeth=d["wheel"]["num_teeth"],
         face_width=4.0,
+        worm_num_starts=d["worm"]["num_starts"],
+        worm_target_lead_angle=d["worm"]["lead_angle_deg"],
+        hand=d["assembly"]["hand"],
+        pressure_angle=d["assembly"]["pressure_angle_deg"],
     )
-    return geo.build()
 
 
 @pytest.fixture(scope="module")
@@ -101,29 +107,35 @@ def built_worm_and_wheel_7mm(built_worm_7mm, built_wheel_7mm):
 
 
 @pytest.fixture(scope="module")
-def built_worm_large(worm_params_large, assembly_params_large):
-    """Module-scoped built worm geometry (large design)."""
-    from wormgear import WormGeometry
-    geo = WormGeometry(
-        params=worm_params_large,
-        assembly_params=assembly_params_large,
+def built_worm_large(sample_design_large_module):
+    """Module-scoped built worm Part (large design) via the BD facade."""
+    from wormgear import WormGear
+    d = sample_design_large_module
+    return WormGear(
+        module=d["worm"]["module_mm"],
+        num_starts=d["worm"]["num_starts"],
         length=30.0,
+        target_lead_angle=d["worm"]["lead_angle_deg"],
+        hand=d["assembly"]["hand"],
+        pressure_angle=d["assembly"]["pressure_angle_deg"],
         sections_per_turn=12,
     )
-    return geo.build()
 
 
 @pytest.fixture(scope="module")
-def built_wheel_large(wheel_params_large, worm_params_large, assembly_params_large):
-    """Module-scoped built wheel geometry (large design)."""
-    from wormgear import WheelGeometry
-    geo = WheelGeometry(
-        params=wheel_params_large,
-        worm_params=worm_params_large,
-        assembly_params=assembly_params_large,
+def built_wheel_large(sample_design_large_module):
+    """Module-scoped built wheel Part (large design) via the BD facade."""
+    from wormgear import WormWheel
+    d = sample_design_large_module
+    return WormWheel(
+        module=d["wheel"]["module_mm"],
+        num_teeth=d["wheel"]["num_teeth"],
         face_width=15.0,
+        worm_num_starts=d["worm"]["num_starts"],
+        worm_target_lead_angle=d["worm"]["lead_angle_deg"],
+        hand=d["assembly"]["hand"],
+        pressure_angle=d["assembly"]["pressure_angle_deg"],
     )
-    return geo.build()
 
 
 # ─── Helper functions (no pytest dependency) ──────────────────────────────

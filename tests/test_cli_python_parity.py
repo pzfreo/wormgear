@@ -1,104 +1,24 @@
-"""CLI ↔ Python facade parity (Phase 4 of #191).
+"""STEP roundtrip via the BD-style facade.
 
-Verifies that:
-  1. The JSON-deserialization channel produces identical geometry through
-     the Python facade vs the CLI's underlying ``WormGeometry`` path.
-  2. STEP roundtrip preserves volume (already pinned in conftest but
-     repeated here for the facade path).
+Prior to the 0.1.0 drop-legacy work, this file held parity tests
+between the facade and the legacy ``WormGeometry`` / ``WheelGeometry``
+constructors. With legacy slated for removal (#202), those tests
+become meaningless — the equivalence they verified is now pinned
+directly by ``test_golden_volumes.py`` which goes through the facade.
 
-A direct CLI subprocess test exists in ``tests/test_cli.py``; this file
-verifies the geometric equivalence of the two code paths without
-relying on subprocess overhead, which is environment-sensitive.
+The remaining valuable test here is the STEP export roundtrip: build
+a Part via the facade, export to STEP, re-import, verify the volume
+is preserved. This catches OCC serialization issues that aren't
+visible to in-memory volume checks.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from wormgear import WormGear, WormWheel
-from wormgear.core import WheelGeometry, WormGeometry
-from wormgear.io import load_design_json
+from wormgear import WormGear
 
 pytestmark = pytest.mark.slow
-
-
-EQUIVALENCE_TOL = 1e-6
-
-
-@pytest.fixture
-def design_json(tmp_path):
-    """Write a calculator-produced design JSON; return the path.
-
-    Uses ``design_from_module`` + ``save_design_json`` to produce a JSON
-    that is internally consistent with the calculator's derivation. Tests
-    the realistic round-trip path: web/CLI calculator produces JSON, then
-    the Python facade (or the CLI's internal geometry) consumes it.
-    """
-    from wormgear.calculator import design_from_module
-    from wormgear.io import save_design_json
-
-    design = design_from_module(module=1.0, ratio=20)
-    json_path = tmp_path / "design.json"
-    save_design_json(design, json_path)
-    return json_path
-
-
-# ---------------------------------------------------------------------------
-# JSON load → facade.from_design parity with JSON load → WormGeometry
-# ---------------------------------------------------------------------------
-
-
-def test_worm_load_then_facade_matches_load_then_geometry(design_json):
-    """``load_design_json() → WormGear.from_design()`` equals
-    ``load_design_json() → WormGeometry()`` for the worm."""
-    design = load_design_json(design_json)
-
-    # Path A: Python facade adapter
-    worm_facade = WormGear.from_design(
-        design, length=15.0, sections_per_turn=12,
-    )
-
-    # Path B: direct (what the CLI actually does internally)
-    worm_direct = WormGeometry(
-        params=design.worm,
-        assembly_params=design.assembly,
-        length=15.0,
-        sections_per_turn=12,
-        profile="ZA",
-    ).build()
-
-    rel = abs(worm_facade.volume - worm_direct.volume) / worm_direct.volume
-    assert rel < EQUIVALENCE_TOL, (
-        f"Worm volume drift via facade vs direct: "
-        f"facade={worm_facade.volume:.4f}, direct={worm_direct.volume:.4f}, "
-        f"rel={rel:.2e}"
-    )
-
-
-def test_wheel_load_then_facade_matches_load_then_geometry(design_json):
-    """Same parity check for the wheel."""
-    design = load_design_json(design_json)
-
-    wheel_facade = WormWheel.from_design(design, face_width=5.0)
-    wheel_direct = WheelGeometry(
-        params=design.wheel,
-        worm_params=design.worm,
-        assembly_params=design.assembly,
-        face_width=5.0,
-        profile="ZA",
-    ).build()
-
-    rel = abs(wheel_facade.volume - wheel_direct.volume) / wheel_direct.volume
-    assert rel < EQUIVALENCE_TOL, (
-        f"Wheel volume drift via facade vs direct: "
-        f"facade={wheel_facade.volume:.4f}, direct={wheel_direct.volume:.4f}, "
-        f"rel={rel:.2e}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# STEP roundtrip via the facade
-# ---------------------------------------------------------------------------
 
 
 def test_facade_step_roundtrip(tmp_path):

@@ -79,8 +79,11 @@ class WormGear(BasePartObject):
         Profile shift coefficient. Default 0.
     sections_per_turn:
         Helical sweep resolution. Default 36 (matches ``WormGeometry``).
-    bore, keyway, ddcut, set_screw:
+    bore, keyway, ddcut, set_screw, relief_groove:
         Optional feature objects (see ``wormgear.core.features``).
+    generation_method:
+        Thread generation method: ``"sweep"`` (default, robust) or ``"loft"``
+        (legacy multi-section approach). Most users want the default.
     rotation, align, mode:
         Standard build123d Part placement parameters.
     """
@@ -102,6 +105,8 @@ class WormGear(BasePartObject):
         keyway=None,
         ddcut=None,
         set_screw=None,
+        relief_groove=None,
+        generation_method: str = "sweep",
         rotation: RotationLike = (0, 0, 0),
         align: Optional[Align] = None,
         mode: Mode = Mode.ADD,
@@ -139,6 +144,8 @@ class WormGear(BasePartObject):
             keyway=keyway,
             ddcut=ddcut,
             set_screw=set_screw,
+            relief_groove=relief_groove,
+            generation_method=generation_method,
         )
         part = geo.build()
 
@@ -223,8 +230,11 @@ class WormWheel(BasePartObject):
         Default False (simple helical wheel).
     pressure_angle, backlash, profile_shift:
         Standard gear parameters. Defaults match calculator.
-    bore, keyway, ddcut, set_screw:
-        Optional features.
+    bore, keyway, ddcut, set_screw, hub:
+        Optional feature objects (see ``wormgear.core.features``).
+    trim_to_min_engagement:
+        For throated wheels only — cap blank OD to the throat minimum
+        (removes flared edges). No effect on un-throated wheels.
     rotation, align, mode:
         build123d placement.
     """
@@ -247,6 +257,8 @@ class WormWheel(BasePartObject):
         keyway=None,
         ddcut=None,
         set_screw=None,
+        hub=None,
+        trim_to_min_engagement: bool = False,
         rotation: RotationLike = (0, 0, 0),
         align: Optional[Align] = None,
         mode: Mode = Mode.ADD,
@@ -294,6 +306,8 @@ class WormWheel(BasePartObject):
             keyway=keyway,
             ddcut=ddcut,
             set_screw=set_screw,
+            hub=hub,
+            trim_to_min_engagement=trim_to_min_engagement,
         )
         part = geo.build()
 
