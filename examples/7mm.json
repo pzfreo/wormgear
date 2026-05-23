@@ -1,0 +1,50 @@
+{
+  "worm": {
+    "module_mm": 0.5,
+    "num_starts": 1,
+    "pitch_diameter_mm": 4.072173213987297,
+    "tip_diameter_mm": 5.072173213987297,
+    "root_diameter_mm": 2.8221732139872966,
+    "lead_mm": 1.5707963267948966,
+    "axial_pitch_mm": 1.5707963267948966,
+    "lead_angle_deg": 7.000000000000001,
+    "addendum_mm": 0.5,
+    "dedendum_mm": 0.625,
+    "thread_thickness_mm": 0.7853981633974483,
+    "hand": "right",
+    "profile_shift": 0.0,
+    "type": "cylindrical"
+  },
+  "wheel": {
+    "module_mm": 0.5,
+    "num_teeth": 12,
+    "pitch_diameter_mm": 6.0,
+    "tip_diameter_mm": 7.0,
+    "root_diameter_mm": 4.75,
+    "addendum_mm": 0.5,
+    "dedendum_mm": 0.625,
+    "profile_shift": 0.0,
+    "throat_diameter_mm": 6.5,
+    "helix_angle_deg": 83.0
+  },
+  "assembly": {
+    "centre_distance_mm": 5.036086606993648,
+    "pressure_angle_deg": 20.0,
+    "backlash_mm": 0.0,
+    "hand": "right",
+    "ratio": 12,
+    "efficiency_percent": 69.310750741551,
+    "self_locking": false
+  },
+  "manufacturing": {
+    "profile": "ZA",
+    "virtual_hobbing": false,
+    "hobbing_steps": 18,
+    "throated_wheel": false,
+    "trim_to_min_engagement": false,
+    "sections_per_turn": 36,
+    "worm_length_mm": 9.44,
+    "wheel_width_mm": 5.29
+  },
+  "schema_version": "2.0"
+}
