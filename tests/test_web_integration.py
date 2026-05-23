@@ -9,7 +9,7 @@ import json
 import pytest
 from wormgear.calculator.js_bridge import calculate
 from wormgear.io import WormParams, WheelParams, AssemblyParams
-from wormgear.core import GloboidWormGeometry
+from wormgear.core.globoid_worm import _GloboidWormGeometry
 
 
 class TestWebIntegration:
@@ -19,7 +19,7 @@ class TestWebIntegration:
         """Test that throat_reduction_mm affects geometry.
 
         This was a critical bug: the calculator computed throat_reduction_mm
-        but GloboidWormGeometry ignored it entirely.
+        but _GloboidWormGeometry ignored it entirely.
         """
         input_json = json.dumps({
             'mode': 'from-module',
@@ -68,7 +68,7 @@ class TestWebIntegration:
         wheel = WheelParams(**design['wheel'])
 
         # Create globoid worm geometry
-        geo = GloboidWormGeometry(
+        geo = _GloboidWormGeometry(
             params=worm,
             assembly_params=assembly,
             wheel_pitch_diameter=wheel.pitch_diameter_mm,

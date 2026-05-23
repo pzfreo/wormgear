@@ -221,13 +221,13 @@ class TestGeometryCompatibility:
     """Tests for compatibility with geometry generation."""
 
     def test_design_works_with_worm_geometry(self):
-        """Test that calculated design works with WormGeometry."""
-        from wormgear import WormGeometry
+        """Test that calculated design works with _WormGeometry."""
+        from wormgear.core.worm import _WormGeometry
 
         design = calculate_design_from_module(module=2.0, ratio=30)
 
         # Should be able to create geometry without errors
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=40.0
@@ -236,13 +236,13 @@ class TestGeometryCompatibility:
         assert worm_geo is not None
 
     def test_design_works_with_wheel_geometry(self):
-        """Test that calculated design works with WheelGeometry."""
-        from wormgear import WheelGeometry
+        """Test that calculated design works with _WheelGeometry."""
+        from wormgear.core.wheel import _WheelGeometry
 
         design = calculate_design_from_module(module=2.0, ratio=30)
 
         # Should be able to create geometry without errors
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly

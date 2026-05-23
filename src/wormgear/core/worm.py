@@ -32,12 +32,15 @@ from .geometry_repair import repair_geometry, normalize_geometry
 ProfileType = Literal["ZA", "ZK", "ZI"]
 
 
-class WormGeometry(BaseGeometry):
-    """
-    Generates 3D geometry for a worm.
+class _WormGeometry(BaseGeometry):
+    """Internal worm geometry builder.
 
-    Creates worm by sweeping thread profile along helical path,
-    then unioning with core cylinder. Optionally adds bore and keyway.
+    Used by the ``WormGear`` facade. Not part of the public API — direct
+    use was removed in 0.1.0; users should construct via ``WormGear`` or
+    ``WormGear.from_design()`` instead.
+
+    Creates worm by sweeping thread profile along helical path, then
+    unioning with core cylinder. Optionally adds bore and keyway.
     """
 
     _part_name = "worm"
@@ -79,12 +82,6 @@ class WormGeometry(BaseGeometry):
                      "loft" - Proven loft-based approach (default)
                      "sweep" - Experimental sweep of single profile along helix
         """
-        warnings.warn(
-            "WormGeometry is deprecated; use wormgear.WormGear for the BD-style "
-            "facade. Old constructor remains functional for one minor release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         self.params = params
         self.assembly_params = assembly_params
         self.length = length

@@ -8,7 +8,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from wormgear import WormGeometry
+from wormgear.core.worm import _WormGeometry
 
 pytestmark = pytest.mark.slow
 
@@ -20,7 +20,7 @@ class TestExportStep:
         self, worm_params_7mm, assembly_params_7mm, tmp_path
     ):
         """export_step writes a non-empty STEP file."""
-        geo = WormGeometry(
+        geo = _WormGeometry(
             params=worm_params_7mm,
             assembly_params=assembly_params_7mm,
             length=10.0,
@@ -37,7 +37,7 @@ class TestExportStep:
         self, worm_params_7mm, assembly_params_7mm, tmp_path
     ):
         """export_step builds geometry if not already built."""
-        geo = WormGeometry(
+        geo = _WormGeometry(
             params=worm_params_7mm,
             assembly_params=assembly_params_7mm,
             length=10.0,
@@ -56,7 +56,7 @@ class TestExportStep:
         self, worm_params_7mm, assembly_params_7mm, tmp_path
     ):
         """export_step reuses existing build rather than rebuilding."""
-        geo = WormGeometry(
+        geo = _WormGeometry(
             params=worm_params_7mm,
             assembly_params=assembly_params_7mm,
             length=10.0,
@@ -79,7 +79,7 @@ class TestExportGltf:
         self, worm_params_7mm, assembly_params_7mm, tmp_path
     ):
         """export_gltf writes a binary .glb file."""
-        geo = WormGeometry(
+        geo = _WormGeometry(
             params=worm_params_7mm,
             assembly_params=assembly_params_7mm,
             length=10.0,
@@ -97,7 +97,7 @@ class TestExportGltf:
         self, worm_params_7mm, assembly_params_7mm, tmp_path
     ):
         """export_gltf builds geometry if not already built."""
-        geo = WormGeometry(
+        geo = _WormGeometry(
             params=worm_params_7mm,
             assembly_params=assembly_params_7mm,
             length=10.0,
@@ -116,7 +116,7 @@ class TestPartName:
     """Tests for _part_name class attribute."""
 
     def test_worm_part_name(self):
-        """WormGeometry has a descriptive part name."""
-        assert hasattr(WormGeometry, "_part_name")
-        assert isinstance(WormGeometry._part_name, str)
-        assert len(WormGeometry._part_name) > 0
+        """_WormGeometry has a descriptive part name."""
+        assert hasattr(_WormGeometry, "_part_name")
+        assert isinstance(_WormGeometry._part_name, str)
+        assert len(_WormGeometry._part_name) > 0

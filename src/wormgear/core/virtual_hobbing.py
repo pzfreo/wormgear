@@ -113,7 +113,7 @@ def get_preset_steps(name: str) -> int:
     return get_hobbing_preset(name)["steps"]
 
 
-class VirtualHobbingWheelGeometry(BaseGeometry):
+class _VirtualHobbingWheelGeometry(BaseGeometry):
     """
     Generates wheel geometry by simulating the hobbing (gear cutting) process.
 
@@ -173,15 +173,6 @@ class VirtualHobbingWheelGeometry(BaseGeometry):
             progress_callback: Optional callback function(message, percent) for
                               progress reporting in WASM/browser environments.
         """
-        warnings.warn(
-            "VirtualHobbingWheelGeometry is deprecated; the BD-style facade "
-            "is WormWheel(throated=True) for the helical+throated case. For "
-            "the full virtual-hobbing kinematic simulation, this class "
-            "remains the entry point; deprecation flags that the facade "
-            "will subsume it in a future release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         self.params = params
         self.worm_params = worm_params
         self.assembly_params = assembly_params

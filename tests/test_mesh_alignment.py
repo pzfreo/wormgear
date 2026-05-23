@@ -12,9 +12,9 @@ from wormgear import (
     WormParams,
     WheelParams,
     AssemblyParams,
-    WormGeometry,
-    WheelGeometry,
 )
+from wormgear.core.worm import _WormGeometry
+from wormgear.core.wheel import _WheelGeometry
 from wormgear.core.mesh_alignment import (
     MeshAlignmentResult,
     calculate_mesh_rotation,

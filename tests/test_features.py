@@ -9,10 +9,11 @@ import pytest
 
 from wormgear import (
     load_design_json, WormParams, WheelParams, AssemblyParams,
-    WormGeometry, WheelGeometry,
     BoreFeature, KeywayFeature, DDCutFeature,
     calculate_default_ddcut,
 )
+from wormgear.core.worm import _WormGeometry
+from wormgear.core.wheel import _WheelGeometry
 from wormgear.core.features import (
     create_bore, create_keyway, create_ddcut,
 )
@@ -93,11 +94,11 @@ class TestWormWithBore:
 
     def test_worm_with_bore(self, worm_params, assembly_params):
         """Test worm with bore has reduced volume."""
-        worm_no_bore = WormGeometry(
+        worm_no_bore = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0
         ).build()
 
-        worm_with_bore = WormGeometry(
+        worm_with_bore = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0,
             bore=BoreFeature(diameter=1.0)
         ).build()
@@ -107,12 +108,12 @@ class TestWormWithBore:
 
     def test_worm_with_bore_and_keyway(self, worm_params, assembly_params):
         """Test worm with bore and keyway."""
-        worm_bore = WormGeometry(
+        worm_bore = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0,
             bore=BoreFeature(diameter=6.0)
         ).build()
 
-        worm_both = WormGeometry(
+        worm_both = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0,
             bore=BoreFeature(diameter=6.0), keyway=KeywayFeature()
         ).build()
@@ -126,12 +127,12 @@ class TestWheelWithBore:
 
     def test_wheel_with_bore(self, wheel_params, worm_params, assembly_params):
         """Test wheel with bore has reduced volume."""
-        wheel_no_bore = WheelGeometry(
+        wheel_no_bore = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0
         ).build()
 
-        wheel_with_bore = WheelGeometry(
+        wheel_with_bore = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0,
             bore=BoreFeature(diameter=1.5)
@@ -185,13 +186,13 @@ class TestWheelWithBore:
             ratio=design_data["assembly"]["ratio"]
         )
 
-        wheel_bore = WheelGeometry(
+        wheel_bore = _WheelGeometry(
             params=large_wheel, worm_params=large_worm,
             assembly_params=large_assembly, face_width=10.0,
             bore=BoreFeature(diameter=12.0)
         ).build()
 
-        wheel_both = WheelGeometry(
+        wheel_both = _WheelGeometry(
             params=large_wheel, worm_params=large_worm,
             assembly_params=large_assembly, face_width=10.0,
             bore=BoreFeature(diameter=12.0), keyway=KeywayFeature()
@@ -202,7 +203,7 @@ class TestWheelWithBore:
 
     def test_wheel_throated_with_bore(self, wheel_params, worm_params, assembly_params):
         """Test throated wheel with bore."""
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0,
             throated=True, bore=BoreFeature(diameter=2.0)
@@ -222,7 +223,7 @@ class TestFromJsonFile:
             pytest.skip("Example file not found")
 
         design = load_design_json(example_file)
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=design.worm, assembly_params=design.assembly, length=10.0,
             bore=BoreFeature(diameter=6.0), keyway=KeywayFeature()
         ).build()
@@ -237,7 +238,7 @@ class TestFromJsonFile:
             pytest.skip("Example file not found")
 
         design = load_design_json(example_file)
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=design.wheel, worm_params=design.worm,
             assembly_params=design.assembly, face_width=4.0,
             bore=BoreFeature(diameter=6.0), keyway=KeywayFeature()
@@ -252,12 +253,12 @@ class TestWormWithDDCut:
 
     def test_worm_with_ddcut(self, worm_params, assembly_params):
         """Test worm with bore and DD-cut."""
-        worm_bore = WormGeometry(
+        worm_bore = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0,
             bore=BoreFeature(diameter=3.0)
         ).build()
 
-        worm_ddcut = WormGeometry(
+        worm_ddcut = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0,
             bore=BoreFeature(diameter=3.0), ddcut=DDCutFeature(depth=0.4)
         ).build()
@@ -267,7 +268,7 @@ class TestWormWithDDCut:
 
     def test_worm_ddcut_vs_keyway_mutually_exclusive(self, worm_params, assembly_params):
         with pytest.raises(ValueError, match="Cannot specify both"):
-            WormGeometry(
+            _WormGeometry(
                 params=worm_params, assembly_params=assembly_params, length=10.0,
                 bore=BoreFeature(diameter=6.0), keyway=KeywayFeature(),
                 ddcut=DDCutFeature(depth=0.6)
@@ -275,14 +276,14 @@ class TestWormWithDDCut:
 
     def test_worm_ddcut_requires_bore(self, worm_params, assembly_params):
         with pytest.raises(ValueError, match="DD-cut requires a bore"):
-            WormGeometry(
+            _WormGeometry(
                 params=worm_params, assembly_params=assembly_params, length=10.0,
                 ddcut=DDCutFeature(depth=0.4)
             ).build()
 
     def test_worm_with_default_ddcut(self, worm_params, assembly_params):
         ddcut = calculate_default_ddcut(3.0)
-        worm = WormGeometry(
+        worm = _WormGeometry(
             params=worm_params, assembly_params=assembly_params, length=10.0,
             bore=BoreFeature(diameter=3.0), ddcut=ddcut
         ).build()
@@ -295,13 +296,13 @@ class TestWheelWithDDCut:
     """Tests for wheel geometry with DD-cut feature."""
 
     def test_wheel_with_ddcut(self, wheel_params, worm_params, assembly_params):
-        wheel_bore = WheelGeometry(
+        wheel_bore = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0,
             bore=BoreFeature(diameter=2.0)
         ).build()
 
-        wheel_ddcut = WheelGeometry(
+        wheel_ddcut = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0,
             bore=BoreFeature(diameter=2.0), ddcut=DDCutFeature(depth=0.3)
@@ -312,7 +313,7 @@ class TestWheelWithDDCut:
 
     def test_wheel_ddcut_vs_keyway_mutually_exclusive(self, wheel_params, worm_params, assembly_params):
         with pytest.raises(ValueError, match="Cannot specify both"):
-            WheelGeometry(
+            _WheelGeometry(
                 params=wheel_params, worm_params=worm_params,
                 assembly_params=assembly_params, face_width=4.0,
                 bore=BoreFeature(diameter=6.0), keyway=KeywayFeature(),
@@ -321,14 +322,14 @@ class TestWheelWithDDCut:
 
     def test_wheel_ddcut_requires_bore(self, wheel_params, worm_params, assembly_params):
         with pytest.raises(ValueError, match="DD-cut requires a bore"):
-            WheelGeometry(
+            _WheelGeometry(
                 params=wheel_params, worm_params=worm_params,
                 assembly_params=assembly_params, face_width=4.0,
                 ddcut=DDCutFeature(depth=0.3)
             ).build()
 
     def test_wheel_throated_with_ddcut(self, wheel_params, worm_params, assembly_params):
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0,
             throated=True, bore=BoreFeature(diameter=2.0),
@@ -340,7 +341,7 @@ class TestWheelWithDDCut:
 
     def test_wheel_with_default_ddcut(self, wheel_params, worm_params, assembly_params):
         ddcut = calculate_default_ddcut(2.0)
-        wheel = WheelGeometry(
+        wheel = _WheelGeometry(
             params=wheel_params, worm_params=worm_params,
             assembly_params=assembly_params, face_width=4.0,
             bore=BoreFeature(diameter=2.0), ddcut=ddcut

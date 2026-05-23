@@ -1,26 +1,25 @@
 """
 Tests for virtual hobbing wheel geometry generation (experimental).
 
-These tests verify that the VirtualHobbingWheelGeometry class produces
+These tests verify that the _VirtualHobbingWheelGeometry class produces
 valid geometry through kinematic simulation of the hobbing process.
 """
 
 import math
 import pytest
 
-from wormgear import (
-    VirtualHobbingWheelGeometry, WheelGeometry,
-)
+from wormgear.core.virtual_hobbing import _VirtualHobbingWheelGeometry
+from wormgear.core.wheel import _WheelGeometry
 
 pytestmark = pytest.mark.slow
 
 
 class TestVirtualHobbingWheelGeometry:
-    """Tests for VirtualHobbingWheelGeometry class."""
+    """Tests for _VirtualHobbingWheelGeometry class."""
 
     def test_virtual_hobbing_creation(self, wheel_params, worm_params, assembly_params):
-        """Test creating a VirtualHobbingWheelGeometry instance."""
-        wheel_geo = VirtualHobbingWheelGeometry(
+        """Test creating a _VirtualHobbingWheelGeometry instance."""
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -35,7 +34,7 @@ class TestVirtualHobbingWheelGeometry:
 
     def test_virtual_hobbing_default_steps(self, wheel_params, worm_params, assembly_params):
         """Test default hobbing steps value."""
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -47,7 +46,7 @@ class TestVirtualHobbingWheelGeometry:
     def test_virtual_hobbing_build_returns_solid(self, wheel_params, worm_params, assembly_params):
         """Test that build() returns a valid solid."""
         # Use fewer steps for faster test
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -63,7 +62,7 @@ class TestVirtualHobbingWheelGeometry:
     def test_virtual_hobbing_volume_reasonable(self, wheel_params, worm_params, assembly_params):
         """Test that virtual hobbing wheel volume is within reasonable bounds."""
         face_width = 4.0
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -84,7 +83,7 @@ class TestVirtualHobbingWheelGeometry:
 
     def test_virtual_hobbing_is_watertight(self, wheel_params, worm_params, assembly_params):
         """Test that virtual hobbing wheel geometry is watertight."""
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -97,7 +96,7 @@ class TestVirtualHobbingWheelGeometry:
 
     def test_virtual_hobbing_auto_face_width(self, wheel_params, worm_params, assembly_params):
         """Test that face width is auto-calculated when not specified."""
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -115,7 +114,7 @@ class TestVirtualHobbingProfileTypes:
 
     def test_virtual_hobbing_profile_za_default(self, wheel_params, worm_params, assembly_params):
         """Test that ZA profile is the default for virtual hobbing."""
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -126,7 +125,7 @@ class TestVirtualHobbingProfileTypes:
 
     def test_virtual_hobbing_profile_zk(self, wheel_params, worm_params, assembly_params):
         """Test ZK profile with virtual hobbing."""
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -142,7 +141,7 @@ class TestVirtualHobbingProfileTypes:
     def test_virtual_hobbing_profile_case_insensitive(self, wheel_params, worm_params, assembly_params):
         """Test that profile parameter is case-insensitive."""
         for profile in ["za", "ZA", "zk", "ZK"]:
-            wheel_geo = VirtualHobbingWheelGeometry(
+            wheel_geo = _VirtualHobbingWheelGeometry(
                 params=wheel_params,
                 worm_params=worm_params,
                 assembly_params=assembly_params,
@@ -163,7 +162,7 @@ class TestVirtualHobbingVsStandardWheel:
         face_width = 4.0
 
         # Build throated wheel (existing method)
-        throated_geo = WheelGeometry(
+        throated_geo = _WheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -173,7 +172,7 @@ class TestVirtualHobbingVsStandardWheel:
         throated_wheel = throated_geo.build()
 
         # Build virtual hobbing wheel
-        hobbing_geo = VirtualHobbingWheelGeometry(
+        hobbing_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -194,7 +193,7 @@ class TestVirtualHobbingVsStandardWheel:
         face_width = 4.0
 
         # Standard throated
-        throated = WheelGeometry(
+        throated = _WheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -203,7 +202,7 @@ class TestVirtualHobbingVsStandardWheel:
         ).build()
 
         # Virtual hobbing
-        hobbing = VirtualHobbingWheelGeometry(
+        hobbing = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -222,7 +221,7 @@ class TestVirtualHobbingWithFeatures:
         """Test virtual hobbing wheel with bore feature."""
         from wormgear.core.features import BoreFeature
 
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -233,7 +232,7 @@ class TestVirtualHobbingWithFeatures:
         wheel = wheel_geo.build()
 
         # Wheel with bore should have less volume
-        wheel_solid = VirtualHobbingWheelGeometry(
+        wheel_solid = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,
@@ -248,7 +247,7 @@ class TestVirtualHobbingWithFeatures:
         """Test virtual hobbing wheel with bore and keyway."""
         from wormgear.core.features import BoreFeature, KeywayFeature
 
-        wheel_geo = VirtualHobbingWheelGeometry(
+        wheel_geo = _VirtualHobbingWheelGeometry(
             params=wheel_params,
             worm_params=worm_params,
             assembly_params=assembly_params,

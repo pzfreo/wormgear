@@ -12,14 +12,11 @@ import pytest
 from build123d import export_step
 
 from wormgear.calculator.core import design_from_module
-from wormgear.core import (
-    WormGeometry,
-    WheelGeometry,
-    GloboidWormGeometry,
-    VirtualHobbingWheelGeometry,
-    BoreFeature,
-    KeywayFeature,
-)
+from wormgear.core import BoreFeature, KeywayFeature
+from wormgear.core.worm import _WormGeometry
+from wormgear.core.wheel import _WheelGeometry
+from wormgear.core.globoid_worm import _GloboidWormGeometry
+from wormgear.core.virtual_hobbing import _VirtualHobbingWheelGeometry
 
 pytestmark = pytest.mark.slow
 
@@ -54,10 +51,10 @@ class TestCalculatorToGeometryPipeline:
     """Full pipeline: design_from_module -> geometry class -> build -> export."""
 
     def test_cylindrical_worm_pipeline(self):
-        """design_from_module -> WormGeometry.build() -> valid + STEP export."""
+        """design_from_module -> _WormGeometry.build() -> valid + STEP export."""
         design = design_from_module(module=2.0, ratio=30)
 
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -69,10 +66,10 @@ class TestCalculatorToGeometryPipeline:
         _assert_step_export(worm)
 
     def test_cylindrical_wheel_pipeline(self):
-        """design_from_module -> WheelGeometry.build() -> valid + STEP export."""
+        """design_from_module -> _WheelGeometry.build() -> valid + STEP export."""
         design = design_from_module(module=2.0, ratio=30)
 
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -84,7 +81,7 @@ class TestCalculatorToGeometryPipeline:
         _assert_step_export(wheel)
 
     def test_globoid_worm_pipeline(self):
-        """design_from_module(globoid) -> GloboidWormGeometry.build() -> valid."""
+        """design_from_module(globoid) -> _Globoid_WormGeometry.build() -> valid."""
         design = design_from_module(
             module=2.0,
             ratio=30,
@@ -92,7 +89,7 @@ class TestCalculatorToGeometryPipeline:
             throat_reduction=2.0,
         )
 
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _Globoid_WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
@@ -105,10 +102,10 @@ class TestCalculatorToGeometryPipeline:
         _assert_step_export(globoid)
 
     def test_virtual_hobbing_wheel_pipeline(self):
-        """design_from_module -> VirtualHobbingWheelGeometry.build(6 steps) -> valid."""
+        """design_from_module -> _VirtualHobbing_WheelGeometry.build(6 steps) -> valid."""
         design = design_from_module(module=2.0, ratio=20, num_starts=1)
 
-        vhob_geo = VirtualHobbingWheelGeometry(
+        vhob_geo = _VirtualHobbing_WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -123,7 +120,7 @@ class TestCalculatorToGeometryPipeline:
         """design_from_module(hand='left') -> build worm + wheel -> both valid."""
         design = design_from_module(module=1.5, ratio=20, hand="left")
 
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=20.0,
@@ -132,7 +129,7 @@ class TestCalculatorToGeometryPipeline:
         worm = worm_geo.build()
         _assert_valid_part(worm)
 
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -150,10 +147,10 @@ class TestFeatureCombinations:
     """Test geometry with bore and keyway features applied."""
 
     def test_worm_with_bore_and_keyway(self):
-        """WormGeometry + BoreFeature + KeywayFeature -> valid."""
+        """_WormGeometry + BoreFeature + KeywayFeature -> valid."""
         design = design_from_module(module=2.0, ratio=30)
 
-        worm_geo = WormGeometry(
+        worm_geo = _WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             length=30.0,
@@ -167,10 +164,10 @@ class TestFeatureCombinations:
         _assert_step_export(worm)
 
     def test_wheel_with_bore_and_keyway(self):
-        """WheelGeometry + BoreFeature + KeywayFeature -> valid."""
+        """_WheelGeometry + BoreFeature + KeywayFeature -> valid."""
         design = design_from_module(module=2.0, ratio=30)
 
-        wheel_geo = WheelGeometry(
+        wheel_geo = _WheelGeometry(
             params=design.wheel,
             worm_params=design.worm,
             assembly_params=design.assembly,
@@ -184,7 +181,7 @@ class TestFeatureCombinations:
         _assert_step_export(wheel)
 
     def test_globoid_with_bore(self):
-        """GloboidWormGeometry + BoreFeature -> valid."""
+        """_Globoid_WormGeometry + BoreFeature -> valid."""
         design = design_from_module(
             module=2.0,
             ratio=30,
@@ -192,7 +189,7 @@ class TestFeatureCombinations:
             throat_reduction=2.0,
         )
 
-        globoid_geo = GloboidWormGeometry(
+        globoid_geo = _Globoid_WormGeometry(
             params=design.worm,
             assembly_params=design.assembly,
             wheel_pitch_diameter=design.wheel.pitch_diameter_mm,
