@@ -1226,6 +1226,19 @@ pytest --cov=wormgear -m "not slow" --ignore=tests/test_torture.py --cov-fail-un
 If you legitimately need to lower the gate (e.g., removing a large module),
 update both the CI workflow and CLAUDE.md in the same PR with the reason.
 
+### Slow-test parallelisation (#206)
+
+CI's `slow-tests` job runs with `pytest -n auto` (pytest-xdist) — cuts
+wall-clock by ~30 % on the Phase 0 regression net. Bounded below by
+the single longest test (`large_za_multistart` golden, ~170 s). See
+`slow-test-durations-baseline.txt` for the profile.
+
+Locally:
+
+```bash
+uv run --extra dev pytest tests/test_layering.py tests/test_golden_volumes.py tests/test_geometry_determinism.py -n auto
+```
+
 ### When to update Phase 0 tests
 
 - **Golden values**: see "Regenerating" above.

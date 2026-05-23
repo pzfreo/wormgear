@@ -49,6 +49,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov",
+    "pytest-xdist",  # `-n auto` to parallelise the slow geometry suite
     "black",
     "ruff",
     "mypy>=1.0",

@@ -1,0 +1,49 @@
+# Slow test suite — baseline durations
+#
+# Captured 2026-05-23 on the perf/speed-up-slow-tests branch, before
+# enabling pytest-xdist parallelisation. Scope: the CI slow-tests job
+# (test_layering + test_golden_volumes + test_geometry_determinism).
+#
+# Wall-clock totals:
+#   serial (baseline):  446 s   (7 min 25 s)
+#   xdist `-n auto`:    308 s   (5 min 08 s)   ~31% faster
+#
+# CI uses `-n auto` (#206).
+#
+# Long pole:
+#   `large_za_multistart` golden at 169 s. This is the wall-clock floor
+#   — even with infinite parallelism, the suite can't finish faster than
+#   the single longest test. Shrinking it would mean changing the
+#   golden's design parameters, which would break the equivalence chain
+#   pinned at 1e-6 across the 0.0.x → 0.1.0 refactor. Deliberately left
+#   intact.
+#
+# Slowest 20 (serial baseline):
+#
+#   169.44s  tests/test_golden_volumes.py::test_golden_design[large_za_multistart]
+#    69.33s  tests/test_golden_volumes.py::test_golden_design[medium_za_globoid]
+#    48.51s  tests/test_geometry_determinism.py::test_cross_process_determinism
+#    34.63s  tests/test_geometry_determinism.py::test_in_process_determinism
+#    29.55s  tests/test_golden_volumes.py::test_golden_design[medium_zk_rh]
+#    21.69s  tests/test_golden_volumes.py::test_golden_design[medium_za_with_features]
+#    18.81s  tests/test_golden_volumes.py::test_golden_design[medium_za_rh]
+#    18.12s  tests/test_golden_volumes.py::test_golden_design[medium_za_throated]
+#    17.85s  tests/test_golden_volumes.py::test_golden_design[medium_za_lh]
+#    10.05s  tests/test_golden_volumes.py::test_golden_design[small_za_rh]
+#     0.64s  tests/test_layering.py (4× ~0.6s — subprocess-based Pyodide checks)
+#     <0.05s tests/test_layering.py (3× — static import-grep checks)
+#
+# How to re-profile:
+#   uv run --extra dev pytest \
+#     tests/test_layering.py \
+#     tests/test_golden_volumes.py \
+#     tests/test_geometry_determinism.py \
+#     --durations=20 -v --tb=no
+#
+# Future levers (separate work, not part of #206):
+#   - Bin-pack the long pole differently (currently one test holds a worker
+#     for 169 s while others churn)
+#   - Reduce the `cross_process_determinism` test's design size (it's a
+#     determinism check, not a goldens check — design choice is free)
+#   - Expand CI slow-tests scope to include test_facade.py et al. (each
+#     pair would add ~30 s in parallel)
