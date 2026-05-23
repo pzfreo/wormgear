@@ -1268,19 +1268,42 @@ pip install -e ".[dev]"           # With dev dependencies
 
 ### Releasing
 
-**ALWAYS use the publish script to cut releases. NEVER create tags or releases manually.**
+**Two-phase release.** The script never bypasses branch protection — the
+human reviews and merges the release PR, then re-runs to tag.
 
 ```bash
-./scripts/publish.sh              # Auto-increment patch version (0.0.15 -> 0.0.16)
-./scripts/publish.sh 0.1.0        # Specify version explicitly
+# Phase A — create the release PR
+./scripts/publish.sh 0.1.0
+
+# (Human: review the PR, wait for CI green, merge it.)
+
+# Phase B — tag + GitHub Release → triggers TestPyPI → PyPI
+./scripts/publish.sh 0.1.0 --tag
 ```
 
-The script handles the full release workflow:
-1. Creates a version bump PR
-2. Auto-merges the PR
-3. Creates and pushes the git tag
-4. Creates GitHub Release with auto-generated notes
-5. Triggers PyPI publish via GitHub Actions
+What each phase does:
+
+- **Phase A**: creates `release/v$VERSION` branch, bumps `pyproject.toml`,
+  pushes, opens PR, exits. No tag, no release, no PyPI publish.
+- **Phase B**: verifies the version bump is on `main` (i.e. PR was merged),
+  creates and pushes the `v$VERSION` tag, creates a GitHub Release using
+  the `## $VERSION` section of `CHANGELOG.md` if present, triggers the
+  `publish.yml` workflow.
+
+`publish.yml` runs three jobs in sequence:
+1. **build** — `python -m build` produces sdist + wheel
+2. **publish-testpypi** — uploads to TestPyPI, then `pip install` from
+   TestPyPI and verifies import. Catches metadata / file-list bugs.
+3. **publish** — only runs if (2) succeeded; uploads to real PyPI.
+
+TestPyPI setup (one-time, in the GitHub UI):
+1. Repo → Settings → Environments → New environment named `testpypi`
+2. Register the project on TestPyPI (https://test.pypi.org)
+3. TestPyPI → Account Settings → Publishing → add a trusted publisher
+   pointing at `pzfreo/wormgear`, workflow `publish.yml`, environment `testpypi`
+
+If TestPyPI isn't set up the `publish-testpypi` job will fail and the
+real PyPI publish will not run — this is the safety net.
 
 ## Key Challenges to Watch
 

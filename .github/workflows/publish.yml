@@ -28,8 +28,57 @@ jobs:
           name: dist
           path: dist/
 
-  publish:
+  # Stage on TestPyPI first. A bad release (missing files, broken metadata,
+  # import errors) is unrecoverable on real PyPI — once a version is up, it
+  # can't be replaced, only superseded. TestPyPI lets us catch the failure
+  # before it's permanent.
+  #
+  # Setup (one-time, by repo maintainer in GitHub UI):
+  #   1. Settings → Environments → New environment named "testpypi"
+  #   2. Register the project on TestPyPI (https://test.pypi.org)
+  #   3. TestPyPI Account → Publishing → add trusted publisher with:
+  #        owner: pzfreo
+  #        repo:  wormgear
+  #        workflow: publish.yml
+  #        environment: testpypi
+  publish-testpypi:
     needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write  # Required for trusted publishing
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true  # Re-runs of the workflow shouldn't fail
+                              # if a previous attempt already uploaded.
+
+      - name: Smoke-test from TestPyPI
+        # Wait briefly for TestPyPI to index, then install from there and
+        # verify the package imports. Catches metadata / file-list bugs that
+        # only surface after upload.
+        run: |
+          sleep 30
+          python -m pip install --upgrade pip
+          # --index-url points to TestPyPI; --extra-index-url falls back to
+          # real PyPI for our dependencies (build123d et al.).
+          python -m pip install \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            wormgear
+          python -c "import wormgear; print(f'OK wormgear {wormgear.__version__}')"
+
+  publish:
+    needs: publish-testpypi  # only run if TestPyPI validated cleanly
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
