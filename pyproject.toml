@@ -61,6 +61,17 @@ python_functions = "test_*"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+# The old geometry constructors (WormGeometry / WheelGeometry / etc.) emit
+# DeprecationWarning to nudge users toward the WormGear / WormWheel facade
+# (#191 Phase 5). The existing test suite intentionally still exercises the
+# old constructors (Phase 0 goldens are pinned through them). Silence the
+# noise in our own runs; users see the warnings in their code.
+filterwarnings = [
+    "ignore:WormGeometry is deprecated:DeprecationWarning",
+    "ignore:WheelGeometry is deprecated:DeprecationWarning",
+    "ignore:GloboidWormGeometry is deprecated:DeprecationWarning",
+    "ignore:VirtualHobbingWheelGeometry is deprecated:DeprecationWarning",
+]
 
 [tool.black]
 line-length = 100

@@ -7,6 +7,7 @@ This is a simplified prototype implementation.
 
 import logging
 import math
+import warnings
 from typing import Optional, Literal, Callable
 from build123d import (
     Part, Cylinder, Box, Axis, Align, BuildPart, BuildSketch, Plane, Vector,
@@ -76,6 +77,14 @@ class GloboidWormGeometry(BaseGeometry):
             progress_callback: Optional callback function(message, percent) for
                               progress reporting in WASM/browser environments.
         """
+        warnings.warn(
+            "GloboidWormGeometry is deprecated; the BD-style facade is "
+            "WormGear (cylindrical only at this stage). For globoid worms, "
+            "continue to use this class; deprecation is a heads-up that the "
+            "facade will subsume this case in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.params = params
         self.assembly_params = assembly_params
         self.wheel_pitch_diameter = wheel_pitch_diameter
