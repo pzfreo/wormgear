@@ -8,6 +8,7 @@ Creates worm wheel with two options:
 
 import logging
 import math
+import warnings
 from typing import Optional, Literal
 from build123d import (
     Part, Cylinder, Align, Vector, Plane, BuildPart, Polyline,
@@ -81,6 +82,13 @@ class WheelGeometry(BaseGeometry):
             trim_to_min_engagement: If True, cap throated blank OD to throat
                      minimum (removes flared edges). Only affects globoid worms.
         """
+        warnings.warn(
+            "WheelGeometry is deprecated; use wormgear.WormWheel for the "
+            "BD-style facade. Old constructor remains functional for one "
+            "minor release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.params = params
         self.worm_params = worm_params
         self.assembly_params = assembly_params

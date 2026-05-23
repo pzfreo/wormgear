@@ -6,6 +6,7 @@ Creates CNC-ready worm geometry with helical threads.
 
 import logging
 import math
+import warnings
 from typing import Optional, Literal
 
 from OCP.TopExp import TopExp_Explorer
@@ -78,6 +79,12 @@ class WormGeometry(BaseGeometry):
                      "loft" - Proven loft-based approach (default)
                      "sweep" - Experimental sweep of single profile along helix
         """
+        warnings.warn(
+            "WormGeometry is deprecated; use wormgear.WormGear for the BD-style "
+            "facade. Old constructor remains functional for one minor release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.params = params
         self.assembly_params = assembly_params
         self.length = length
