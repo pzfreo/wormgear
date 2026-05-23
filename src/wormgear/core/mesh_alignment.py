@@ -255,8 +255,8 @@ def find_optimal_mesh_rotation(
     wheel: Part,
     worm: Part,
     centre_distance_mm: float,
-    num_teeth: int,
-    module_mm: float = 1.0,
+    num_teeth: Optional[int] = None,
+    module_mm: Optional[float] = None,
     backlash_tolerance_mm3: Optional[float] = None,
     fine_step_deg: float = 0.2,
 ) -> MeshAlignmentResult:
@@ -284,17 +284,36 @@ def find_optimal_mesh_rotation(
     (whose axis is along Z) by the centre distance.
 
     Args:
-        wheel: Wheel Part centred at origin with axis along Z
+        wheel: Wheel Part centred at origin with axis along Z. If this is a
+            ``wormgear.WormWheel`` (carries ``num_teeth`` and ``module`` as
+            attributes), ``num_teeth`` and ``module_mm`` are auto-detected
+            and may be omitted.
         worm: Worm Part centred at origin with axis along Z (will be rotated/positioned)
         centre_distance_mm: Distance between wheel and worm axes in mm
-        num_teeth: Number of teeth on the wheel
-        module_mm: Gear module in mm (used to scale tolerance; default 1.0)
+        num_teeth: Number of teeth on the wheel. Required unless ``wheel`` is
+            a ``WormWheel`` exposing ``num_teeth`` as an attribute.
+        module_mm: Gear module in mm (used to scale tolerance). Defaults to
+            ``wheel.module`` if available, else ``1.0``.
         backlash_tolerance_mm3: Override tolerance (if None, auto-scaled from module)
         fine_step_deg: Search precision in degrees (default 0.2°)
 
     Returns:
         MeshAlignmentResult with rotation, interference, quality tier, and status
     """
+    # Auto-detect num_teeth and module_mm from the wheel if it's a WormWheel
+    # (or any object exposing those attributes). Issue #188.
+    if num_teeth is None:
+        num_teeth = getattr(wheel, "num_teeth", None)
+        if num_teeth is None:
+            raise TypeError(
+                "num_teeth must be provided unless `wheel` is a "
+                "wormgear.WormWheel (or carries a `num_teeth` attribute)."
+            )
+    if module_mm is None:
+        module_mm = getattr(wheel, "module", None)
+        if module_mm is None:
+            module_mm = 1.0  # Backwards-compatible default
+
     tooth_pitch_deg = 360.0 / num_teeth
 
     # Calculate tolerance (auto-scale from module, or use explicit override)
