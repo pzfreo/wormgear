@@ -41,23 +41,23 @@ SECTIONS_PER_TURN = 12
 
 
 def _build_and_measure() -> dict[str, float]:
-    """Build worm + wheel for the canonical design; return volumes."""
-    from wormgear.calculator import calculate_design_from_module
-    from wormgear.core import WheelGeometry, WormGeometry
+    """Build worm + wheel for the canonical design via the BD-style facade."""
+    from wormgear import WormGear, WormWheel
 
-    design = calculate_design_from_module(**DESIGN_KWARGS)
-    worm = WormGeometry(
-        params=design.worm,
-        assembly_params=design.assembly,
+    worm = WormGear(
+        module=DESIGN_KWARGS["module"],
+        num_starts=DESIGN_KWARGS["num_starts"],
         length=WORM_LENGTH,
+        profile=DESIGN_KWARGS["profile"],
         sections_per_turn=SECTIONS_PER_TURN,
-    ).build()
-    wheel = WheelGeometry(
-        params=design.wheel,
-        worm_params=design.worm,
-        assembly_params=design.assembly,
+    )
+    wheel = WormWheel(
+        module=DESIGN_KWARGS["module"],
+        num_teeth=DESIGN_KWARGS["ratio"] * DESIGN_KWARGS["num_starts"],
         face_width=WHEEL_FACE_WIDTH,
-    ).build()
+        profile=DESIGN_KWARGS["profile"],
+        worm_num_starts=DESIGN_KWARGS["num_starts"],
+    )
     return {"worm_volume": float(worm.volume), "wheel_volume": float(wheel.volume)}
 
 

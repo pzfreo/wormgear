@@ -121,9 +121,10 @@ from ..io.loaders import (
 )
 from ..io.package import generate_package, save_package_to_dir, create_package_zip
 from ..enums import WormType, WormProfile, BoreType
-from ..core.worm import WormGeometry
+from ..facade import WormGear, WormWheel
+# Legacy imports retained for paths not yet on the facade — these go away in
+# #202 (globoid → make_pair) and #203 (virtual hobbing → wormgear.advanced).
 from ..core.globoid_worm import GloboidWormGeometry
-from ..core.wheel import WheelGeometry
 from ..core.virtual_hobbing import VirtualHobbingWheelGeometry
 from ..core.features import (
     BoreFeature,
@@ -753,6 +754,7 @@ More info: https://wormgear.studio
         profile = use_profile
         progress = CLIProgressReporter("Globoid worm") if use_globoid else None
         if use_globoid:
+            # Globoid path stays on legacy until #202 lands make_pair(globoid=True)
             worm_geo = GloboidWormGeometry(
                 params=design.worm,
                 assembly_params=design.assembly,
@@ -767,10 +769,11 @@ More info: https://wormgear.studio
                 profile=profile,
                 progress_callback=progress
             )
+            worm = worm_geo.build()
         else:
-            worm_geo = WormGeometry(
-                params=design.worm,
-                assembly_params=design.assembly,
+            # Cylindrical path uses the BD-style facade (subclass of build123d.Part)
+            worm = WormGear.from_design(
+                design,
                 length=use_worm_length,
                 sections_per_turn=use_sections,
                 bore=worm_bore,
@@ -782,7 +785,6 @@ More info: https://wormgear.studio
                 generation_method=use_generation_method,
             )
 
-        worm = worm_geo.build()
         print(f"  Volume: {worm.volume:.2f} mm³")
 
     # Generate wheel
@@ -834,6 +836,7 @@ More info: https://wormgear.studio
 
         if use_virtual_hobbing:
             # EXPERIMENTAL: Virtual hobbing simulation
+            # Stays on legacy until #203 lands wormgear.advanced.virtual_hobbing
             # Pass the actual worm geometry as hob ONLY for globoid (important for accuracy)
             # For cylindrical, let VirtualHobbingWheelGeometry create a simpler hob internally
             hob_geo = worm if (worm is not None and use_globoid) else None
@@ -857,12 +860,12 @@ More info: https://wormgear.studio
                 progress_callback=hobbing_progress,
                 trim_to_min_engagement=use_trim_engagement
             )
+            wheel = wheel_geo.build()
         else:
+            # Standard helical / throated wheel via the BD-style facade
             print(f"\nGenerating wheel ({design.wheel.num_teeth} teeth, module {design.wheel.module_mm}mm, {wheel_type_desc}, {profile_desc}{features_desc})...")
-            wheel_geo = WheelGeometry(
-                params=design.wheel,
-                worm_params=design.worm,
-                assembly_params=design.assembly,
+            wheel = WormWheel.from_design(
+                design,
                 face_width=use_wheel_width,
                 throated=args.hobbed,
                 bore=wheel_bore,
@@ -871,9 +874,8 @@ More info: https://wormgear.studio
                 set_screw=wheel_set_screw,
                 hub=wheel_hub,
                 profile=profile,
-                trim_to_min_engagement=use_trim_engagement
+                trim_to_min_engagement=use_trim_engagement,
             )
-        wheel = wheel_geo.build()
         print(f"  Volume: {wheel.volume:.2f} mm³")
 
     # Measure rim thickness
