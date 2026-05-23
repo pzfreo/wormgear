@@ -295,6 +295,41 @@ class TestMeshAlignmentIntegration:
         assert result.mesh_quality in ("perfect", "good", "acceptable", "warning")
         assert result.tolerance_mm3 > 0.0
 
+    def test_find_optimal_rotation_auto_detects_from_worm_wheel(
+        self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm
+    ):
+        """When wheel is a WormWheel, num_teeth and module_mm can be omitted (#188)."""
+        worm, wheel = built_worm_and_wheel_7mm
+        # The conftest fixtures build via the facade (WormGear/WormWheel),
+        # so the wheel exposes num_teeth + module as attributes. The caller
+        # should not need to pass them again.
+
+        result = find_optimal_mesh_rotation(
+            wheel=wheel,
+            worm=worm,
+            centre_distance_mm=assembly_params_7mm.centre_distance_mm,
+            # num_teeth omitted — should auto-detect
+            # module_mm omitted — should auto-detect
+        )
+
+        assert isinstance(result, MeshAlignmentResult)
+        # Should produce the same tooth pitch as if num_teeth had been passed.
+        expected_pitch = 360.0 / wheel_params_7mm.num_teeth
+        assert result.tooth_pitch_deg == pytest.approx(expected_pitch)
+
+    def test_find_optimal_rotation_clear_error_when_num_teeth_missing(
+        self, assembly_params_7mm
+    ):
+        """A bare Part with no num_teeth attribute must raise a helpful error (#188)."""
+        from build123d import Box
+        bare_part = Box(10, 10, 10)
+        with pytest.raises(TypeError, match="num_teeth"):
+            find_optimal_mesh_rotation(
+                wheel=bare_part,
+                worm=bare_part,
+                centre_distance_mm=20.0,
+            )
+
     def test_tooth_pitch_calculation(
         self, built_worm_and_wheel_7mm, assembly_params_7mm, wheel_params_7mm
     ):
