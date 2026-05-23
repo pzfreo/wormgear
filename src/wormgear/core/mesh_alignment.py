@@ -228,18 +228,41 @@ def check_interference(
     centre_distance_mm: float,
     rotation_deg: float = 0.0,
 ) -> float:
-    """Check intersection volume between wheel and worm.
+    """Measure raw intersection volume at a specific wheel rotation.
 
-    Positions the worm at centre distance and checks for interference.
+    This is a low-level diagnostic: it positions the worm at ``centre_distance_mm``,
+    rotates the wheel by ``rotation_deg``, and returns the boolean-intersection
+    volume between the two parts. It does **not** decide whether the pair is
+    correctly meshed — it just reports the overlap at the orientation you give it.
+
+    For the higher-level question "is this pair meshed correctly?", use one of:
+
+    - :func:`wormgear.check_mesh` — fast parameter-level check (no geometry build)
+    - :func:`find_optimal_mesh_rotation` — searches for the rotation that minimises
+      interference and reports a quality tier ("perfect" / "good" / "acceptable" /
+      "warning") against a module-scaled tolerance
+
+    .. warning::
+        **Sampling alias trap.** Interference repeats every ``360° / num_teeth``
+        for a single-start worm (e.g. 18° for a 20-tooth wheel). If you sweep
+        ``rotation_deg`` on a step that doesn't divide the tooth pitch (e.g. 30°
+        steps against an 18° period), you will see an apparent period of
+        ``LCM(step, pitch)`` and you may never sample near the true minimum.
+        Sample at ``360° / num_teeth`` (or a divisor of it) to see real
+        per-tooth variation; otherwise prefer :func:`find_optimal_mesh_rotation`,
+        which uses golden-section search to find the actual minimum.
 
     Args:
         wheel: Wheel Part centred at origin with axis along Z
         worm: Worm Part centred at origin with axis along Z (will be positioned)
         centre_distance_mm: Distance between axes in mm
-        rotation_deg: Rotation to apply to wheel before checking
+        rotation_deg: Rotation to apply to wheel before checking (degrees)
 
     Returns:
-        Intersection volume in mm³
+        Intersection volume in mm³ at this specific rotation. A correctly meshed
+        pair (with appropriate backlash) typically yields well under 1 mm³ × module²
+        at its optimal rotation, but values at non-optimal rotations can be much
+        higher — see the warning above.
     """
     # Position worm: rotate -90° around Y so axis is along X, offset in Y
     worm_positioned = worm.rotate(Axis.Y, -90)
