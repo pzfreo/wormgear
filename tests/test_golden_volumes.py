@@ -180,7 +180,13 @@ GOLDEN_VALUES: dict[str, dict[str, dict[str, Any]]] = {
         "wheel": {"volume": 1830.3195, "bbox": (-10.9759, 10.9759, -10.9759, 10.9759, -3.0, 3.0), "face_count": 442},
     },
     "large_za_multistart": {
-        "worm": {"volume": 5649.3542, "bbox": (-18.7912, 18.7912, -18.7911, 18.7912, -15.0, 30.0286), "face_count": 15},
+        # 0.1.2 (#224): the worm's volume jumped from 5649.3542 to 28122.3605 and
+        # its bbox z became symmetric at [-15, +15] (was [-15, +30.03]). The old
+        # values pinned a broken ``_trim_to_length`` that leaked thread material
+        # ~15 mm past the requested envelope on multi-start designs while also
+        # silently discarding most of the core. The face count was, coincidentally,
+        # unchanged at 15. See #224 for the full diagnostic.
+        "worm": {"volume": 28122.3605, "bbox": (-18.2887, 18.2887, -18.2887, 18.2887, -15.0, 15.0), "face_count": 15},
         "wheel": {"volume": 112550.7135, "bbox": (-61.979, 61.979, -61.979, 61.979, -5.0, 5.0), "face_count": 1322},
     },
     "medium_za_lh": {
@@ -343,6 +349,18 @@ def test_golden_design(name: str, spec: DesignSpec) -> None:
     worm, wheel = build_pair(spec)
     worm_meas = measure(worm)
     wheel_meas = measure(wheel)
+
+    # Universal invariant: the worm's Z extent must match the requested
+    # length. Pinned independently of the recorded bbox so a future
+    # regression in ``_trim_to_length`` (cf. #224) cannot escape by being
+    # baked into the goldens.
+    worm_zsize = worm_meas["bbox"][5] - worm_meas["bbox"][4]
+    assert abs(worm_zsize - spec.worm_length) < BBOX_TOL_MM, (
+        f"{name}: worm zsize {worm_zsize:.4f} mm does not match requested "
+        f"length {spec.worm_length} mm. This invariant is enforced "
+        f"independently of the recorded bbox — if the trim is broken, "
+        f"re-recording goldens will not silence it."
+    )
 
     _assert_matches(name, "worm", worm_meas, GOLDEN_VALUES[name]["worm"])
     _assert_matches(name, "wheel", wheel_meas, GOLDEN_VALUES[name]["wheel"])

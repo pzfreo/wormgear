@@ -7,7 +7,23 @@ and the project uses [semantic versioning](https://semver.org/) — with the
 caveat that **0.x.y is pre-1.0**, so minor-version bumps may include
 breaking changes.
 
-## 0.1.1 — unreleased
+## 0.1.2 — unreleased
+
+### Fixed
+
+- **`_trim_to_length` leaked material past the length envelope on multi-start worms** ([#224](https://github.com/pzfreo/wormgear/pull/224)). The previous implementation cut the worm in two halves with `BRepAlgoAPI_Cut`; `IsDone()` returned True but the operation silently left disconnected thread solids untouched on multi-start designs. A `make_pair(module=2.0, num_starts=3, ratio=20, length=30)` produced a worm with `zsize=72.62 mm` (2.4× too long) and a thread fragment dangling outside the requested envelope. Single-start worms were always trimmed correctly.
+
+  Replacement: `_trim_to_length` now intersects the worm with a single envelope box of the exact requested length. One boolean op against one primitive — robust against compound topology.
+
+- **Phase 0 goldens pinned the broken multi-start trim as if it were correct.** The `large_za_multistart` 2-start golden had its worm bbox recorded at `(-15.0, +30.03)` — explicitly encoding the leak. Refresh:
+  - Worm volume changes from `5649.3542` to `28122.3605` mm³. The old worm was effectively just thread fragments after the broken trim discarded the core; the new one is a properly-shaped multi-start worm body.
+  - Bbox z becomes symmetric `[-15, +15]`.
+  - Face count stays at 15 (coincidence — the surface topology happens to be the same count, just laid out correctly).
+  - All single-start designs are bit-identical pre- and post-fix.
+
+- **Added a universal "worm zsize == requested length" invariant** to `test_golden_design`. Enforced independently of the recorded bbox so a future regression in `_trim_to_length` cannot escape by being baked into refreshed goldens. Would have caught #224 from day one.
+
+## 0.1.1 — 2026-05-24
 
 ### Fixed
 
