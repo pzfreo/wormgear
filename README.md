@@ -128,6 +128,10 @@ precise_wheel = virtual_hobbing(worm, wheel, steps=72)
 
 Most users want plain `WormWheel(throated=True)` — reach for this when you specifically need kinematic accuracy.
 
+## Known limitations
+
+- **Even-numbered multi-start worm STL is slightly non-watertight.** For `num_starts ∈ {2, 4, 6, ...}` the two opposing thread surfaces meet at a single shared vertex on the symmetry plane (a real OCC topology with `is_valid=True`, but degenerate for tessellation). The exported STL has ~6 open edges out of ~10,000 — about 0.06 % of the mesh. STEP output is unaffected and round-trips perfectly. Most STL slicers (Cura, PrusaSlicer) tolerate the open edges and slice normally; strict mesh-repair tools may flag them, and the workaround is a "make watertight" pass in Blender or Meshmixer. **1-start and odd-numbered multi-start worms are clean.** See [#223](https://github.com/pzfreo/wormgear/issues/223) for the diagnostic and attempted fixes.
+
 ## Related libraries
 
 Wormgear is one library in the build123d gear ecosystem:
