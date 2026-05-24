@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wormgear"
-version = "0.1.1"
+version = "0.1.2"
 description = "Worm gears for build123d, with DIN-3975 engineering analysis"
 readme = "README.md"
 requires-python = ">=3.12"
