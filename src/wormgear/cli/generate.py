@@ -152,6 +152,195 @@ from ..core.rim_thickness import (
 from ..io.loaders import MeshAlignment, WormPosition, MeasuredGeometry, MeasurementPoint
 
 
+def _format_profile_desc(profile, *, long: bool = False) -> str:
+    """Format a profile enum/string as a human-readable description.
+
+    short form (default): "ZA/straight", "ZK/circular arc", "ZI/involute"
+    long form: "ZA (straight, CNC)", "ZK (circular arc, 3D printing)", ...
+    """
+    if profile == WormProfile.ZK or profile == "ZK":
+        return "ZK (circular arc, 3D printing)" if long else "ZK/circular arc"
+    if profile == WormProfile.ZI or profile == "ZI":
+        return "ZI (involute, hobbing)" if long else "ZI/involute"
+    return "ZA (straight, CNC)" if long else "ZA/straight"
+
+
+def _view_in_ocp(wheel, worm, mesh_alignment_result, centre_distance_mm):
+    """Display worm/wheel pair in OCP viewer, positioned for mesh visualisation."""
+    try:
+        from ocp_vscode import show
+    except ImportError:
+        print("\nWarning: ocp_vscode not available for viewing", file=sys.stderr)
+        print("Install with: pip install ocp_vscode", file=sys.stderr)
+        return
+
+    if wheel is not None and worm is not None:
+        if mesh_alignment_result is not None:
+            wheel_pos, worm_pos = position_for_mesh(
+                wheel=wheel,
+                worm=worm,
+                centre_distance_mm=centre_distance_mm,
+                rotation_deg=mesh_alignment_result.optimal_rotation_deg,
+            )
+            print(f"\n  Wheel rotated {mesh_alignment_result.optimal_rotation_deg:.2f}° for optimal mesh")
+        else:
+            from build123d import Rot, Pos
+            wheel_pos = wheel
+            worm_pos = Pos(centre_distance_mm, 0, 0) * Rot(X=90) * worm
+        show(wheel_pos, worm_pos, names=["wheel", "worm"], colors=["steelblue", "orange"])
+    elif wheel is not None:
+        show(wheel, names=["wheel"], colors=["steelblue"])
+    elif worm is not None:
+        show(worm, names=["worm"], colors=["orange"])
+    print("Displayed in OCP viewer")
+
+
+def _save_analysis_json(output_dir, design, mesh_alignment_result,
+                        worm_rim_result, wheel_rim_result, use_globoid):
+    """Save geometry_analysis_*.json with mesh + rim + throat data."""
+    from datetime import datetime
+    import json as _json
+
+    has_analysis = (mesh_alignment_result is not None
+                    or worm_rim_result is not None
+                    or wheel_rim_result is not None
+                    or use_globoid)
+    if not has_analysis:
+        return
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    analysis_file = output_dir / f"geometry_analysis_m{design.worm.module_mm}.json"
+
+    data = {
+        "design_info": {
+            "module_mm": design.worm.module_mm,
+            "ratio": design.assembly.ratio,
+            "centre_distance_mm": design.assembly.centre_distance_mm,
+            "worm_starts": design.worm.num_starts,
+            "wheel_teeth": design.wheel.num_teeth,
+        },
+        "analysis_timestamp": datetime.now().isoformat(),
+    }
+
+    if mesh_alignment_result is not None:
+        data["mesh_alignment"] = mesh_alignment_to_dict(mesh_alignment_result)
+
+    if worm_rim_result is not None or wheel_rim_result is not None:
+        data["rim_thickness"] = {}
+        if worm_rim_result is not None:
+            data["rim_thickness"]["worm"] = rim_thickness_to_dict(worm_rim_result)
+        if wheel_rim_result is not None:
+            data["rim_thickness"]["wheel"] = rim_thickness_to_dict(wheel_rim_result)
+
+    if use_globoid and design.worm.throat_reduction_mm:
+        arc_r = design.worm.tip_diameter_mm / 2 - design.worm.throat_reduction_mm
+        cd = design.assembly.centre_distance_mm
+        margin = design.worm.addendum_mm + 0.5 * design.wheel.addendum_mm
+        min_blank_r = cd - arc_r + margin
+        tip_r = design.wheel.tip_diameter_mm / 2
+        throat_od = round(2 * min(tip_r, min_blank_r), 3)
+        data["throat_geometry"] = {
+            "wheel_throat_od_mm": throat_od,
+            "wheel_tip_od_mm": design.wheel.tip_diameter_mm,
+            "od_difference_mm": round(design.wheel.tip_diameter_mm - throat_od, 3),
+            "note": "wheel_throat_od_mm is the minimum OD at the engagement zone; edges can be clipped to this without losing engagement"
+        }
+        print(f"\nWheel throat OD: {throat_od:.2f}mm (tip OD {design.wheel.tip_diameter_mm:.2f}mm, {design.wheel.tip_diameter_mm - throat_od:.2f}mm recoverable at edges)")
+
+    if analysis_file.exists():
+        analysis_file.unlink()
+    with open(analysis_file, "w") as f:
+        _json.dump(data, f, indent=2)
+    print(f"  Saved: {analysis_file}")
+
+
+def _build_manufacturing_features(bore_diameter, keyway, set_screw, *, hub=None,
+                                  side="worm"):
+    """Build a ManufacturingFeatures from the parsed CLI features (worm or wheel)."""
+    if not (bore_diameter or set_screw or hub):
+        return None
+    keyway_dims = get_din_6885_keyway(bore_diameter) if bore_diameter else None
+    # DIN 6885 keyway dims tuple: (width, _, shaft_depth, hub_depth) — index 2 for
+    # the shaft (worm) depth, index 3 for the hub (wheel) depth.
+    depth_idx = 2 if side == "worm" else 3
+    kwargs = {
+        "bore_diameter": bore_diameter,
+        "keyway_width": keyway_dims[0] if keyway_dims and keyway else None,
+        "keyway_depth": keyway_dims[depth_idx] if keyway_dims and keyway else None,
+        "set_screw_size": set_screw.size if set_screw else None,
+        "set_screw_count": set_screw.count if set_screw else None,
+    }
+    if hub is not None:
+        kwargs.update(
+            hub_type=hub.hub_type,
+            hub_length=hub.length,
+            flange_diameter=hub.flange_diameter,
+            flange_thickness=hub.flange_thickness,
+            flange_bolts=hub.bolt_holes,
+            bolt_diameter=hub.bolt_diameter,
+        )
+    return ManufacturingFeatures(**kwargs)
+
+
+def _save_extended_design_json(args, design, use_globoid, use_worm_length, use_wheel_width,
+                               use_profile, worm_bore_diameter, worm_keyway, worm_set_screw,
+                               wheel_bore_diameter, wheel_keyway, wheel_set_screw, wheel_hub,
+                               worm_rim_result, wheel_rim_result):
+    """Save the extended JSON containing all manufacturing parameters and measurements."""
+    from datetime import datetime
+
+    worm_features = _build_manufacturing_features(
+        worm_bore_diameter, worm_keyway, worm_set_screw, side="worm",
+    )
+    wheel_features = _build_manufacturing_features(
+        wheel_bore_diameter, wheel_keyway, wheel_set_screw, hub=wheel_hub, side="wheel",
+    )
+
+    manufacturing = ManufacturingParams(
+        worm_type="globoid" if use_globoid else "cylindrical",
+        worm_length=use_worm_length,
+        wheel_width=use_wheel_width,
+        wheel_throated=args.hobbed,
+        profile=use_profile,
+        worm_features=worm_features,
+        wheel_features=wheel_features,
+    )
+
+    measured_geometry = None
+    if worm_rim_result is not None or wheel_rim_result is not None:
+        measured_geometry = MeasuredGeometry(
+            wheel_rim_thickness_mm=wheel_rim_result.minimum_thickness_mm if wheel_rim_result else None,
+            wheel_measurement_point=MeasurementPoint(
+                x_mm=wheel_rim_result.measurement_point_bore[0],
+                y_mm=wheel_rim_result.measurement_point_bore[1],
+                z_mm=wheel_rim_result.measurement_point_bore[2],
+            ) if wheel_rim_result and wheel_rim_result.measurement_point_bore else None,
+            wheel_rim_warning=wheel_rim_result.has_warning if wheel_rim_result else None,
+            worm_rim_thickness_mm=worm_rim_result.minimum_thickness_mm if worm_rim_result else None,
+            worm_measurement_point=MeasurementPoint(
+                x_mm=worm_rim_result.measurement_point_bore[0],
+                y_mm=worm_rim_result.measurement_point_bore[1],
+                z_mm=worm_rim_result.measurement_point_bore[2],
+            ) if worm_rim_result and worm_rim_result.measurement_point_bore else None,
+            worm_rim_warning=worm_rim_result.has_warning if worm_rim_result else None,
+            measurement_timestamp=datetime.now().isoformat(),
+        )
+
+    complete_design = WormGearDesign(
+        worm=design.worm,
+        wheel=design.wheel,
+        assembly=design.assembly,
+        manufacturing=manufacturing,
+        measured_geometry=measured_geometry,
+    )
+
+    output_path = Path(args.save_json)
+    save_design_json(complete_design, output_path)
+    print(f"\nSaved extended JSON: {output_path}")
+    print(f"  This JSON includes all manufacturing features and can fully reproduce this design")
+
+
 def _parse_set_screw(args, json_features):
     """Parse set screw specification from CLI args or JSON features.
 
@@ -278,8 +467,8 @@ def _build_features_desc(bore, bore_diameter, keyway, ddcut, set_screw):
     return features_desc
 
 
-def main():
-    """Main CLI entry point."""
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Construct the wormgear CLI argument parser."""
     parser = argparse.ArgumentParser(
         prog="wormgear",
         description="Generate CNC-ready STEP files for worm gear pairs from wormgear.studio designs",
@@ -641,6 +830,12 @@ More info: https://wormgear.studio
         help='Full-radius groove radius in mm (default: 0.75× axial pitch)'
     )
 
+    return parser
+
+
+def main():
+    """Main CLI entry point."""
+    parser = _build_arg_parser()
     args = parser.parse_args()
 
     # Load design
@@ -662,6 +857,11 @@ More info: https://wormgear.studio
     wheel_rim_result = None
     worm_bore_diameter = None
     wheel_bore_diameter = None
+    worm_keyway = None
+    worm_set_screw = None
+    wheel_keyway = None
+    wheel_set_screw = None
+    wheel_hub = None
 
     # Get features from JSON if present (source of truth)
     json_worm_features = design.features.worm if design.features else None
@@ -741,13 +941,7 @@ More info: https://wormgear.studio
             features_desc += f" + relief groove ({worm_relief_groove.type})"
 
         worm_type_desc = "globoid (hourglass)" if use_globoid else "cylindrical"
-        profile_upper = use_profile
-        if profile_upper == WormProfile.ZK or profile_upper == "ZK":
-            profile_desc = "ZK/circular arc"
-        elif profile_upper == WormProfile.ZI or profile_upper == "ZI":
-            profile_desc = "ZI/involute"
-        else:
-            profile_desc = "ZA/straight"
+        profile_desc = _format_profile_desc(use_profile)
         print(f"\nGenerating worm ({worm_type_desc}, {design.worm.num_starts}-start, module {design.worm.module_mm}mm, {profile_desc}{features_desc})...")
 
         profile = use_profile
@@ -821,12 +1015,7 @@ More info: https://wormgear.studio
             features_desc += f", {hub_desc}"
 
         profile = use_profile
-        if profile == WormProfile.ZK or profile == "ZK":
-            profile_desc = "ZK/circular arc"
-        elif profile == WormProfile.ZI or profile == "ZI":
-            profile_desc = "ZI/involute"
-        else:
-            profile_desc = "ZA/straight"
+        profile_desc = _format_profile_desc(profile)
 
         if use_virtual_hobbing:
             # EXPERIMENTAL: Virtual hobbing simulation
@@ -957,62 +1146,10 @@ More info: https://wormgear.studio
 
     # Save geometry analysis JSON (mesh alignment + rim measurements)
     if not args.no_save:
-        output_dir = Path(args.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        import json
-
-        has_analysis = (mesh_alignment_result is not None or
-                        worm_rim_result is not None or
-                        wheel_rim_result is not None or
-                        use_globoid)
-        if has_analysis:
-            from datetime import datetime
-            analysis_file = output_dir / f"geometry_analysis_m{design.worm.module_mm}.json"
-
-            analysis_data = {
-                "design_info": {
-                    "module_mm": design.worm.module_mm,
-                    "ratio": design.assembly.ratio,
-                    "centre_distance_mm": design.assembly.centre_distance_mm,
-                    "worm_starts": design.worm.num_starts,
-                    "wheel_teeth": design.wheel.num_teeth,
-                },
-                "analysis_timestamp": datetime.now().isoformat(),
-            }
-
-            # Add mesh alignment data
-            if mesh_alignment_result is not None:
-                analysis_data["mesh_alignment"] = mesh_alignment_to_dict(mesh_alignment_result)
-
-            # Add rim thickness data
-            if worm_rim_result is not None or wheel_rim_result is not None:
-                analysis_data["rim_thickness"] = {}
-                if worm_rim_result is not None:
-                    analysis_data["rim_thickness"]["worm"] = rim_thickness_to_dict(worm_rim_result)
-                if wheel_rim_result is not None:
-                    analysis_data["rim_thickness"]["wheel"] = rim_thickness_to_dict(wheel_rim_result)
-
-            # Add throat geometry for globoid worms
-            if use_globoid and design.worm.throat_reduction_mm:
-                arc_r = design.worm.tip_diameter_mm / 2 - design.worm.throat_reduction_mm
-                cd = design.assembly.centre_distance_mm
-                margin = design.worm.addendum_mm + 0.5 * design.wheel.addendum_mm
-                min_blank_r = cd - arc_r + margin
-                tip_r = design.wheel.tip_diameter_mm / 2
-                throat_od = round(2 * min(tip_r, min_blank_r), 3)
-                analysis_data["throat_geometry"] = {
-                    "wheel_throat_od_mm": throat_od,
-                    "wheel_tip_od_mm": design.wheel.tip_diameter_mm,
-                    "od_difference_mm": round(design.wheel.tip_diameter_mm - throat_od, 3),
-                    "note": "wheel_throat_od_mm is the minimum OD at the engagement zone; edges can be clipped to this without losing engagement"
-                }
-                print(f"\nWheel throat OD: {throat_od:.2f}mm (tip OD {design.wheel.tip_diameter_mm:.2f}mm, {design.wheel.tip_diameter_mm - throat_od:.2f}mm recoverable at edges)")
-
-            if analysis_file.exists():
-                analysis_file.unlink()
-            with open(analysis_file, 'w') as f:
-                json.dump(analysis_data, f, indent=2)
-            print(f"  Saved: {analysis_file}")
+        _save_analysis_json(
+            args.output_dir, design, mesh_alignment_result,
+            worm_rim_result, wheel_rim_result, use_globoid,
+        )
 
     # Write package files to disk (or ZIP)
     if not args.no_save and pkg is not None:
@@ -1029,45 +1166,10 @@ More info: https://wormgear.studio
 
     # View in OCP viewer
     if args.view:
-        try:
-            from ocp_vscode import show
-
-            # Position parts for mesh visualization
-            if wheel is not None and worm is not None:
-                # Use calculated mesh alignment for optimal positioning
-                if mesh_alignment_result is not None:
-                    wheel_positioned, worm_positioned = position_for_mesh(
-                        wheel=wheel,
-                        worm=worm,
-                        centre_distance_mm=design.assembly.centre_distance_mm,
-                        rotation_deg=mesh_alignment_result.optimal_rotation_deg,
-                    )
-                    print(f"\n  Wheel rotated {mesh_alignment_result.optimal_rotation_deg:.2f}° for optimal mesh")
-                else:
-                    # Fallback: position without alignment calculation
-                    from build123d import Rot, Pos
-                    wheel_positioned = wheel
-                    worm_positioned = Pos(design.assembly.centre_distance_mm, 0, 0) * Rot(X=90) * worm
-
-                show(wheel_positioned, worm_positioned, names=["wheel", "worm"], colors=["steelblue", "orange"])
-            elif wheel is not None:
-                show(wheel, names=["wheel"], colors=["steelblue"])
-            elif worm is not None:
-                show(worm, names=["worm"], colors=["orange"])
-            print("Displayed in OCP viewer")
-
-        except ImportError:
-            print("\nWarning: ocp_vscode not available for viewing", file=sys.stderr)
-            print("Install with: pip install ocp_vscode", file=sys.stderr)
+        _view_in_ocp(wheel, worm, mesh_alignment_result, design.assembly.centre_distance_mm)
 
     # Summary
-    profile_upper = use_profile
-    if profile_upper == WormProfile.ZK or profile_upper == "ZK":
-        profile_name = "ZK (circular arc, 3D printing)"
-    elif profile_upper == WormProfile.ZI or profile_upper == "ZI":
-        profile_name = "ZI (involute, hobbing)"
-    else:
-        profile_name = "ZA (straight, CNC)"
+    profile_name = _format_profile_desc(use_profile, long=True)
     print(f"\nDesign summary:")
     print(f"  Ratio: {design.assembly.ratio}:1")
     print(f"  Centre distance: {design.assembly.centre_distance_mm:.2f} mm")
@@ -1115,83 +1217,12 @@ More info: https://wormgear.studio
 
     # Save extended JSON with manufacturing features
     if args.save_json:
-        # Collect worm manufacturing features
-        worm_features = None
-        if worm_bore_diameter or worm_set_screw:
-            keyway_dims = get_din_6885_keyway(worm_bore_diameter) if worm_bore_diameter else None
-            worm_features = ManufacturingFeatures(
-                bore_diameter=worm_bore_diameter,
-                keyway_width=keyway_dims[0] if keyway_dims and worm_keyway else None,
-                keyway_depth=keyway_dims[2] if keyway_dims and worm_keyway else None,
-                set_screw_size=worm_set_screw.size if worm_set_screw else None,
-                set_screw_count=worm_set_screw.count if worm_set_screw else None
-            )
-
-        # Collect wheel manufacturing features
-        wheel_features = None
-        if wheel_bore_diameter or wheel_set_screw or wheel_hub:
-            keyway_dims = get_din_6885_keyway(wheel_bore_diameter) if wheel_bore_diameter else None
-            wheel_features = ManufacturingFeatures(
-                bore_diameter=wheel_bore_diameter,
-                keyway_width=keyway_dims[0] if keyway_dims and wheel_keyway else None,
-                keyway_depth=keyway_dims[3] if keyway_dims and wheel_keyway else None,
-                set_screw_size=wheel_set_screw.size if wheel_set_screw else None,
-                set_screw_count=wheel_set_screw.count if wheel_set_screw else None,
-                hub_type=wheel_hub.hub_type if wheel_hub else None,
-                hub_length=wheel_hub.length if wheel_hub else None,
-                flange_diameter=wheel_hub.flange_diameter if wheel_hub else None,
-                flange_thickness=wheel_hub.flange_thickness if wheel_hub else None,
-                flange_bolts=wheel_hub.bolt_holes if wheel_hub else None,
-                bolt_diameter=wheel_hub.bolt_diameter if wheel_hub else None
-            )
-
-        # Create manufacturing parameters
-        manufacturing = ManufacturingParams(
-            worm_type="globoid" if use_globoid else "cylindrical",
-            worm_length=use_worm_length,
-            wheel_width=use_wheel_width,
-            wheel_throated=args.hobbed,
-            profile=use_profile,
-            worm_features=worm_features,
-            wheel_features=wheel_features
+        _save_extended_design_json(
+            args, design, use_globoid, use_worm_length, use_wheel_width, use_profile,
+            worm_bore_diameter, worm_keyway, worm_set_screw,
+            wheel_bore_diameter, wheel_keyway, wheel_set_screw, wheel_hub,
+            worm_rim_result, wheel_rim_result,
         )
-
-        # Create measured geometry from rim thickness results
-        measured_geometry = None
-        if worm_rim_result is not None or wheel_rim_result is not None:
-            from datetime import datetime
-            measured_geometry = MeasuredGeometry(
-                wheel_rim_thickness_mm=wheel_rim_result.minimum_thickness_mm if wheel_rim_result else None,
-                wheel_measurement_point=MeasurementPoint(
-                    x_mm=wheel_rim_result.measurement_point_bore[0],
-                    y_mm=wheel_rim_result.measurement_point_bore[1],
-                    z_mm=wheel_rim_result.measurement_point_bore[2]
-                ) if wheel_rim_result and wheel_rim_result.measurement_point_bore else None,
-                wheel_rim_warning=wheel_rim_result.has_warning if wheel_rim_result else None,
-                worm_rim_thickness_mm=worm_rim_result.minimum_thickness_mm if worm_rim_result else None,
-                worm_measurement_point=MeasurementPoint(
-                    x_mm=worm_rim_result.measurement_point_bore[0],
-                    y_mm=worm_rim_result.measurement_point_bore[1],
-                    z_mm=worm_rim_result.measurement_point_bore[2]
-                ) if worm_rim_result and worm_rim_result.measurement_point_bore else None,
-                worm_rim_warning=worm_rim_result.has_warning if worm_rim_result else None,
-                measurement_timestamp=datetime.now().isoformat()
-            )
-
-        # Create complete design with manufacturing parameters
-        complete_design = WormGearDesign(
-            worm=design.worm,
-            wheel=design.wheel,
-            assembly=design.assembly,
-            manufacturing=manufacturing,
-            measured_geometry=measured_geometry
-        )
-
-        # Save to file
-        output_path = Path(args.save_json)
-        save_design_json(complete_design, output_path)
-        print(f"\nSaved extended JSON: {output_path}")
-        print(f"  This JSON includes all manufacturing features and can fully reproduce this design")
 
     return 0
 
