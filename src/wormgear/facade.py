@@ -103,6 +103,7 @@ class WormGear(BasePartObject):
         num_starts: int = 1,
         length: float = 30.0,
         *,
+        ratio: Optional[int] = None,
         target_lead_angle: float = 7.0,
         hand: Union[Hand, str] = "right",
         profile: Union[WormProfile, str] = "ZA",
@@ -125,15 +126,25 @@ class WormGear(BasePartObject):
         from .calculator import design_from_module
         from .core.worm import _WormGeometry
 
-        # The calculator wants a ratio context. WormGear alone doesn't care
-        # about wheel teeth, but the calculator's worm derivation does depend
-        # on num_starts + target_lead_angle to compute pitch diameter — none
-        # of which involves the wheel side. We pass a placeholder ratio of 10
-        # solely to satisfy the function signature; the worm dimensions are
-        # identical for any ratio.
+        # Worm dimensions are identical for any ratio — but
+        # ``design.assembly.centre_distance_mm`` depends on the wheel pitch
+        # diameter, which *does* require the real ratio. So:
+        #   * If ``ratio`` is supplied, the stored ``_assembly_params``
+        #     carries the correct centre distance for downstream consumers
+        #     (``check_mesh``, ``find_optimal_mesh_rotation``, user code).
+        #   * If ``ratio`` is None, we still build the worm Part (worm dims
+        #     don't care), but we deliberately do not stash a misleading
+        #     assembly object. ``_assembly_params`` is ``None`` instead,
+        #     so callers get a clear ``AttributeError`` rather than a silent
+        #     ~20 mm centre-distance bug (regression caught in 0.1.0).
+        #
+        # ``ratio=2`` is the placeholder used solely to satisfy the
+        # calculator's signature in the worm-only construction path; the
+        # value is discarded along with ``design.assembly``.
+        effective_ratio = ratio if ratio is not None else 2
         design = design_from_module(
             module=module,
-            ratio=10,  # placeholder — worm dims don't depend on wheel teeth
+            ratio=effective_ratio,
             num_starts=num_starts,
             target_lead_angle=target_lead_angle,
             hand=hand,
@@ -161,7 +172,11 @@ class WormGear(BasePartObject):
         # Stash the engineering inputs as attributes so downstream code
         # (notably check_mesh and Phase 3 from_design) can introspect.
         self._params = design.worm
-        self._assembly_params = design.assembly
+        # Only store assembly_params when we have real wheel context.
+        # In the worm-only path, the wheel-side fields (centre_distance_mm,
+        # ratio) would carry placeholder values; storing them caused the
+        # 0.1.0 "centre distance is 20 mm too small" bug.
+        self._assembly_params = design.assembly if ratio is not None else None
         self.module = module
         self.num_starts = num_starts
         self.length = length
@@ -196,6 +211,7 @@ class WormGear(BasePartObject):
             module=design.worm.module_mm,
             num_starts=design.worm.num_starts,
             length=length,
+            ratio=design.assembly.ratio,
             target_lead_angle=design.worm.lead_angle_deg,
             hand=design.worm.hand,
             profile=_design_profile(design),

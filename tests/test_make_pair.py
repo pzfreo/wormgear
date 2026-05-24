@@ -138,6 +138,64 @@ class TestMakePair:
             worm._params, wheel._params, worm._assembly_params,
         )
         assert report.ok is True, f"check_mesh failed: {report.errors}"
+        # Also assert no warnings — for a fresh make_pair we want a clean
+        # bill of health, not "ok but with surprises".
+        assert report.warnings == [], (
+            f"check_mesh produced unexpected warnings: {report.warnings}"
+        )
+
+    def test_pair_centre_distance_matches_geometric(self):
+        """``worm._assembly_params.centre_distance_mm`` must equal the
+        geometric mean of pitch diameters for a cylindrical worm pair.
+
+        Regression test for a bug found post-0.1.0 where ``WormGear``
+        constructed via ``make_pair`` was carrying a ``centre_distance_mm``
+        20 mm smaller than the true value, because ``WormGear.__init__``
+        used a placeholder ``ratio=10`` and never received the real ratio
+        from ``from_design``. ``find_optimal_mesh_rotation`` would then
+        position parts at the wrong distance, producing kilo-mm³
+        interference.
+        """
+        for module, ratio in [(1.0, 20), (2.0, 30), (0.5, 12), (3.0, 40)]:
+            worm, wheel = make_pair(
+                module=module, ratio=ratio, length=20.0, face_width=4.0,
+                sections_per_turn=12,
+            )
+            expected_cd = (
+                worm._params.pitch_diameter_mm
+                + wheel._params.pitch_diameter_mm
+            ) / 2.0
+            actual_cd = worm._assembly_params.centre_distance_mm
+            assert abs(actual_cd - expected_cd) < 0.001, (
+                f"make_pair(module={module}, ratio={ratio}): "
+                f"stored centre_distance_mm={actual_cd:.4f} mm but "
+                f"geometric value is {expected_cd:.4f} mm "
+                f"(drift={actual_cd - expected_cd:+.4f} mm)"
+            )
+
+    def test_standalone_wormgear_has_no_assembly_params(self):
+        """Constructing a ``WormGear`` without a ``ratio`` keyword leaves
+        ``_assembly_params`` as ``None`` so consumers can't silently rely
+        on placeholder wheel-side data.
+        """
+        worm = WormGear(module=2.0, num_starts=1, length=30.0)
+        assert worm._assembly_params is None, (
+            "WormGear constructed without ratio should not carry "
+            f"assembly_params; got {worm._assembly_params}"
+        )
+
+    def test_wormgear_with_explicit_ratio_has_correct_cd(self):
+        """``WormGear(..., ratio=N)`` should carry the same
+        centre_distance_mm as the matching make_pair result.
+        """
+        worm = WormGear(module=2.0, num_starts=1, length=30.0, ratio=30)
+        # Wheel pitch diameter = ratio * module (for 1-start) = 60 mm.
+        # Worm pitch diameter from the calculator (module 2, default 7° lead): 16.289 mm.
+        # → geometric CD = 38.14 mm
+        assert worm._assembly_params is not None
+        assert worm._assembly_params.centre_distance_mm == pytest.approx(
+            38.144, abs=0.01
+        )
 
     def test_pair_passes_validation(self):
         """The underlying design should pass validate_design without errors."""

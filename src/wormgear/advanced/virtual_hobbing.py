@@ -78,6 +78,24 @@ def virtual_hobbing(
     # Lazy import to keep wormgear.advanced module-load cheap.
     from ..core.virtual_hobbing import _VirtualHobbingWheelGeometry
     from ..facade import WormWheel  # local import to avoid circular
+    from ..io.loaders import AssemblyParams
+
+    # The standalone-worm case (``WormGear(...)`` without ``ratio=``) leaves
+    # ``_assembly_params`` as ``None`` — we can still synthesise a valid
+    # AssemblyParams from worm + wheel params because we have both gears in
+    # hand. This preserves the natural workflow ``virtual_hobbing(worm, wheel)``
+    # even when the worm was built without wheel context.
+    assembly_params = worm._assembly_params
+    if assembly_params is None:
+        wp = worm._params
+        whp = wheel._params
+        assembly_params = AssemblyParams(
+            centre_distance_mm=(wp.pitch_diameter_mm + whp.pitch_diameter_mm) / 2.0,
+            pressure_angle_deg=20.0,  # standard; not exposed on WormParams
+            backlash_mm=0.0,
+            hand=wp.hand,
+            ratio=whp.num_teeth // wp.num_starts,
+        )
 
     # ``hob_geometry=None`` lets the simulator build a simpler internal
     # cylindrical hob from the worm parameters. WormGear is cylindrical-only,
@@ -86,7 +104,7 @@ def virtual_hobbing(
     geo = _VirtualHobbingWheelGeometry(
         params=wheel._params,
         worm_params=worm._params,
-        assembly_params=worm._assembly_params,
+        assembly_params=assembly_params,
         face_width=wheel.face_width,
         hobbing_steps=steps,
         bore=None,  # features on the source WormWheel are not preserved;
@@ -103,7 +121,7 @@ def virtual_hobbing(
     BasePartObject.__init__(instance, part=part)
     instance._params = wheel._params
     instance._worm_params = worm._params
-    instance._assembly_params = worm._assembly_params
+    instance._assembly_params = assembly_params
     instance.module = wheel.module
     instance.num_teeth = wheel.num_teeth
     instance.face_width = wheel.face_width
