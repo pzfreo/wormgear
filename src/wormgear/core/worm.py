@@ -174,7 +174,18 @@ class _WormGeometry(BaseGeometry):
         return wire_maker.Wire()
 
     def _trim_to_length(self, worm_shape) -> Part:
-        """Trim worm shape to exact self.length using top/bottom box cuts.
+        """Trim worm shape to exact self.length via intersect-with-envelope.
+
+        The earlier implementation used two ``BRepAlgoAPI_Cut`` operations
+        (top half + bottom half) which silently leaked material out one or
+        both ends on multi-start worms — `IsDone()` returned True but the
+        result was a compound where only the core was cut while disconnected
+        thread solids passed through unmodified. See #224 for the
+        diagnostic.
+
+        Intersecting with a single envelope box of the exact requested
+        length is robust: one boolean op against one primitive, doesn't
+        care about compound topology.
 
         Args:
             worm_shape: TopoDS_Shape or Part to trim
@@ -182,51 +193,22 @@ class _WormGeometry(BaseGeometry):
         Returns:
             Trimmed Part with exact self.length dimension
         """
-        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
-
         tip_radius = self.params.tip_diameter_mm / 2
-        lead = self.params.lead_mm
-        extended_length = self.length + 2 * lead
-        trim_diameter = tip_radius * 4
-        half_length = self.length / 2
+        # Envelope diameter slightly larger than tip so the intersect keeps
+        # the entire X/Y extent of the worm; we only constrain Z.
+        envelope = Box(
+            length=tip_radius * 4,
+            width=tip_radius * 4,
+            height=self.length,
+            align=(Align.CENTER, Align.CENTER, Align.CENTER),
+        )
 
-        shape = worm_shape.wrapped if hasattr(worm_shape, 'wrapped') else worm_shape
-
+        worm_part = worm_shape if isinstance(worm_shape, Part) else Part(worm_shape)
         try:
-            top_box = Box(
-                length=trim_diameter, width=trim_diameter,
-                height=extended_length,
-                align=(Align.CENTER, Align.CENTER, Align.MIN)
-            )
-            top_box = Pos(0, 0, half_length) * top_box
-            cut = BRepAlgoAPI_Cut(shape, top_box.wrapped)
-            cut.Build()
-            if cut.IsDone():
-                shape = cut.Shape()
-                logger.debug("Top cut successful")
-            else:
-                logger.warning("Top cut failed")
-
-            bottom_box = Box(
-                length=trim_diameter, width=trim_diameter,
-                height=extended_length,
-                align=(Align.CENTER, Align.CENTER, Align.MAX)
-            )
-            bottom_box = Pos(0, 0, -half_length) * bottom_box
-            cut = BRepAlgoAPI_Cut(shape, bottom_box.wrapped)
-            cut.Build()
-            if cut.IsDone():
-                shape = cut.Shape()
-                logger.debug("Bottom cut successful")
-            else:
-                logger.warning("Bottom cut failed")
-
-            return Part(shape)
-
+            return worm_part & envelope
         except Exception as e:
-            logger.error(f"Error during cutting: {e}")
-            logger.info("Keeping extended worm (no trim)")
-            return worm_shape if isinstance(worm_shape, Part) else Part(shape)
+            logger.error(f"Trim intersect failed: {e}; keeping untrimmed shape")
+            return worm_part
 
     @staticmethod
     def _extract_single_solid(part: Part) -> Part:
