@@ -7,6 +7,18 @@ and the project uses [semantic versioning](https://semver.org/) — with the
 caveat that **0.x.y is pre-1.0**, so minor-version bumps may include
 breaking changes.
 
+## 0.1.1 — unreleased
+
+### Fixed
+
+- **Centre-distance bug in `WormGear` / `make_pair`** ([#221](https://github.com/pzfreo/wormgear/pull/221)). `WormGear.__init__` used a hardcoded placeholder ratio (=10) when computing the worm's pitch diameter — fine for the worm geometry itself, but the same placeholder leaked into the stored `_assembly_params.centre_distance_mm`, so a `make_pair(module=2.0, ratio=30)` reported a centre distance of 18.14 mm instead of the correct 38.14 mm. Any consumer that positions the worm against the wheel using the stored CD — notably `find_optimal_mesh_rotation` — would place them ~20 mm too close, producing kilo-mm³ interference instead of a clean mesh. The worm and wheel **Parts themselves are unaffected** (their geometry never used CD); only the stored metadata was wrong.
+
+  Fixes:
+  - `WormGear.__init__` now accepts an optional `ratio=` keyword. When provided, the stored `_assembly_params` carries the correct centre distance. When omitted (standalone worm with no wheel context), `_assembly_params` is set to `None` so downstream code raises a clear `AttributeError` instead of silently using a wrong value.
+  - `WormGear.from_design(...)` and therefore `make_pair(...)` now pass the real ratio through.
+  - `check_mesh` promotes "centre distance drift" from a warning to an **error** for cylindrical worms (globoid worms continue to allow `drift = -worm.throat_reduction_mm`).
+  - New regression tests assert that `make_pair(...)`'s stored CD matches the geometric mean of pitch diameters across multiple module/ratio combinations, and that standalone `WormGear` has `_assembly_params is None`.
+
 ## 0.1.0 — 2026-05-23
 
 ### Breaking changes

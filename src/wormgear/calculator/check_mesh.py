@@ -187,14 +187,30 @@ def check_mesh(
     geometric_cd = (worm.pitch_diameter_mm + wheel.pitch_diameter_mm) / 2.0
 
     # If assembly is provided, sanity-check the stored centre distance.
+    # Globoid worms legitimately have ``assembly_cd = geometric_cd -
+    # worm.throat_reduction_mm`` because the worm's throat is recessed.
+    # For cylindrical worms there is no such excuse — drift means a real bug.
     if assembly is not None:
-        if abs(assembly.centre_distance_mm - geometric_cd) > DIMENSIONAL_TOL_MM:
-            warnings.append(
-                f"Centre distance drift: assembly.centre_distance_mm="
-                f"{assembly.centre_distance_mm:.3f} differs from geometric "
-                f"value {geometric_cd:.3f} (from pitch diameters). May "
-                f"indicate a globoid worm with throat reduction, or a "
-                f"calculation inconsistency."
+        drift = assembly.centre_distance_mm - geometric_cd
+        throat_reduction = getattr(worm, "throat_reduction_mm", None) or 0.0
+        expected_drift = -throat_reduction  # 0 for cylindrical, negative for globoid
+        if abs(drift - expected_drift) > DIMENSIONAL_TOL_MM:
+            kind = "globoid" if throat_reduction > 0 else "cylindrical"
+            if throat_reduction > 0:
+                detail = (
+                    f"Expected drift of -{throat_reduction:.3f} mm (globoid "
+                    f"throat reduction) but got {drift:+.3f} mm."
+                )
+            else:
+                detail = (
+                    f"For a cylindrical worm, assembly.centre_distance_mm "
+                    f"must equal the geometric mean of the pitch diameters."
+                )
+            errors.append(
+                f"Centre distance drift ({kind}): "
+                f"assembly.centre_distance_mm={assembly.centre_distance_mm:.3f} "
+                f"differs from geometric value {geometric_cd:.3f} (from pitch "
+                f"diameters). {detail}"
             )
         report_cd = assembly.centre_distance_mm
     else:
