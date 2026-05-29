@@ -158,3 +158,7 @@ MIT
 ## Author
 
 Paul Fremantle ([@pzfreo](https://github.com/pzfreo))
+
+## How this was built
+
+This project was coded entirely by AI under human direction. The design decisions, engineering requirements, and review were directed by a human; the implementation was written by AI.

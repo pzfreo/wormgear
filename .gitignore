@@ -87,6 +87,9 @@ web/samples/*.stl
 # Claude Code local state (per-developer; not project state)
 .claude/
 
+# MCP server config — per-developer dev tooling, not project state
+.mcp.json
+
 # uv lock file — project uses pip per CI; uv.lock is incidental from local
 # `uv run` invocations. If the project later standardises on uv, commit it.
 uv.lock
