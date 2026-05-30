@@ -69,6 +69,16 @@ DEFAULT_TIP_TOL_MM = 0.02
 DEFAULT_ROOT_TOL_MM = 0.05
 DEFAULT_LENGTH_TOL_MM = 0.02
 
+# Radial guard (mm) below the nominal root radius. A bore or keyway sits well
+# inside the tooth root, separated from it by the rim (>= ~1 mm by construction),
+# so if the smallest measured radius is more than this far below the nominal
+# root, an internal feature is present and the naive min-radius would read the
+# bore rather than the tooth root. The guard is larger than the root facet noise
+# (~0.012 mm) and any tolerable root deviation, but well under the minimum rim,
+# so it cleanly separates "deviant root" (still checked) from "bore present"
+# (root check skipped). See #234 for measuring root through a bore.
+_FEATURE_GUARD_MM = 0.3
+
 # Notes appended to every report so callers know what a pass does NOT cover.
 _UNVERIFIED_NOTES = (
     "thread lead / lead angle is not measured",
@@ -135,22 +145,40 @@ class GeometryReport:
 
 
 def _radii(part: Any) -> tuple[float, float]:
+    """Return (min, max) radial distance from the Z axis in a single vertex pass.
+
+    One traversal of ``part.vertices()`` (an OCC topology walk that is not free
+    on a high-face-count gear) yields both the root and tip radii — callers
+    must not re-traverse for each.
+    """
     rs = [math.hypot(v.X, v.Y) for v in part.vertices()]
     if not rs:
         raise ValueError("part has no vertices to measure")
     return min(rs), max(rs)
 
 
-def _outer_diameter(part: Any) -> float:
-    return 2 * _radii(part)[1]
-
-
-def _root_diameter(part: Any) -> float:
-    return 2 * _radii(part)[0]
-
-
 def _axial_length(part: Any) -> float:
     return float(part.bounding_box().size.Z)
+
+
+def _root_check(
+    min_r: float, expected_root_mm: float, tol_mm: float
+) -> tuple[Optional[DimensionCheck], Optional[str]]:
+    """Build the root-diameter check, or skip it when a bore/keyway is present.
+
+    Takes the already-measured minimum radius (see :func:`_radii`) so the
+    vertices are walked once per part. Returns ``(check, None)`` for a solid
+    part, or ``(None, warning)`` when an internal feature is detected — radial
+    measurement cannot then isolate the tooth root from the bore wall, so the
+    check is skipped rather than misread.
+    """
+    if min_r < expected_root_mm / 2 - _FEATURE_GUARD_MM:
+        return None, (
+            "root_diameter not checked: an internal feature (bore/keyway) is "
+            "present, so the tooth root cannot be isolated from the bore by "
+            "radial measurement"
+        )
+    return DimensionCheck("root_diameter", 2 * min_r, expected_root_mm, tol_mm), None
 
 
 def _finalise(
@@ -187,15 +215,16 @@ def check_worm_geometry(
     given, the worm's axial length is also checked; pass ``None`` to skip it
     (e.g. the spec does not carry a build length).
     """
+    min_r, max_r = _radii(part)
     checks = [
-        DimensionCheck(
-            "tip_diameter", _outer_diameter(part), params.tip_diameter_mm, tip_tol_mm
-        ),
-        DimensionCheck(
-            "root_diameter", _root_diameter(part), params.root_diameter_mm, root_tol_mm
-        ),
+        DimensionCheck("tip_diameter", 2 * max_r, params.tip_diameter_mm, tip_tol_mm),
     ]
     warnings: List[str] = []
+    root_check, root_warning = _root_check(min_r, params.root_diameter_mm, root_tol_mm)
+    if root_check is not None:
+        checks.append(root_check)
+    else:
+        warnings.append(root_warning)  # type: ignore[arg-type]
     if length is not None:
         checks.append(
             DimensionCheck("length", _axial_length(part), length, length_tol_mm)
@@ -229,10 +258,9 @@ def check_wheel_geometry(
     """
     if throated is None:
         throated = bool(getattr(part, "throated", False))
+    min_r, max_r = _radii(part)
     checks = [
-        DimensionCheck(
-            "tip_diameter", _outer_diameter(part), params.tip_diameter_mm, tip_tol_mm
-        )
+        DimensionCheck("tip_diameter", 2 * max_r, params.tip_diameter_mm, tip_tol_mm)
     ]
     warnings: List[str] = []
     if throated:
@@ -241,14 +269,13 @@ def check_wheel_geometry(
             "worm envelope); throat diameter is not yet measured"
         )
     else:
-        checks.append(
-            DimensionCheck(
-                "root_diameter",
-                _root_diameter(part),
-                params.root_diameter_mm,
-                root_tol_mm,
-            )
+        root_check, root_warning = _root_check(
+            min_r, params.root_diameter_mm, root_tol_mm
         )
+        if root_check is not None:
+            checks.append(root_check)
+        else:
+            warnings.append(root_warning)  # type: ignore[arg-type]
     return _finalise("wheel", checks, warnings)
 
 

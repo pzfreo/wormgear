@@ -139,6 +139,22 @@ def test_throated_wheel_checks_tip_only() -> None:
     assert any("throated" in w for w in report.warnings)
 
 
+def test_bored_wheel_skips_root_check() -> None:
+    # A bore makes the minimum vertex radius the bore wall, not the tooth root,
+    # so the root check must be skipped (and noted) rather than misread the bore
+    # and falsely fail. Tip is unaffected by the bore and is still checked.
+    from wormgear.core import BoreFeature
+
+    wheel = WormWheel(
+        module=2.0, num_teeth=30, worm_num_starts=1, bore=BoreFeature(diameter=8.0)
+    )
+    report = wheel.validate()
+    names = {c.name for c in report.checks}
+    assert names == {"tip_diameter"}
+    assert report.ok
+    assert any("bore" in w for w in report.warnings)
+
+
 # ---------------------------------------------------------------------------
 # The validator must FAIL a part that does not match its spec (not just pass
 # good ones). Pinned to the #231 over-cut direction as the motivating bug.
