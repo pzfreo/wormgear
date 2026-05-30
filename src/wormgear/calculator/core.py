@@ -471,6 +471,7 @@ def design_from_module(
     worm_pitch_diameter: Optional[float] = None,
     target_lead_angle: float = 7.0,
     pressure_angle: float = 20.0,
+    friction_coefficient: float = 0.05,
     backlash: float = 0.0,
     num_starts: int = 1,
     clearance_factor: float = 0.25,
@@ -580,12 +581,21 @@ def design_from_module(
             wheel["pitch_diameter_mm"]
         )
 
-    # Calculate efficiency and self-locking
+    # Calculate efficiency and self-locking from the SAME friction model, so the
+    # two outputs are consistent. A worm is statically self-locking when its lead
+    # angle is below the friction angle ρ = atan(μ / cos α) — the same ρ used in
+    # the efficiency formula. (The previous fixed "< 6°" ignored friction and so
+    # over-reported self-locking for lubricated drives, where ρ ≈ 3° at μ = 0.05;
+    # relying on self-locking that isn't there is the dangerous direction. See
+    # #242.) Static self-locking can still be broken by vibration, so callers
+    # treating a result near the boundary as a hard guarantee should add margin.
     efficiency_percent = estimate_efficiency(
         worm["lead_angle_deg"],
-        pressure_angle
+        pressure_angle,
+        friction_coefficient=friction_coefficient,
     ) * 100.0
-    self_locking = worm["lead_angle_deg"] < 6.0
+    friction_angle_deg = degrees(atan(friction_coefficient / cos(radians(pressure_angle))))
+    self_locking = worm["lead_angle_deg"] < friction_angle_deg
 
     # Calculate recommended dimensions
     wheel_width_mm = calculate_recommended_wheel_width(

@@ -108,16 +108,29 @@ class TestDesignFromModule:
         assert design.assembly.efficiency_percent > 0
         assert design.assembly.efficiency_percent <= 100
 
-    def test_self_locking_low_lead_angle(self):
-        """Test self-locking with low lead angle."""
+    def test_self_locking_below_friction_angle(self):
+        """Self-locking when the lead angle is below the friction angle (#242).
+
+        At μ=0.05 the friction angle ρ = atan(μ/cos α) ≈ 3.05°, so a 2° lead
+        angle is statically self-locking.
+        """
         design = calculate_design_from_module(
             module=1.0,
             ratio=60,
-            target_lead_angle=4.0
+            target_lead_angle=2.0,
         )
-
-        # Low lead angle should be self-locking
         assert design.assembly.self_locking is True
+
+    def test_not_self_locking_above_friction_angle(self):
+        """A 4° lead angle is ABOVE the ~3° friction angle (μ=0.05), so it can
+        back-drive — NOT self-locking. The old fixed-6° rule wrongly called this
+        self-locking; the corrected friction-angle criterion does not (#242)."""
+        design = calculate_design_from_module(
+            module=1.0,
+            ratio=60,
+            target_lead_angle=4.0,
+        )
+        assert design.assembly.self_locking is False
 
     def test_not_self_locking_high_lead_angle(self):
         """Test non-self-locking with higher lead angle."""
@@ -129,6 +142,20 @@ class TestDesignFromModule:
 
         # High lead angle should not be self-locking
         assert design.assembly.self_locking is False
+
+    def test_self_locking_depends_on_friction(self):
+        """The fix: self-locking responds to the friction coefficient (#242).
+
+        A 4° lead angle back-drives at low friction but self-locks at high
+        friction (friction angle 6.07° at μ=0.1 > 4°)."""
+        lubricated = calculate_design_from_module(
+            module=1.0, ratio=60, target_lead_angle=4.0, friction_coefficient=0.05
+        )
+        high_friction = calculate_design_from_module(
+            module=1.0, ratio=60, target_lead_angle=4.0, friction_coefficient=0.10
+        )
+        assert lubricated.assembly.self_locking is False
+        assert high_friction.assembly.self_locking is True
 
 
 class TestDesignFromWheel:

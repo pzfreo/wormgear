@@ -39,6 +39,7 @@ from wormgear.calculator.core import (
     calculate_centre_distance,
     calculate_wheel,
     calculate_worm,
+    design_from_module,
     estimate_efficiency,
 )
 
@@ -199,3 +200,36 @@ def test_efficiency_is_monotonic_in_lead_angle_and_friction():
     base = estimate_efficiency(10.0, 20.0, friction_coefficient=0.05)
     assert estimate_efficiency(20.0, 20.0, friction_coefficient=0.05) > base
     assert estimate_efficiency(10.0, 20.0, friction_coefficient=0.10) < base
+
+
+@pytest.mark.parametrize(
+    "target_lead_angle, mu, pressure_angle",
+    [
+        (2.0, 0.05, 20.0),
+        (4.0, 0.05, 20.0),
+        (4.0, 0.10, 20.0),
+        (7.0, 0.05, 20.0),
+        (1.5, 0.03, 14.5),
+        (5.0, 0.08, 25.0),
+    ],
+)
+def test_self_locking_matches_friction_angle_criterion(
+    target_lead_angle, mu, pressure_angle
+):
+    """Self-locking iff lead angle < friction angle ρ = atan(μ / cos α) (#242).
+
+    The physically-correct static self-locking boundary, computed here from the
+    same friction model as the efficiency formula. (Pre-#242 the calculator used
+    a fixed 6° threshold that ignored μ; this would have failed for e.g. a 4°
+    lead angle at μ=0.05, which is back-drivable.)
+    """
+    design = design_from_module(
+        module=2.0,
+        ratio=30,
+        target_lead_angle=target_lead_angle,
+        pressure_angle=pressure_angle,
+        friction_coefficient=mu,
+    )
+    friction_angle = math.degrees(math.atan(mu / math.cos(math.radians(pressure_angle))))
+    expected = design.worm.lead_angle_deg < friction_angle
+    assert design.assembly.self_locking is expected
