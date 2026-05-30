@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any, Optional
 
 
 class CLIProgressReporter:
@@ -14,8 +15,8 @@ class CLIProgressReporter:
 
     def __init__(self, task_name: str = "Processing"):
         self.task_name = task_name
-        self.start_time = None
-        self.last_percent = -1
+        self.start_time: Optional[float] = None
+        self.last_percent: float = -1
         self.completed = False
 
     def __call__(self, message: str, percent: float):
@@ -57,7 +58,7 @@ class CLIProgressReporter:
                 else:
                     print(f"\n  Completed in {total_time:.1f} seconds")
 
-    def reset(self, task_name: str = None):
+    def reset(self, task_name: Optional[str] = None):
         """Reset for a new task."""
         if task_name:
             self.task_name = task_name
@@ -212,7 +213,7 @@ def _save_analysis_json(output_dir, design, mesh_alignment_result,
     output_dir.mkdir(parents=True, exist_ok=True)
     analysis_file = output_dir / f"geometry_analysis_m{design.worm.module_mm}.json"
 
-    data = {
+    data: dict[str, Any] = {
         "design_info": {
             "module_mm": design.worm.module_mm,
             "ratio": design.assembly.ratio,
@@ -354,7 +355,7 @@ def _parse_set_screw(args, json_features):
         try:
             size_str = args.set_screw_size.upper()
             if size_str.startswith('M'):
-                diameter = float(size_str[1:])
+                diameter: Optional[float] = float(size_str[1:])
                 return SetScrewFeature(
                     size=size_str,
                     diameter=diameter,
@@ -465,6 +466,54 @@ def _build_features_desc(bore, bore_diameter, keyway, ddcut, set_screw):
                 screw_desc += f" x{set_screw.count}"
             features_desc += f" + set screw ({screw_desc})"
     return features_desc
+
+
+def _run_geometry_validation(worm, wheel, *, worm_length, use_globoid, wheel_throated):
+    """Validate built geometry against the spec it was built from. Returns True if OK.
+
+    Dimensional checks only (tip/root diameters, worm length) — mesh
+    interference is reported separately by the mesh-alignment step.
+
+    The reference is each part's own ``_params`` (the recomputed, self-consistent
+    spec the facade built from), not the raw input JSON: ``from_design``
+    recomputes geometry from module/ratio, so an inconsistent hand-edited JSON
+    must not be mistaken for a geometry fault. Parts without ``_params`` (e.g. a
+    raw virtual-hobbing Part) and globoid worms (tip/root vary along the length)
+    are skipped with a note.
+    """
+    from ..core import check_wheel_geometry, check_worm_geometry
+
+    print("\nValidating geometry against calculation...")
+    ok = True
+
+    if worm is not None:
+        worm_params = getattr(worm, "_params", None)
+        if use_globoid:
+            print("  Worm: skipped (globoid tip/root vary along the length)")
+        elif worm_params is None:
+            print("  Worm: skipped (no spec available on this part)")
+        else:
+            report = check_worm_geometry(worm, worm_params, length=worm_length)
+            ok = ok and report.ok
+            for check in report.checks:
+                print(f"  worm {check}")
+            for err in report.errors:
+                print(f"  worm ERROR: {err}")
+
+    if wheel is not None:
+        wheel_params = getattr(wheel, "_params", None)
+        if wheel_params is None:
+            print("  Wheel: skipped (no spec available on this part)")
+        else:
+            report = check_wheel_geometry(wheel, wheel_params, throated=wheel_throated)
+            ok = ok and report.ok
+            for check in report.checks:
+                print(f"  wheel {check}")
+            for err in report.errors:
+                print(f"  wheel ERROR: {err}")
+
+    print(f"  Result: {'PASS' if ok else 'FAIL — geometry does not match calculation'}")
+    return ok
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -621,6 +670,14 @@ More info: https://wormgear.studio
         '--skip-mesh-alignment',
         action='store_true',
         help='Skip mesh alignment calculation (faster for complex geometry like virtual hobbing)'
+    )
+
+    parser.add_argument(
+        '--skip-validate',
+        action='store_true',
+        help='Skip dimensional validation of the built geometry against the '
+             'calculated spec (tip/root diameters, worm length). Validation '
+             'runs by default and exits non-zero on mismatch.'
     )
 
     parser.add_argument(
@@ -1093,6 +1150,8 @@ def main():
 
     if worm is not None and wheel is not None and not skip_mesh:
         if wheel_pre_aligned:
+            # wheel_pre_aligned is only True when wheel_geo is truthy (see above).
+            assert wheel_geo is not None
             # Virtual hobbing already aligned the wheel - use that result
             print(f"\nMesh alignment (from virtual hobbing):")
             print(f"  Pre-aligned rotation: {wheel_geo.pre_alignment_deg:.2f}°")
@@ -1122,6 +1181,19 @@ def main():
             print(f"  Tolerance: {mesh_alignment_result.tolerance_mm3:.1f} mm³ (module-scaled)")
             print(f"  Quality: {mesh_alignment_result.mesh_quality}")
             print(f"  Status: {mesh_alignment_result.message}")
+
+    # Validate built geometry against the calculated spec (dimensional checks).
+    # Throated/hobbed/globoid wheels skip the nominal-root check (their root
+    # follows the worm envelope); mark them throated to avoid a false failure.
+    validation_ok = True
+    if not args.skip_validate and (worm is not None or wheel is not None):
+        validation_ok = _run_geometry_validation(
+            worm,
+            wheel,
+            worm_length=use_worm_length,
+            use_globoid=use_globoid,
+            wheel_throated=args.hobbed or use_virtual_hobbing or use_globoid,
+        )
 
     # Export all output files (STEP, 3MF, STL, design.json, design.md)
     pkg = None
@@ -1224,7 +1296,9 @@ def main():
             worm_rim_result, wheel_rim_result,
         )
 
-    return 0
+    # Files are still written so a failing part can be inspected, but the exit
+    # code signals the mismatch for manufacturing pipelines / CI.
+    return 0 if validation_ok else 1
 
 
 if __name__ == '__main__':
