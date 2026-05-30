@@ -7,7 +7,69 @@ and the project uses [semantic versioning](https://semver.org/) — with the
 caveat that **0.x.y is pre-1.0**, so minor-version bumps may include
 breaking changes.
 
-## 0.1.2 — unreleased
+## 0.2.0 — 2026-05-30
+
+A validation-focused release: tools to confirm a built model realises its
+calculation, cross-validation of the calculation itself against an external
+authority, three real geometry/calculation bug fixes found along the way, and a
+correction to the self-locking criterion.
+
+> Pre-1.0 note: includes a behaviour change to the `self_locking` output (see
+> Changed). Per the project's versioning policy, that lands in a minor bump.
+
+### Added
+
+- **Geometry validation — "does the built model realise the calculation?"**
+  ([#235](https://github.com/pzfreo/wormgear/pull/235),
+  [#241](https://github.com/pzfreo/wormgear/pull/241)). New public API
+  `check_worm_geometry` / `check_wheel_geometry` / `check_pair_geometry`,
+  `GeometryReport` / `DimensionCheck`, and `.validate()` on `WormGear` /
+  `WormWheel`. Measures a built (or imported) part and compares it to the spec:
+  worm tip/root/length/**thread lead (1-start)**/**ZA flank angle**, wheel
+  tip/root, and pair mesh interference. Every report lists what it does *not*
+  cover, so a pass is never mistaken for certification.
+- **CLI runs validation by default** and exits non-zero on a geometry/spec
+  mismatch; opt out with `--skip-validate`.
+- **`friction_coefficient` parameter** on `design_from_module` (and the other
+  `design_from_*` entry points), threaded into both efficiency and self-locking.
+- **Calculation reference validation** ([#229](https://github.com/pzfreo/wormgear/issues/229)).
+  `tests/test_reference_validation.py` cross-checks the calculator against an
+  outside authority — a Norton textbook worked example, the mechstream
+  independent calculator, and first-principles re-derivation of the standard
+  formulas.
+- **[docs/VALIDATION.md](docs/VALIDATION.md)** documenting validation coverage
+  (what is and isn't checked), the calculation cross-validation, and
+  profile-shift behaviour.
+
+### Changed
+
+- **Self-locking is now judged from the friction angle, not a fixed 6°**
+  ([#242](https://github.com/pzfreo/wormgear/issues/242)). It was
+  `lead_angle < 6.0`, which ignored friction and was inconsistent with the
+  efficiency model. It now uses `lead_angle < atan(μ / cos α)` — the same
+  friction model as efficiency — and responds to `friction_coefficient`.
+  **Behaviour change:** worms with a lead angle between the friction angle (~3°
+  at μ=0.05) and 6° now report `self_locking=False` — correctly, as they can
+  back-drive. Typical ~7° designs are unaffected.
+
+### Fixed
+
+- **Wheel root was cut 0.3 mm deeper than spec**
+  ([#233](https://github.com/pzfreo/wormgear/pull/233)). A hardcoded over-cut
+  double-counted the bottom clearance and didn't scale with module; the wheel
+  root now lands on the nominal `root_diameter_mm`.
+- **1-start worms at certain lengths generated as a threadless solid cylinder**
+  ([#239](https://github.com/pzfreo/wormgear/pull/239)). An OCC pipe-shell
+  boolean cut silently removed zero material (e.g. m2/L24, L30, L36), producing
+  a smooth rod with no thread. The groove cut is now retried with a nudged helix
+  height until it removes material, and raises rather than returning a broken
+  worm if it can't.
+- **Three runtime bugs found via mypy triage**
+  ([#237](https://github.com/pzfreo/wormgear/pull/237)): a `NameError` in the
+  DD-cut error message, an `AttributeError` on `hobbing_steps > 36`, and a dead
+  nullable branch in the JS bridge.
+
+## 0.1.2 — 2026-05-24
 
 ### Fixed
 
