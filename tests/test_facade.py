@@ -203,3 +203,36 @@ class TestIntrospectionAttributes:
         assert hasattr(wheel, "_params")
         assert wheel._params.module_mm == 1.0
         assert wheel._params.num_teeth == 20
+
+
+# ---------------------------------------------------------------------------
+# Regression: threadless-worm silent-cut bug.
+#
+# The default "sweep" worm builds a full cylinder and cuts groove(s) from it.
+# For certain 1-start lengths OCC's pipe-shell boolean returned IsDone()=True
+# but removed zero material, leaving a smooth cylinder with NO thread (3 faces,
+# volume == solid cylinder). m1/L30 and m2/L24,L30,L36 were known-bad. The fix
+# detects zero-removal and retries with a nudged groove helix height.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "module, length",
+    [(1.0, 30.0), (2.0, 24.0), (2.0, 30.0), (2.0, 36.0)],
+)
+def test_one_start_worm_has_a_thread(module, length):
+    import math
+
+    # Default sections_per_turn (36): the bug was confirmed at the default and
+    # is independent of section count, so pin the default to be a true
+    # regression (sections_per_turn=12 might not reproduce it).
+    worm = WormGear(module=module, num_starts=1, length=length)
+    tip_r = worm._params.tip_diameter_mm / 2
+    cylinder_volume = math.pi * tip_r**2 * length
+    # A threaded worm removes material; a threadless cylinder keeps ~100%.
+    assert worm.volume < 0.97 * cylinder_volume, (
+        f"m{module}/L{length} worm has no thread "
+        f"(volume {worm.volume:.1f} ~ solid cylinder {cylinder_volume:.1f})"
+    )
+    # A solid cylinder has 3 faces; a threaded worm has many more.
+    assert len(worm.faces()) > 3
