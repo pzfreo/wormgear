@@ -708,7 +708,7 @@ def create_ddcut(
     if under_sqrt < 0:
         raise ValueError(
             f"DD-cut flat_depth ({flat_depth}mm) exceeds bore_radius ({bore_radius}mm). "
-            f"Maximum flat_depth is {bore_radius * 0.85:.2f}mm for bore diameter {bore_diameter}mm."
+            f"Maximum flat_depth is {bore_radius * 0.85:.2f}mm for bore diameter {bore.diameter}mm."
         )
     chord_half_width = math.sqrt(under_sqrt)
     box_width = 2 * chord_half_width  # Exact width of chord at flat position
