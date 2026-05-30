@@ -102,8 +102,16 @@ def _check(report, expected_checks: set[str]) -> None:
     assert all(c.ok for c in report.checks)
 
 
+def _assert_passes_with(report, required: set[str]) -> None:
+    """Assert the report passed and at least ``required`` checks ran and passed."""
+    assert report.ok, f"{report.kind} validation failed:\n{report}"
+    names = {c.name for c in report.checks}
+    assert required <= names, f"missing checks {required - names}"
+    assert all(c.ok for c in report.checks)
+
+
 # ---------------------------------------------------------------------------
-# Worm: tip + root + length match the spec it was built from
+# Worm: tip + root + length (+ lead for 1-start) match the spec
 # ---------------------------------------------------------------------------
 
 
@@ -113,8 +121,35 @@ def test_worm_realises_spec(name: str) -> None:
     worm = _build_worm(spec)
     # Both the free function and the .validate() convenience are exercised.
     report = check_worm_geometry(worm, worm._params, length=spec.length)
-    _check(report, {"tip_diameter", "root_diameter", "length"})
+    _assert_passes_with(report, {"tip_diameter", "root_diameter", "length"})
     assert worm.validate().ok
+
+
+@pytest.mark.parametrize(
+    "name", [n for n, s in WORM_SPECS.items() if s.num_starts == 1]
+)
+def test_one_start_worm_lead_and_flank(name: str) -> None:
+    # 1-start ZA worms: .validate() additionally measures the thread lead (from
+    # the axial-section tip-land spacing) and the flank angle (= pressure angle).
+    spec = WORM_SPECS[name]
+    worm = _build_worm(spec)
+    report = worm.validate()
+    names = {c.name for c in report.checks}
+    assert "lead" in names, f"lead not checked for {name}:\n{report}"
+    if spec.profile == "ZA":
+        assert "flank_angle" in names, f"flank not checked for {name}:\n{report}"
+    assert report.ok, report
+
+
+def test_multi_start_worm_skips_lead() -> None:
+    # Multi-start lead measurement is not implemented (the starts interleave on
+    # a single section plane); it must be noted, not asserted wrongly.
+    worm = _build_worm(WORM_SPECS["m2_2start_rh"])
+    report = worm.validate()
+    names = {c.name for c in report.checks}
+    assert "lead" not in names
+    assert any("multi-start" in w for w in report.warnings)
+    assert report.ok
 
 
 # ---------------------------------------------------------------------------

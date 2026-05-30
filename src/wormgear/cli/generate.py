@@ -493,7 +493,16 @@ def _run_geometry_validation(worm, wheel, *, worm_length, use_globoid, wheel_thr
         elif worm_params is None:
             print("  Worm: skipped (no spec available on this part)")
         else:
-            report = check_worm_geometry(worm, worm_params, length=worm_length)
+            pa = getattr(
+                getattr(worm, "_assembly_params", None), "pressure_angle_deg", None
+            )
+            report = check_worm_geometry(
+                worm,
+                worm_params,
+                length=worm_length,
+                pressure_angle_deg=pa,
+                profile=getattr(worm, "profile", None),
+            )
             ok = ok and report.ok
             for check in report.checks:
                 print(f"  worm {check}")

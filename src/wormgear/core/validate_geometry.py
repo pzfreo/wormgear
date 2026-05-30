@@ -31,15 +31,23 @@ i.e. ``2 * max/min(hypot(x, y))`` over the solid's vertices — *not* the
 axis-aligned bounding box, whose XY extent undershoots the tip diameter when no
 tooth points along an axis. Length is the bbox Z extent.
 
+The worm thread is additionally sectioned on its axial plane to recover the
+realised **lead** (1-start worms; median tip-land spacing) and, for a ZA worm,
+the **flank angle** (the slanted-edge angle = the axial pressure angle). See
+:func:`_measure_worm_thread`.
+
 What this does and does NOT verify
 ----------------------------------
-Verified: tip (outside) diameter, root diameter, and (worm) length.
+Verified: tip (outside) diameter, root diameter, (worm) length, 1-start worm
+thread **lead**, and ZA worm **flank angle**.
 
 Not verified — always surfaced in ``report.warnings`` so a passing report is
 never mistaken for full certification:
 
-  * thread lead / lead angle (smooth swept surface; needs a cross-section),
-  * tooth flank profile fidelity (involute / ZA / ZK curve, not just size),
+  * multi-start worm lead (the starts interleave on a single section plane;
+    needs per-start analysis — #234),
+  * wheel tooth flank profile fidelity (involute / ZA / ZK curve, not just size),
+  * ZK / ZI worm flank shape (only the ZA straight-flank angle is checked),
   * throated-wheel throat diameter (follows the worm envelope, not nominal root),
   * that the calculation itself is correct per DIN-3975 (see ``validate_design``).
 """
@@ -68,6 +76,13 @@ __all__ = [
 DEFAULT_TIP_TOL_MM = 0.02
 DEFAULT_ROOT_TOL_MM = 0.05
 DEFAULT_LENGTH_TOL_MM = 0.02
+# Lead is measured from the median tip-land spacing of the axial section (exact
+# to rounding in testing); the bound catches a real lead error while tolerating
+# facet noise.
+DEFAULT_LEAD_TOL_MM = 0.05
+# ZA flank angle in the axial section equals the axial pressure angle. Measured
+# 20.0° for 1-start, ~20.07° for multi-start (helix effect), so 0.5° is ample.
+DEFAULT_FLANK_TOL_DEG = 0.5
 
 # Radial guard (mm) below the nominal root radius. A bore or keyway sits well
 # inside the tooth root, separated from it by the rim (>= ~1 mm by construction),
@@ -79,38 +94,43 @@ DEFAULT_LENGTH_TOL_MM = 0.02
 # (root check skipped). See #234 for measuring root through a bore.
 _FEATURE_GUARD_MM = 0.3
 
-# Notes appended to every report so callers know what a pass does NOT cover.
-_UNVERIFIED_NOTES = (
-    "thread lead / lead angle is not measured",
-    "tooth flank profile fidelity (involute/ZA/ZK curve) is not measured",
+# The one note added to every report: this verifies geometry against the
+# calculation, not that the calculation itself is correct per DIN-3975 (#229).
+_CALC_CAVEAT = (
     "this checks geometry-vs-calculation only, not that the calculation is "
-    "correct per DIN-3975",
+    "correct per DIN-3975"
 )
 
 
 @dataclass(frozen=True)
 class DimensionCheck:
-    """One measured dimension compared against its spec value."""
+    """One measured quantity compared against its spec value.
+
+    ``unit`` is ``"mm"`` for diameters/length/lead and ``"deg"`` for the flank
+    angle; the comparison and tolerance are unit-agnostic.
+    """
 
     name: str
-    measured_mm: float
-    expected_mm: float
-    tolerance_mm: float
+    measured: float
+    expected: float
+    tolerance: float
+    unit: str = "mm"
 
     @property
-    def deviation_mm(self) -> float:
-        return self.measured_mm - self.expected_mm
+    def deviation(self) -> float:
+        return self.measured - self.expected
 
     @property
     def ok(self) -> bool:
-        return abs(self.deviation_mm) <= self.tolerance_mm
+        return abs(self.deviation) <= self.tolerance
 
     def __str__(self) -> str:
         flag = "OK " if self.ok else "FAIL"
+        u = self.unit
         return (
-            f"[{flag}] {self.name}: measured {self.measured_mm:.4f} mm vs "
-            f"spec {self.expected_mm:.4f} mm "
-            f"(Δ {self.deviation_mm:+.4f} mm, tol ±{self.tolerance_mm} mm)"
+            f"[{flag}] {self.name}: measured {self.measured:.4f} {u} vs "
+            f"spec {self.expected:.4f} {u} "
+            f"(Δ {self.deviation:+.4f} {u}, tol ±{self.tolerance} {u})"
         )
 
 
@@ -181,6 +201,68 @@ def _root_check(
     return DimensionCheck("root_diameter", 2 * min_r, expected_root_mm, tol_mm), None
 
 
+def _measure_worm_thread(
+    part: Any, tip_r: float, root_r: float
+) -> tuple[Optional[float], Optional[float]]:
+    """Section the worm on its axial (XZ) plane and measure the thread.
+
+    Returns ``(axial_pitch_mm, flank_angle_deg)`` (either may be ``None`` if it
+    could not be recovered). Points are sampled *along the section edges* — not
+    just their vertices — because a swept worm thread's B-rep can have very few
+    vertices, but its edges always trace the full profile.
+
+    * ``axial_pitch`` is the **median** spacing of the tip lands on the +X side.
+      The median ignores the shorter truncated lands at the worm ends. For a
+      1-start worm this equals the lead; multi-start lands interleave on a
+      single section plane and do not give the lead cleanly (caller restricts
+      the lead check to 1-start).
+    * ``flank_angle`` is the median angle of the slanted flank edges from the
+      radial axis — for a ZA worm this equals the axial pressure angle.
+    """
+    from build123d import Plane
+
+    section = part.intersect(Plane.XZ)
+    tip_z: List[float] = []
+    flank_angles: List[float] = []
+    span = tip_r - root_r
+    for edge in section.edges():
+        # Sample points along the edge for the tip-land detection (robust to a
+        # vertex-poor B-rep).
+        n = max(2, int(edge.length / 0.25))
+        for i in range(n + 1):
+            p = edge.position_at(i / n)
+            if p.X > tip_r - 0.05:  # +X side, at the tip radius → a tip land
+                tip_z.append(p.Z)
+        # Flank angle from the straight ZA flank edges (endpoints suffice).
+        vs = edge.vertices()
+        if len(vs) == 2 and vs[0].X > 0 and vs[1].X > 0:
+            dx = abs(vs[1].X - vs[0].X)
+            dz = abs(vs[1].Z - vs[0].Z)
+            if dx > 0.3 * span and dz > 0.01:  # spans a good part of root→tip
+                flank_angles.append(math.degrees(math.atan2(dz, dx)))
+
+    axial_pitch = None
+    if tip_z:
+        tip_z.sort()
+        lands: List[List[float]] = []
+        for z in tip_z:
+            if not lands or z - lands[-1][-1] > 0.5:
+                lands.append([z])
+            else:
+                lands[-1].append(z)
+        centers = [sum(g) / len(g) for g in lands]
+        if len(centers) >= 2:
+            spacings = sorted(
+                centers[i + 1] - centers[i] for i in range(len(centers) - 1)
+            )
+            axial_pitch = spacings[len(spacings) // 2]
+    flank_angle = None
+    if flank_angles:
+        flank_angles.sort()
+        flank_angle = flank_angles[len(flank_angles) // 2]
+    return axial_pitch, flank_angle
+
+
 def _finalise(
     kind: str, checks: List[DimensionCheck], warnings: List[str]
 ) -> GeometryReport:
@@ -190,7 +272,7 @@ def _finalise(
         kind=kind,
         checks=checks,
         errors=errors,
-        warnings=[*warnings, *_UNVERIFIED_NOTES],
+        warnings=[*warnings, _CALC_CAVEAT],
     )
 
 
@@ -204,16 +286,27 @@ def check_worm_geometry(
     params: Any,
     *,
     length: Optional[float] = None,
+    pressure_angle_deg: Optional[float] = None,
+    profile: Optional[str] = None,
+    measure_thread: bool = True,
     tip_tol_mm: float = DEFAULT_TIP_TOL_MM,
     root_tol_mm: float = DEFAULT_ROOT_TOL_MM,
     length_tol_mm: float = DEFAULT_LENGTH_TOL_MM,
+    lead_tol_mm: float = DEFAULT_LEAD_TOL_MM,
+    flank_tol_deg: float = DEFAULT_FLANK_TOL_DEG,
 ) -> GeometryReport:
     """Check a built worm ``part`` against its ``params`` spec.
 
-    ``params`` is anything exposing ``tip_diameter_mm`` and ``root_diameter_mm``
-    (a calculator ``WormParams`` or a duck-typed equivalent). If ``length`` is
-    given, the worm's axial length is also checked; pass ``None`` to skip it
-    (e.g. the spec does not carry a build length).
+    ``params`` exposes ``tip_diameter_mm``, ``root_diameter_mm``, ``lead_mm``
+    and ``num_starts`` (a calculator ``WormParams`` or a duck-typed equivalent).
+    If ``length`` is given, the worm's axial length is also checked.
+
+    When ``measure_thread`` is true the worm is sectioned on its axial plane to
+    verify the realised **lead** (1-start worms only — multi-start lands
+    interleave on a single section plane) and, for a ZA worm with a given
+    ``pressure_angle_deg``, the **flank angle** (which equals the axial pressure
+    angle). Sectioning is the costlier part, so pass ``measure_thread=False`` to
+    skip it.
     """
     min_r, max_r = _radii(part)
     checks = [
@@ -231,6 +324,43 @@ def check_worm_geometry(
         )
     else:
         warnings.append("worm length not checked (no length provided)")
+
+    if measure_thread:
+        axial_pitch, flank_angle = _measure_worm_thread(part, max_r, min_r)
+        num_starts = getattr(params, "num_starts", 1)
+        if num_starts != 1:
+            warnings.append(
+                "lead not checked: multi-start lead measurement is not yet "
+                "implemented (#234)"
+            )
+        elif axial_pitch is not None:
+            checks.append(
+                DimensionCheck("lead", axial_pitch, params.lead_mm, lead_tol_mm)
+            )
+        else:
+            warnings.append(
+                "lead not measured: could not section/identify thread crests"
+            )
+        _is_za = profile is not None and str(profile).upper() == "ZA"
+        if _is_za and pressure_angle_deg is not None and flank_angle is not None:
+            checks.append(
+                DimensionCheck(
+                    "flank_angle", flank_angle, pressure_angle_deg, flank_tol_deg,
+                    unit="deg",
+                )
+            )
+        elif pressure_angle_deg is None or profile is None:
+            warnings.append(
+                "flank angle not checked (needs pressure_angle_deg and profile)"
+            )
+        elif not _is_za:
+            warnings.append(
+                f"flank angle not checked: only implemented for ZA worms "
+                f"(profile is {profile})"
+            )
+    else:
+        warnings.append("thread lead / flank angle not measured (measure_thread=False)")
+
     return _finalise("worm", checks, warnings)
 
 
@@ -276,6 +406,9 @@ def check_wheel_geometry(
             checks.append(root_check)
         else:
             warnings.append(root_warning)  # type: ignore[arg-type]
+    warnings.append(
+        "wheel tooth flank profile (involute/ZA/ZK curve) is not measured"
+    )
     return _finalise("wheel", checks, warnings)
 
 
@@ -300,10 +433,16 @@ def check_pair_geometry(
     builds geometry boolean intersections — so pass ``validate_mesh=False`` to
     skip it when you only want the dimensional checks.
     """
+    mfg = getattr(design, "manufacturing", None)
+    worm_profile = getattr(mfg, "profile", None) if mfg is not None else None
+    if worm_profile is not None and hasattr(worm_profile, "value"):
+        worm_profile = worm_profile.value  # enum → "ZA"/"ZK"/...
     worm_report = check_worm_geometry(
         worm_part,
         design.worm,
         length=worm_length,
+        pressure_angle_deg=design.assembly.pressure_angle_deg,
+        profile=worm_profile,
         tip_tol_mm=tip_tol_mm,
         root_tol_mm=root_tol_mm,
         length_tol_mm=length_tol_mm,
@@ -317,12 +456,13 @@ def check_pair_geometry(
     )
 
     checks = [
-        *(DimensionCheck(f"worm.{c.name}", c.measured_mm, c.expected_mm, c.tolerance_mm) for c in worm_report.checks),
-        *(DimensionCheck(f"wheel.{c.name}", c.measured_mm, c.expected_mm, c.tolerance_mm) for c in wheel_report.checks),
+        *(DimensionCheck(f"worm.{c.name}", c.measured, c.expected, c.tolerance, c.unit) for c in worm_report.checks),
+        *(DimensionCheck(f"wheel.{c.name}", c.measured, c.expected, c.tolerance, c.unit) for c in wheel_report.checks),
     ]
     errors = list(worm_report.errors) + list(wheel_report.errors)
-    warnings = ["worm: " + w for w in worm_report.warnings if not w.startswith(_UNVERIFIED_NOTES[0])]
-    warnings += ["wheel: " + w for w in wheel_report.warnings if not w.startswith(_UNVERIFIED_NOTES[0])]
+    # Sub-reports each carry the shared calc caveat; fold it in once below.
+    warnings = ["worm: " + w for w in worm_report.warnings if w != _CALC_CAVEAT]
+    warnings += ["wheel: " + w for w in wheel_report.warnings if w != _CALC_CAVEAT]
 
     if validate_mesh:
         centre_distance = design.assembly.centre_distance_mm
@@ -352,5 +492,5 @@ def check_pair_geometry(
         kind="pair",
         checks=checks,
         errors=errors,
-        warnings=[*warnings, *_UNVERIFIED_NOTES],
+        warnings=[*warnings, _CALC_CAVEAT],
     )
