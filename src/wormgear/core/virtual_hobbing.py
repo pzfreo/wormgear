@@ -844,7 +844,7 @@ class _VirtualHobbingWheelGeometry(BaseGeometry):
         )
 
         # Warn about performance if using many steps (likely globoid worm)
-        if self.hobbing_steps > 36 and self.worm_geometry is not None:
+        if self.hobbing_steps > 36 and self.hob_geometry is not None:
             logger.warning(f"Using {self.hobbing_steps} steps with provided worm geometry (likely globoid).")
             logger.warning(f"Phase 2 may take 30+ minutes or fail. Consider using 18-36 steps for globoid worms.")
             sys.stdout.flush()

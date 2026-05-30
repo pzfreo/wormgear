@@ -228,7 +228,9 @@ def calculate(input_json: str) -> str:
 
         # Validate the design (pass bore_dict for bore validation before features are added)
         validation = validate_design(design, bore_settings=bore_dict)
-        mfg_dict = inputs.manufacturing.model_dump() if inputs.manufacturing else None
+        # inputs.manufacturing always exists (Field default_factory), so mfg_dict
+        # is always a dict — the .pop() calls below are safe.
+        mfg_dict = inputs.manufacturing.model_dump()
 
         # Capture calculator's recommended dimensions before any override
         recommended_worm_length = design.manufacturing.worm_length_mm if design.manufacturing else None
