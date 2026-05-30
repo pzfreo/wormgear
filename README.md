@@ -88,7 +88,7 @@ from wormgear import make_pair, check_pair_geometry
 worm, wheel = make_pair(module=2.0, ratio=30, length=40)
 
 # Per-part, against the spec each was built from:
-print(worm.validate())     # tip diameter, root diameter, length
+print(worm.validate())     # tip + root diameter, length, lead, ZA flank angle
 print(wheel.validate())    # tip diameter (+ root for non-throated wheels)
 
 # Whole pair, including a mesh-interference check (on by default):
@@ -98,12 +98,16 @@ report = check_pair_geometry(worm, wheel, design, worm_length=40)
 print("pass" if report.ok else "FAIL")
 ```
 
-This verifies that the **geometry realises the calculation** — not that the
-calculation is itself correct per DIN-3975 (use `validate_design` for the
-design rules). Each report lists what it does *not* cover (thread lead, tooth
-flank profile, throat diameter), so a green result is never mistaken for full
-certification. Tolerances default to a few hundredths of a millimetre — far
-below typical machining tolerances — and are adjustable per call.
+This verifies that the **geometry realises the calculation** — and, separately,
+the calculator's own numbers are cross-checked against an independent textbook
+example and calculator. It does **not** claim full DIN-3975 certification: each
+report lists what it does *not* cover (multi-start lead, wheel flank profile,
+throat diameter), so a green result is never mistaken for a guarantee. Tolerances
+default to a few hundredths of a millimetre — far below typical machining
+tolerances — and are adjustable per call.
+
+**See [docs/VALIDATION.md](docs/VALIDATION.md)** for exactly what is and isn't
+checked, the calculation cross-validation, and a note on profile-shift behaviour.
 
 ### Features (bores, keyways, set screws)
 
@@ -161,6 +165,8 @@ Most users want plain `WormWheel(throated=True)` — reach for this when you spe
 
 - **Even-numbered multi-start worm STL is slightly non-watertight.** For `num_starts ∈ {2, 4, 6, ...}` the two opposing thread surfaces meet at a single shared vertex on the symmetry plane (a real OCC topology with `is_valid=True`, but degenerate for tessellation). The exported STL has ~6 open edges out of ~10,000 — about 0.06 % of the mesh. STEP output is unaffected and round-trips perfectly. Most STL slicers (Cura, PrusaSlicer) tolerate the open edges and slice normally; strict mesh-repair tools may flag them, and the workaround is a "make watertight" pass in Blender or Meshmixer. **1-start and odd-numbered multi-start worms are clean.** See [#223](https://github.com/pzfreo/wormgear/issues/223) for the diagnostic and attempted fixes.
 
+- **Profile shift adjusts tooth proportions, not centre distance.** `profile_shift` is applied to the wheel and grows/shrinks the tooth (tip/root) per the standard DIN formulas, but it does **not** move the centre distance (which stays `m·(q + z₂)/2`). This is the "addendum modification at fixed centre distance" use; the "profile shift to *achieve* a non-standard centre distance" use (`a = m·(q + z₂ + 2x)/2`) is not implemented. See [docs/VALIDATION.md](docs/VALIDATION.md#profile-shift) and [#245](https://github.com/pzfreo/wormgear/issues/245).
+
 ## Related libraries
 
 Wormgear is one library in the build123d gear ecosystem:
@@ -175,6 +181,7 @@ Use them together: spur / helical gears from bd_warehouse or py_gearworks for pa
 - [Architecture](docs/ARCHITECTURE.md) — system design
 - [Geometry](docs/GEOMETRY.md) — technical specification
 - [Engineering Context](docs/ENGINEERING_CONTEXT.md) — DIN-3975/DIN-3996 background
+- [Validation & Accuracy](docs/VALIDATION.md) — what is and isn't checked, calculation cross-validation, profile-shift behaviour
 
 ## Background
 
