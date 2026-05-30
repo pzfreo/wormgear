@@ -155,6 +155,21 @@ def test_bored_wheel_skips_root_check() -> None:
     assert any("bore" in w for w in report.warnings)
 
 
+def test_degenerate_worm_topology_skips_root_check() -> None:
+    # A swept worm thread's discrete topology is length-dependent: at certain
+    # lengths the trim leaves only tip vertices, with no root vertices, so the
+    # minimum radius is the tip. The root check must then be skipped (and noted)
+    # rather than mistake the tip for the root and falsely fail. m2 / 1-start /
+    # length 30 is a known such config (only 2 vertices, both at the tip).
+    worm = WormGear(module=2.0, num_starts=1, length=30.0)
+    report = worm.validate()
+    names = {c.name for c in report.checks}
+    assert "root_diameter" not in names
+    assert {"tip_diameter", "length"} <= names
+    assert report.ok
+    assert any("did not expose the tooth root" in w for w in report.warnings)
+
+
 # ---------------------------------------------------------------------------
 # The validator must FAIL a part that does not match its spec (not just pass
 # good ones). Pinned to the #231 over-cut direction as the motivating bug.

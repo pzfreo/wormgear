@@ -162,21 +162,40 @@ def _axial_length(part: Any) -> float:
 
 
 def _root_check(
-    min_r: float, expected_root_mm: float, tol_mm: float
+    min_r: float, max_r: float, expected_root_mm: float, expected_tip_mm: float, tol_mm: float
 ) -> tuple[Optional[DimensionCheck], Optional[str]]:
-    """Build the root-diameter check, or skip it when a bore/keyway is present.
+    """Build the root-diameter check, or skip it when the root can't be measured.
 
-    Takes the already-measured minimum radius (see :func:`_radii`) so the
-    vertices are walked once per part. Returns ``(check, None)`` for a solid
-    part, or ``(None, warning)`` when an internal feature is detected — radial
-    measurement cannot then isolate the tooth root from the bore wall, so the
-    check is skipped rather than misread.
+    Takes the already-measured min/max radii (see :func:`_radii`) so the
+    vertices are walked once per part. Returns ``(check, None)`` for a part whose
+    tooth root is cleanly measurable, or ``(None, warning)`` in two cases:
+
+    * **Internal feature** — ``min_r`` sits well below the nominal root, so a
+      bore/keyway is present and radial measurement reads the bore wall, not the
+      tooth root.
+    * **Degenerate topology** — the measured radial span (``max_r - min_r``) is
+      far short of the expected tooth depth, so the discrete topology never
+      exposed the root. This happens to a swept worm thread whose length trim
+      lands only on thread tips (e.g. a 1-start worm at certain lengths leaves
+      just two tip vertices); measuring ``min_r`` there would mistake the tip
+      for the root and falsely fail.
+
+    In both cases the check is skipped rather than misread; tip and length are
+    still verified.
     """
-    if min_r < expected_root_mm / 2 - _FEATURE_GUARD_MM:
+    expected_root_r = expected_root_mm / 2
+    if min_r < expected_root_r - _FEATURE_GUARD_MM:
         return None, (
             "root_diameter not checked: an internal feature (bore/keyway) is "
             "present, so the tooth root cannot be isolated from the bore by "
             "radial measurement"
+        )
+    expected_depth = expected_tip_mm / 2 - expected_root_r
+    if max_r - min_r < 0.5 * expected_depth:
+        return None, (
+            "root_diameter not checked: the part's discrete topology did not "
+            "expose the tooth root (e.g. a swept worm thread whose length trim "
+            "left only tip vertices); tip and length are still checked"
         )
     return DimensionCheck("root_diameter", 2 * min_r, expected_root_mm, tol_mm), None
 
@@ -220,7 +239,9 @@ def check_worm_geometry(
         DimensionCheck("tip_diameter", 2 * max_r, params.tip_diameter_mm, tip_tol_mm),
     ]
     warnings: List[str] = []
-    root_check, root_warning = _root_check(min_r, params.root_diameter_mm, root_tol_mm)
+    root_check, root_warning = _root_check(
+        min_r, max_r, params.root_diameter_mm, params.tip_diameter_mm, root_tol_mm
+    )
     if root_check is not None:
         checks.append(root_check)
     else:
@@ -270,7 +291,7 @@ def check_wheel_geometry(
         )
     else:
         root_check, root_warning = _root_check(
-            min_r, params.root_diameter_mm, root_tol_mm
+            min_r, max_r, params.root_diameter_mm, params.tip_diameter_mm, root_tol_mm
         )
         if root_check is not None:
             checks.append(root_check)
