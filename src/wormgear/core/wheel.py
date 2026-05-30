@@ -249,7 +249,13 @@ class _WheelGeometry(BaseGeometry):
                 profile_plane = Plane(origin=origin, x_dir=radial, z_dir=Vector(0, 0, 1))
 
                 # Profile offsets from pitch radius (in radial direction)
-                inner = root_radius - pitch_radius - 0.3  # Extend below root
+                # Root floor lands on the nominal root radius. The spec's
+                # root_diameter_mm already includes the standard 0.25*m bottom
+                # clearance (dedendum = 1.25*m), so no extra over-cut here (#231).
+                inner = root_radius - pitch_radius
+                # Tip extends 0.3 past the blank surface so the cutter breaks
+                # through cleanly; the blank cylinder caps it at tip_radius, so
+                # nothing extra is removed at the tip.
                 outer = tip_radius + 0.3 - pitch_radius
 
                 # For throated wheels, the root depth varies with Z position

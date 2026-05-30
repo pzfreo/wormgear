@@ -167,17 +167,27 @@ GOLDEN_DESIGNS: dict[str, DesignSpec] = {
 # ---------------------------------------------------------------------------
 
 GOLDEN_VALUES: dict[str, dict[str, dict[str, Any]]] = {
+    # 0.1.x (#231): every wheel volume increased — the wheel root was being
+    # cut a fixed 0.3 mm deeper than the spec ``root_diameter_mm`` (a hardcoded
+    # over-cut that double-counted clearance and didn't scale with module). With
+    # the over-cut removed the root lands on the nominal radius, so the teeth
+    # retain more material. The increase scales inversely with module — +9.5 %
+    # at m=0.5 (small_za_rh), ~+2.8 % at m=1, +0.47 % on the large multi-start —
+    # confirming the bug was a fixed mm fudge factor. Worm volumes and all face
+    # counts are unchanged (the fix touched only wheel.py). The throated wheel is
+    # unchanged because its root follows the worm envelope, not the nominal root.
+    # See #231 for the full diagnostic.
     "small_za_rh": {
         "worm": {"volume": 105.9443, "bbox": (-2.5361, 2.5361, -2.5361, 2.5361, -4.0, 4.0), "face_count": 12},
-        "wheel": {"volume": 67.9806, "bbox": (-3.4806, 3.4806, -3.4806, 3.4806, -1.25, 1.25), "face_count": 194},
+        "wheel": {"volume": 74.4722, "bbox": (-3.4823, 3.4823, -3.4823, 3.4823, -1.25, 1.25), "face_count": 194},
     },
     "medium_za_rh": {
         "worm": {"volume": 1059.4515, "bbox": (-5.0722, 5.0722, -5.0722, 5.0722, -10.0, 10.0), "face_count": 13},
-        "wheel": {"volume": 1858.6244, "bbox": (-10.9775, 10.9775, -10.9775, 10.9775, -3.0, 3.0), "face_count": 442},
+        "wheel": {"volume": 1911.401, "bbox": (-10.9783, 10.9783, -10.9783, 10.9783, -3.0, 3.0), "face_count": 442},
     },
     "medium_zk_rh": {
         "worm": {"volume": 1093.6076, "bbox": (-5.0722, 5.0722, -5.0722, 5.0722, -10.0, 10.0), "face_count": 13},
-        "wheel": {"volume": 1830.3195, "bbox": (-10.9759, 10.9759, -10.9759, 10.9759, -3.0, 3.0), "face_count": 442},
+        "wheel": {"volume": 1886.3161, "bbox": (-10.9765, 10.9765, -10.9765, 10.9765, -3.0, 3.0), "face_count": 442},
     },
     "large_za_multistart": {
         # 0.1.2 (#224): the worm's volume jumped from 5649.3542 to 28122.3605 and
@@ -187,11 +197,11 @@ GOLDEN_VALUES: dict[str, dict[str, dict[str, Any]]] = {
         # silently discarding most of the core. The face count was, coincidentally,
         # unchanged at 15. See #224 for the full diagnostic.
         "worm": {"volume": 28122.3605, "bbox": (-18.2887, 18.2887, -18.2887, 18.2887, -15.0, 15.0), "face_count": 15},
-        "wheel": {"volume": 112550.7135, "bbox": (-61.979, 61.979, -61.979, 61.979, -5.0, 5.0), "face_count": 1322},
+        "wheel": {"volume": 113082.0621, "bbox": (-61.9792, 61.9792, -61.9792, 61.9792, -5.0, 5.0), "face_count": 1322},
     },
     "medium_za_lh": {
         "worm": {"volume": 1059.4503, "bbox": (-5.0722, 5.0722, -5.0722, 5.0722, -10.0, 10.0), "face_count": 13},
-        "wheel": {"volume": 1858.6244, "bbox": (-10.9775, 10.9775, -10.9775, 10.9775, -3.0, 3.0), "face_count": 442},
+        "wheel": {"volume": 1911.401, "bbox": (-10.9783, 10.9783, -10.9783, 10.9783, -3.0, 3.0), "face_count": 442},
     },
     "medium_za_throated": {
         "worm": {"volume": 1059.4515, "bbox": (-5.0722, 5.0722, -5.0722, 5.0722, -10.0, 10.0), "face_count": 13},
@@ -199,11 +209,11 @@ GOLDEN_VALUES: dict[str, dict[str, dict[str, Any]]] = {
     },
     "medium_za_globoid": {
         "worm": {"volume": 988.5182, "bbox": (-5.0542, 5.0614, -5.047, 5.0603, -10.0, 10.0), "face_count": 261},
-        "wheel": {"volume": 1818.8309, "bbox": (-10.9775, 10.9775, -10.9775, 10.9775, -3.0, 3.0), "face_count": 1062},
+        "wheel": {"volume": 1870.5868, "bbox": (-10.9783, 10.9783, -10.9783, 10.9783, -3.0, 3.0), "face_count": 1062},
     },
     "medium_za_with_features": {
         "worm": {"volume": 478.3458, "bbox": (-5.0722, 5.0722, -5.0722, 5.0722, -10.0, 10.0), "face_count": 41},
-        "wheel": {"volume": 1530.1065, "bbox": (-10.9775, 10.9775, -10.9775, 10.9775, -3.0, 3.0), "face_count": 446},
+        "wheel": {"volume": 1582.8831, "bbox": (-10.9783, 10.9783, -10.9783, 10.9783, -3.0, 3.0), "face_count": 446},
     },
 }
 
