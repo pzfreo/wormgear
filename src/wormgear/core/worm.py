@@ -357,31 +357,60 @@ class _WormGeometry(BaseGeometry):
         lead = self.params.lead_mm
         extended_length = self.length + 2 * lead
 
-        # Full cylinder at tip radius.
-        # The blank must be slightly taller than the groove helix to avoid
-        # coincident end-cap faces, which cause OCC boolean cuts to fail
-        # silently (the cut succeeds but removes zero material).
-        blank_length = extended_length + 2  # 1mm margin beyond each end
-        logger.info(f"Creating full cylinder (radius={tip_radius:.2f}mm)...")
-        worm_shape = Cylinder(
-            radius=tip_radius,
-            height=blank_length,
-            align=(Align.CENTER, Align.CENTER, Align.CENTER)
-        ).wrapped
+        # For certain groove helix heights (length-specific) OCC's pipe-shell
+        # boolean cut returns IsDone()=True but removes zero material, leaving a
+        # solid cylinder with NO thread — a silently broken worm. Nudging the
+        # groove helix height escapes the degenerate configuration, but a fixed
+        # nudge just relocates the bad lengths, so retry with escalating nudges
+        # until the grooves actually cut. The extra height is trimmed off, so
+        # the final length is unaffected. A non-round, increasing sequence is
+        # used so successive attempts don't re-hit the same coincidences.
+        height_nudges = (0.0, 1.3, 2.7, 4.1, 6.3, 9.1, 13.7)
+        worm_shape = None
+        for nudge in height_nudges:
+            blank_length = extended_length + nudge + 2  # 1mm margin beyond each end
+            blank_volume = math.pi * tip_radius**2 * blank_length
+            logger.info(f"Creating full cylinder (radius={tip_radius:.2f}mm, nudge={nudge})...")
+            candidate = Cylinder(
+                radius=tip_radius,
+                height=blank_length,
+                align=(Align.CENTER, Align.CENTER, Align.CENTER)
+            ).wrapped
 
-        # Cut groove for each start
-        for start_index in range(self.params.num_starts):
-            angle_offset = (360 / self.params.num_starts) * start_index
-            logger.info(f"Cutting groove {start_index} (angle={angle_offset:.0f}°)...")
-            groove = self._create_single_groove_sweep(angle_offset)
-            if groove is not None:
-                cut = BRepAlgoAPI_Cut(worm_shape, groove.wrapped)
-                cut.Build()
-                if cut.IsDone():
-                    worm_shape = cut.Shape()
-                    logger.debug(f"Groove {start_index} cut successfully")
-                else:
-                    logger.warning(f"Groove {start_index} cut failed")
+            for start_index in range(self.params.num_starts):
+                angle_offset = (360 / self.params.num_starts) * start_index
+                logger.info(f"Cutting groove {start_index} (angle={angle_offset:.0f}°)...")
+                groove = self._create_single_groove_sweep(angle_offset, height_extra=nudge)
+                if groove is not None:
+                    cut = BRepAlgoAPI_Cut(candidate, groove.wrapped)
+                    cut.Build()
+                    if cut.IsDone():
+                        candidate = cut.Shape()
+                        logger.debug(f"Groove {start_index} cut successfully")
+                    else:
+                        logger.warning(f"Groove {start_index} cut failed")
+
+            # Did the grooves actually remove material? A threadless cylinder
+            # keeps ~100% of the blank volume; a properly threaded worm is well
+            # under (~66% single-start, ~79-89% multi-start). 97% cleanly
+            # separates "thread cut" from "silent zero-removal".
+            if Part(candidate).volume < 0.97 * blank_volume:
+                worm_shape = candidate
+                if nudge:
+                    logger.info(f"Groove cut succeeded after height nudge {nudge}mm")
+                break
+            logger.warning(
+                f"Groove cut removed no material at nudge {nudge}mm; retrying"
+            )
+
+        if worm_shape is None:
+            raise RuntimeError(
+                f"Worm thread generation failed: the groove cut removed no "
+                f"material for module={self.params.module_mm}, "
+                f"num_starts={self.params.num_starts}, length={self.length} at "
+                f"any retry. This is the OCC pipe-shell silent-cut bug; as a "
+                f"workaround nudge the worm length by ~1 mm."
+            )
 
         # Trim to length
         logger.info(f"Trimming to {self.length:.1f}mm...")
@@ -629,7 +658,7 @@ class _WormGeometry(BaseGeometry):
 
         return thread
 
-    def _create_single_groove_sweep(self, start_angle: float = 0) -> Part:
+    def _create_single_groove_sweep(self, start_angle: float = 0, height_extra: float = 0.0) -> Part:
         """
         Create a single helical groove solid for the groove-cut approach.
 
@@ -639,6 +668,13 @@ class _WormGeometry(BaseGeometry):
 
         The groove profile extends past both root and tip radii to ensure
         clean boolean cuts against the full cylinder.
+
+        ``height_extra`` lengthens the groove helix beyond the nominal
+        ``length + 2*lead``. It is the retry knob for the silent-cut bug (see
+        ``_build_sweep``): certain groove helix heights make OCC's pipe-shell
+        boolean remove zero material, and nudging the height escapes the
+        degenerate configuration. The extra is trimmed off afterwards, so it
+        does not affect the final worm length.
         """
         from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
         from OCP.gp import gp_Dir
@@ -669,7 +705,7 @@ class _WormGeometry(BaseGeometry):
 
 
         # Extended helix, offset by half axial pitch from thread
-        extended_length = self.length + 2 * lead
+        extended_length = self.length + 2 * lead + height_extra
         groove_angle = start_angle + (180.0 / self.params.num_starts)
         helix = self._create_helix(extended_length, groove_angle)
 
