@@ -76,6 +76,35 @@ for msg in result.warnings:
     print(f"warning: {msg.message}")
 ```
 
+### Validate a built model against the calculation
+
+Once you've built (or imported) a 3D model, you can confirm it actually realises
+the engineering calculation — the measured tip/root diameters and length match
+the computed spec, and the pair meshes without interference:
+
+```python
+from wormgear import make_pair, check_pair_geometry
+
+worm, wheel = make_pair(module=2.0, ratio=30, length=40)
+
+# Per-part, against the spec each was built from:
+print(worm.validate())     # tip diameter, root diameter, length
+print(wheel.validate())    # tip diameter (+ root for non-throated wheels)
+
+# Whole pair, including a mesh-interference check (on by default):
+from wormgear.calculator import design_from_module
+design = design_from_module(module=2.0, ratio=30)
+report = check_pair_geometry(worm, wheel, design, worm_length=40)
+print("pass" if report.ok else "FAIL")
+```
+
+This verifies that the **geometry realises the calculation** — not that the
+calculation is itself correct per DIN-3975 (use `validate_design` for the
+design rules). Each report lists what it does *not* cover (thread lead, tooth
+flank profile, throat diameter), so a green result is never mistaken for full
+certification. Tolerances default to a few hundredths of a millimetre — far
+below typical machining tolerances — and are adjustable per call.
+
 ### Features (bores, keyways, set screws)
 
 ```python

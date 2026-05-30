@@ -185,6 +185,18 @@ class WormGear(BasePartObject):
 
         super().__init__(part=part, rotation=rotation, align=align, mode=mode)
 
+    def validate(self, **kwargs):
+        """Check this built worm realises the spec it was computed from.
+
+        Returns a ``GeometryReport`` comparing the measured tip diameter, root
+        diameter, and length against the calculator's values. Extra keyword
+        arguments (e.g. ``tip_tol_mm``) are forwarded to
+        :func:`wormgear.check_worm_geometry`.
+        """
+        from .core import check_worm_geometry
+
+        return check_worm_geometry(self, self._params, length=self.length, **kwargs)
+
     @classmethod
     def from_design(cls, design, length: float, **overrides) -> "WormGear":
         """Build a ``WormGear`` from a calculator-produced ``WormGearDesign``.
@@ -391,6 +403,18 @@ class WormWheel(BasePartObject):
         self.throated = throated
 
         super().__init__(part=part, rotation=rotation, align=align, mode=mode)
+
+    def validate(self, **kwargs):
+        """Check this built wheel realises the spec it was computed from.
+
+        Returns a ``GeometryReport`` comparing the measured tip diameter (and,
+        for non-throated wheels, root diameter) against the calculator's values.
+        Extra keyword arguments are forwarded to
+        :func:`wormgear.check_wheel_geometry`.
+        """
+        from .core import check_wheel_geometry
+
+        return check_wheel_geometry(self, self._params, **kwargs)
 
     @classmethod
     def from_design(

@@ -60,6 +60,15 @@ try:
         position_for_mesh,
     )
 
+    # Geometry validation — check a built part realises its calculated spec.
+    from .validate_geometry import (
+        DimensionCheck,
+        GeometryReport,
+        check_pair_geometry,
+        check_wheel_geometry,
+        check_worm_geometry,
+    )
+
     # Rim thickness — public utility.
     from .rim_thickness import (
         WHEEL_RIM_WARNING_THRESHOLD_MM,
@@ -98,6 +107,12 @@ try:
         "position_for_mesh",
         "create_axis_markers",
         "mesh_alignment_to_dict",
+        # Geometry validation
+        "check_worm_geometry",
+        "check_wheel_geometry",
+        "check_pair_geometry",
+        "GeometryReport",
+        "DimensionCheck",
         # Rim thickness
         "RimThicknessResult",
         "measure_rim_thickness",

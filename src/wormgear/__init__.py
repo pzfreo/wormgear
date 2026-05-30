@@ -83,6 +83,12 @@ _CORE = {
     "position_for_mesh",
     "create_axis_markers",
     "mesh_alignment_to_dict",
+    # Geometry validation
+    "check_worm_geometry",
+    "check_wheel_geometry",
+    "check_pair_geometry",
+    "GeometryReport",
+    "DimensionCheck",
 }
 
 _REMOVED_IN_010 = {
