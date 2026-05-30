@@ -8,10 +8,10 @@ can't pass merely because it is self-consistent.
 
 Two tiers, labelled honestly:
 
-* **Tier A — published worked examples.** Inputs and answers transcribed from a
-  textbook where a human computed the result. Fully independent of our code.
-  Currently one example (Norton); the value/version is cited inline. Adding more
-  is the highest-leverage way to strengthen this suite (see the module TODO).
+* **Tier A — independent references.** Numbers from an outside authority: a
+  textbook worked example (Norton, hand-computed) and an independent calculator
+  (mechstream, a separate DIN-3975 implementation). Each source/version is cited
+  inline. Adding more is the highest-leverage way to strengthen this suite.
 
 * **Tier B — independent re-derivation of the standard formulas.** The canonical
   worm-gear relationships (axial pitch, lead, lead angle, centre distance,
@@ -76,6 +76,37 @@ def test_norton_machine_design_problem_11():
     assert worm["lead_angle_deg"] == pytest.approx(2.29, abs=0.02)
     assert wheel["pitch_diameter_mm"] == pytest.approx(130.5, abs=0.1)
     assert cd == pytest.approx(85.25, abs=0.1)
+
+
+def test_mechstream_wheel_zero_profile_shift():
+    """Independent tool cross-check: mechstream worm-gear calculator
+    (https://www.mechstream.com/worm-gear-calculator/), a separate
+    implementation using the standard DIN-3975 q-factor / profile-shift
+    parameterisation.
+
+    Inputs chosen so the profile shift is exactly zero (centre distance
+    a = m·(q + z2)/2), where the q-factor convention and ours must agree:
+
+        a = 40 mm, m = 2, z1 = 1, q = 10, z2 = 30, αx = 20°
+
+    mechstream returned (wheel): x = 0.000, ratio i = 30, d = dp = 60.00 mm,
+    da = 64.00 mm, df = 55.00 mm, ha = 2.00 mm, hf = 2.50 mm, radial
+    clearance c = 0.50 mm. Our wheel reproduces these exactly — and it confirms
+    mechstream uses the same 0.25·m bottom clearance we do.
+    """
+    wheel = calculate_wheel(
+        module_mm=2.0,
+        num_teeth=30,
+        worm_pitch_diameter_mm=20.0,  # q·m = 10·2
+        worm_lead_angle_deg=math.degrees(math.atan(1 / 10)),
+        profile_shift=0.0,
+    )
+    assert wheel["pitch_diameter_mm"] == pytest.approx(60.0, abs=0.01)
+    assert wheel["tip_diameter_mm"] == pytest.approx(64.0, abs=0.01)
+    assert wheel["root_diameter_mm"] == pytest.approx(55.0, abs=0.01)
+    assert wheel["addendum_mm"] == pytest.approx(2.0, abs=0.01)
+    assert wheel["dedendum_mm"] == pytest.approx(2.5, abs=0.01)  # clearance 0.25·m
+    assert wheel["profile_shift"] == pytest.approx(0.0, abs=1e-9)
 
 
 # ---------------------------------------------------------------------------
