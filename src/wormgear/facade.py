@@ -182,6 +182,9 @@ class WormGear(BasePartObject):
         self.length = length
         self.hand = design.worm.hand
         self.profile = profile.upper() if isinstance(profile, str) else profile.value
+        # Stored so .validate() can check the ZA flank angle even on the
+        # worm-only path, where _assembly_params is None.
+        self.pressure_angle = pressure_angle
 
         super().__init__(part=part, rotation=rotation, align=align, mode=mode)
 
@@ -189,12 +192,15 @@ class WormGear(BasePartObject):
         """Check this built worm realises the spec it was computed from.
 
         Returns a ``GeometryReport`` comparing the measured tip diameter, root
-        diameter, and length against the calculator's values. Extra keyword
-        arguments (e.g. ``tip_tol_mm``) are forwarded to
+        diameter, length, thread lead (1-start), and (for ZA worms) flank angle
+        against the calculator's values. Extra keyword arguments (e.g.
+        ``tip_tol_mm``, ``measure_thread=False``) are forwarded to
         :func:`wormgear.check_worm_geometry`.
         """
         from .core import check_worm_geometry
 
+        kwargs.setdefault("pressure_angle_deg", self.pressure_angle)
+        kwargs.setdefault("profile", self.profile)
         return check_worm_geometry(self, self._params, length=self.length, **kwargs)
 
     @classmethod
