@@ -74,9 +74,11 @@ print("Installing ssl...")
 await micropip.install("ssl")
 print("✓ ssl installed")
 
-print("Installing ocp_vscode from Jojain's fork...")
-await micropip.install("https://raw.githubusercontent.com/Jojain/vscode-ocp-cad-viewer/no_pyperclip/ocp_vscode-2.9.0-py3-none-any.whl")
-print("✓ ocp_vscode installed")
+# ocp_vscode is deliberately NOT installed. It is only used by the optional
+# show()/--view code paths (geometry_base.py, cli/generate.py), which the
+# worker never calls — it builds and exports geometry, and the web has its
+# own viewer (viewer-3d.js). Installing it pulled a pinned fork wheel whose
+# transitive dependencies failed to fetch, breaking the generator entirely.
 
 # Mock package for build123d<0.10.0 compatibility
 micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": '''from lib3mf import *'''})
