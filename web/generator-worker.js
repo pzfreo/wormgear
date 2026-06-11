@@ -34,10 +34,10 @@ async function initializePyodide() {
         self.postMessage({ type: 'LOG', message: 'Loading Pyodide...' });
 
         // Load Pyodide
-        self.importScripts('https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js');
+        self.importScripts('https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js');
 
         pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.0/full/",
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/",
             stdout: (text) => {
                 if (text.trim()) self.postMessage({ type: 'LOG', message: `[py] ${text}` });
             },
@@ -98,12 +98,11 @@ print("✓ ssl installed")
 # own viewer (viewer-3d.js). Installing it pulled a pinned fork wheel whose
 # transitive dependencies failed to fetch, breaking the generator entirely.
 
-# Mock package for build123d<0.10.0 compatibility
-micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": '''from lib3mf import *'''})
-print("✓ Mock package added")
-
 print("Installing build123d and sqlite3...")
-await install_with_retry(["build123d", "sqlite3"])
+# build123d >= 0.10 depends on lib3mf directly (older versions needed a
+# py-lib3mf mock here). The OCP.wasm index provides the WASM wheels for
+# cadquery-ocp and lib3mf; everything else comes from PyPI.
+await install_with_retry(["build123d>=0.10", "sqlite3"])
 print("✓ Installation completed")
 
 # Test imports

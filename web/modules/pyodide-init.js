@@ -70,7 +70,7 @@ export async function initCalculator(onComplete) {
 
         // Load Pyodide
         calculatorPyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.0/full/"
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/"
         });
 
         // Create directory structure
