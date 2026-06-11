@@ -5,10 +5,10 @@
   "description": "Worm gear calculator web interface",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "generate-types": "json2ts ../schemas/wormgear-design-v2.0.json -o types/wormgear-design.generated.d.ts"
+    "generate-types": "bash ../scripts/generate_types.sh"
   },
   "devDependencies": {
-    "typescript": "^5.3.0",
-    "json-schema-to-typescript": "^13.1.0"
+    "typescript": "~6.0.3",
+    "json-schema-to-typescript": "^15.0.4"
   }
 }
