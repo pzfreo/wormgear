@@ -170,7 +170,7 @@ if '/home/pyodide' not in sys.path:
     // Test import
     await pyodide.runPythonAsync(`
 import wormgear
-from wormgear.core import WormGeometry, WheelGeometry
+from wormgear import WormGear, WormWheel
 from wormgear.io import WormParams, WheelParams, AssemblyParams
 print(f"✓ wormgear package loaded (version {wormgear.__version__})")
     `);
@@ -244,8 +244,14 @@ for logger_name in ['wormgear.core.worm', 'wormgear.core.wheel', 'wormgear.core.
 # Suppress build123d's verbose internal logging (BuildSketch, WorkplaneList, etc.)
 logging.getLogger('build123d').setLevel(logging.WARNING)
 
-from wormgear.core import WormGeometry, WheelGeometry, GloboidWormGeometry, VirtualHobbingWheelGeometry, BoreFeature, KeywayFeature, DDCutFeature, calculate_default_bore
+from wormgear import WormGear, WormWheel
+from wormgear.core import BoreFeature, KeywayFeature, DDCutFeature, calculate_default_bore
+# Private classes, mirroring cli/generate.py: virtual hobbing has no facade
+# seam yet, and the facade globoid path doesn't expose features (bore/keyway).
+from wormgear.core.globoid_worm import _GloboidWormGeometry
+from wormgear.core.virtual_hobbing import _VirtualHobbingWheelGeometry
 from wormgear.io import WormParams, WheelParams, AssemblyParams
+from wormgear.io.loaders import WormGearDesign
 
 print("📋 Parsing parameters...")
 # Parse design JSON
@@ -255,6 +261,13 @@ design_data = json.loads(design_json_str)
 worm_params = WormParams(**design_data['worm'])
 wheel_params = WheelParams(**design_data['wheel'])
 assembly_params = AssemblyParams(**design_data['assembly'])
+
+# Design object used by the facade constructors and generate_package
+design_obj = WormGearDesign(
+    worm=worm_params,
+    wheel=wheel_params,
+    assembly=assembly_params,
+)
 
 # Handle None wheel_width
 try:
@@ -362,7 +375,7 @@ if generate_type in ['worm', 'both']:
         print("  Creating worm geometry object...")
         if is_globoid:
             print("  Using globoid (hourglass) worm geometry...")
-            worm_geo = GloboidWormGeometry(
+            worm_geo = _GloboidWormGeometry(
                 params=worm_params,
                 assembly_params=assembly_params,
                 wheel_pitch_diameter=wheel_params.pitch_diameter_mm,
@@ -372,18 +385,18 @@ if generate_type in ['worm', 'both']:
                 keyway=worm_keyway,
                 ddcut=worm_ddcut
             )
+            print("  Building 3D model...")
+            worm = worm_geo.build()
         else:
-            worm_geo = WormGeometry(
-                params=worm_params,
-                assembly_params=assembly_params,
+            print("  Building 3D model...")
+            worm = WormGear.from_design(
+                design_obj,
                 length=worm_length,
                 bore=worm_bore,
                 keyway=worm_keyway,
                 ddcut=worm_ddcut,
                 generation_method=generation_method_val
             )
-        print("  Building 3D model...")
-        worm = worm_geo.build()
         print(f"✓ Worm built (volume: {worm.volume:.2f} mm³)")
     except Exception as e:
         print(f"✗ Worm generation failed: {e}")
@@ -399,18 +412,18 @@ if generate_type in ['wheel', 'both']:
     try:
         print("  Creating wheel geometry object...")
 
-        # Use VirtualHobbingWheelGeometry if virtual_hobbing enabled, otherwise regular WheelGeometry
+        # Use _VirtualHobbingWheelGeometry if virtual_hobbing enabled, otherwise regular WormWheel
         if virtual_hobbing_val:
             # Virtual hobbing supports progress callbacks
             print(f"  Using virtual hobbing with {hobbing_steps_val} steps...")
 
             # Pass the actual worm geometry as hob ONLY for globoid (important for accuracy)
-            # For cylindrical, let VirtualHobbingWheelGeometry create a simpler hob internally
+            # For cylindrical, let _VirtualHobbingWheelGeometry create a simpler hob internally
             hob_geo = worm if (generate_type == 'both' and is_globoid) else None
             hob_type = "globoid" if is_globoid else "cylindrical"
             print(f"  Using {hob_type} hob geometry")
 
-            wheel_geo = VirtualHobbingWheelGeometry(
+            wheel_geo = _VirtualHobbingWheelGeometry(
                 params=wheel_params,
                 worm_params=worm_params,
                 assembly_params=assembly_params,
@@ -422,19 +435,18 @@ if generate_type in ['wheel', 'both']:
                 ddcut=wheel_ddcut,
                 hob_geometry=hob_geo
             )
+            print("  Building 3D model (this is the slowest step)...")
+            wheel = wheel_geo.build()
         else:
             # Regular helical wheel (no progress callbacks needed - it's fast)
-            wheel_geo = WheelGeometry(
-                params=wheel_params,
-                worm_params=worm_params,
-                assembly_params=assembly_params,
+            print("  Building 3D model (this is the slowest step)...")
+            wheel = WormWheel.from_design(
+                design_obj,
                 face_width=wheel_width,
                 bore=wheel_bore,
                 keyway=wheel_keyway,
                 ddcut=wheel_ddcut
             )
-        print("  Building 3D model (this is the slowest step)...")
-        wheel = wheel_geo.build()
         print(f"✓ Wheel built (volume: {wheel.volume:.2f} mm³)")
     except Exception as e:
         print(f"✗ Wheel generation failed: {e}")
@@ -442,14 +454,6 @@ if generate_type in ['wheel', 'both']:
         traceback.print_exc()
 
     print("")
-
-# Construct WormGearDesign for generate_package
-from wormgear.io.loaders import WormGearDesign
-design_obj = WormGearDesign(
-    worm=worm_params,
-    wheel=wheel_params,
-    assembly=assembly_params,
-)
 
 # Export all files using shared package module
 from wormgear.io.package import generate_package, create_package_zip
