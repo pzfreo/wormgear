@@ -34,10 +34,10 @@ async function initializePyodide() {
         self.postMessage({ type: 'LOG', message: 'Loading Pyodide...' });
 
         // Load Pyodide
-        self.importScripts('https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js');
+        self.importScripts('https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js');
 
         pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.0/full/",
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/",
             stdout: (text) => {
                 if (text.trim()) self.postMessage({ type: 'LOG', message: `[py] ${text}` });
             },
@@ -60,6 +60,24 @@ async function initializePyodide() {
 
         const result = await pyodide.runPythonAsync(`
 import micropip
+import asyncio
+
+# Retry-with-backoff around micropip installs. The OCP wheel pulled in by
+# build123d is ~23 MB, and micropip does NOT retry aborted fetches — a single
+# dropped transfer (common on slow/mobile connections) kills the whole install.
+# Already-downloaded wheels come from the browser HTTP cache, so a retry is
+# cheap and usually succeeds. Re-attempt transient network failures only.
+async def install_with_retry(spec, attempts=4):
+    for i in range(attempts):
+        try:
+            await micropip.install(spec)
+            return
+        except Exception as e:
+            if i == attempts - 1:
+                raise
+            wait = 2 ** i  # 1s, 2s, 4s
+            print(f"  fetch failed ({type(e).__name__}: {e}); retry {i + 1}/{attempts - 1} in {wait}s...")
+            await asyncio.sleep(wait)
 
 print("Starting package installation...")
 print("Setting index URLs...")
@@ -67,23 +85,24 @@ micropip.set_index_urls(["https://yeicor.github.io/OCP.wasm", "https://pypi.org/
 print("Index URLs set")
 
 print("Installing lib3mf...")
-await micropip.install("lib3mf")
+await install_with_retry("lib3mf")
 print("✓ lib3mf installed")
 
 print("Installing ssl...")
-await micropip.install("ssl")
+await install_with_retry("ssl")
 print("✓ ssl installed")
 
-print("Installing ocp_vscode from Jojain's fork...")
-await micropip.install("https://raw.githubusercontent.com/Jojain/vscode-ocp-cad-viewer/no_pyperclip/ocp_vscode-2.9.0-py3-none-any.whl")
-print("✓ ocp_vscode installed")
-
-# Mock package for build123d<0.10.0 compatibility
-micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": '''from lib3mf import *'''})
-print("✓ Mock package added")
+# ocp_vscode is deliberately NOT installed. It is only used by the optional
+# show()/--view code paths (geometry_base.py, cli/generate.py), which the
+# worker never calls — it builds and exports geometry, and the web has its
+# own viewer (viewer-3d.js). Installing it pulled a pinned fork wheel whose
+# transitive dependencies failed to fetch, breaking the generator entirely.
 
 print("Installing build123d and sqlite3...")
-await micropip.install(["build123d", "sqlite3"])
+# build123d >= 0.10 depends on lib3mf directly (older versions needed a
+# py-lib3mf mock here). The OCP.wasm index provides the WASM wheels for
+# cadquery-ocp and lib3mf; everything else comes from PyPI.
+await install_with_retry(["build123d>=0.10", "sqlite3"])
 print("✓ Installation completed")
 
 # Test imports
