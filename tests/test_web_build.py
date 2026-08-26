@@ -28,6 +28,7 @@ REQUIRED_WASM_FILES = [
     # Core geometry (for generator)
     "wormgear/core/__init__.py",
     "wormgear/core/geometry_base.py",
+    "wormgear/core/ocp_compat.py",
     "wormgear/core/worm.py",
     "wormgear/core/wheel.py",
     "wormgear/core/features.py",

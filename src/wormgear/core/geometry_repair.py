@@ -15,9 +15,9 @@ from OCP.BRepBuilderAPI import BRepBuilderAPI_Sewing, BRepBuilderAPI_MakeSolid
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_SHELL, TopAbs_FACE
 
-from OCP.TopoDS import TopoDS
-
 from build123d import Part, export_step, import_step
+
+from .ocp_compat import as_shell
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def repair_geometry(part: Part) -> Part:
 
             shell_explorer = TopExp_Explorer(sewn, TopAbs_SHELL)
             if shell_explorer.More():
-                shell = TopoDS.Shell_s(shell_explorer.Current())
+                shell = as_shell(shell_explorer.Current())
                 solid_maker = BRepBuilderAPI_MakeSolid(shell)
                 if solid_maker.IsDone():
                     solid = solid_maker.Solid()
