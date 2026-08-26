@@ -11,7 +11,6 @@ from typing import Optional, Literal
 
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_EDGE
-from OCP.TopoDS import TopoDS
 
 logger = logging.getLogger(__name__)
 from build123d import (
@@ -24,6 +23,7 @@ from ..enums import Hand, WormProfile
 from .features import BoreFeature, KeywayFeature, SetScrewFeature, ReliefGrooveFeature, add_bore_and_keyway, create_relief_groove
 from .geometry_base import BaseGeometry
 from .geometry_repair import repair_geometry, normalize_geometry
+from .ocp_compat import as_edge
 
 # Profile types per DIN 3975
 # ZA: Straight flanks in axial section (Archimedean) - best for CNC machining
@@ -169,7 +169,7 @@ class _WormGeometry(BaseGeometry):
         wire_maker = BRepBuilderAPI_MakeWire()
         explorer = TopExp_Explorer(helix.wrapped, TopAbs_EDGE)
         while explorer.More():
-            wire_maker.Add(TopoDS.Edge_s(explorer.Current()))
+            wire_maker.Add(as_edge(explorer.Current()))
             explorer.Next()
         return wire_maker.Wire()
 
@@ -915,4 +915,3 @@ class _WormGeometry(BaseGeometry):
             step_path.unlink(missing_ok=True)
 
         return thread
-
