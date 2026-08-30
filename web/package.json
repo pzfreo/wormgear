@@ -5,10 +5,12 @@
   "description": "Worm gear calculator web interface",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "generate-types": "bash ../scripts/generate_types.sh"
+    "generate-types": "bash ../scripts/generate_types.sh",
+    "test:wasm": "node tests/wasm/run-calculator-test.mjs && node tests/wasm/run-worker-test.mjs"
   },
   "devDependencies": {
     "typescript": "~6.0.3",
-    "json-schema-to-typescript": "^15.0.4"
+    "json-schema-to-typescript": "^15.0.4",
+    "pyodide": "0.29.4"
   }
 }

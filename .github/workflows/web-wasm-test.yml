@@ -1,0 +1,53 @@
+name: Web WASM Stack Test
+
+# Runs the real Pyodide WASM runtime under Node and executes the exact
+# Python snippets shipped in dist/generator-worker.js, plus the calculator
+# js_bridge path. Catches package-resolution breakage (PyPI / OCP.wasm),
+# Pyodide version drift, and API drift between the worker's embedded
+# Python and src/wormgear — none of which the native pytest suite sees.
+#
+# Downloads ~100 MB of wheels and builds real geometry: slower than unit
+# tests (~5-10 min), so it only runs when the web stack can change.
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'src/wormgear/**'
+      - '.github/workflows/web-wasm-test.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+      - 'src/wormgear/**'
+
+jobs:
+  wasm-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web dist
+        run: bash web/build.sh
+
+      - name: Install node dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Calculator path (Pyodide + pydantic + js_bridge)
+        run: node tests/wasm/run-calculator-test.mjs
+        working-directory: web
+
+      - name: Generator path (install snippet + geometry generation)
+        run: node tests/wasm/run-worker-test.mjs
+        working-directory: web
