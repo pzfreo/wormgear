@@ -4,7 +4,7 @@
  * Handles generator tab UI functions: console output, progress, file loading.
  */
 
-import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, formatBoreStr, createDesignFilename, countValidationMessages } from './format-utils.js';
+import { fmt, fmtMm, fmtDeg, escapeHtml, PROFILE_LABELS, formatBoreStr, createDesignFilename, countValidationMessages } from './format-utils.js';
 
 // Track hobbing progress for time estimation
 let hobbingStartTime = null;
@@ -62,10 +62,10 @@ export function updateDesignSummary(design) {
 
     function section(title, rows, open = false) {
         const openAttr = open ? ' open' : '';
-        let html = `<details class="gen-spec-details"${openAttr}><summary class="gen-spec-toggle">${title}</summary><table class="spec-table">`;
+        let html = `<details class="gen-spec-details"${openAttr}><summary class="gen-spec-toggle">${escapeHtml(title)}</summary><table class="spec-table">`;
         for (const [label, value] of rows) {
             if (value === undefined || value === null) continue;
-            html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
+            html += `<tr><td class="spec-label">${escapeHtml(label)}</td><td class="spec-value">${escapeHtml(value)}</td></tr>`;
         }
         html += '</table></details>';
         return html;

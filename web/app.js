@@ -8,7 +8,7 @@ import { parseCalculatorResponse } from './modules/schema-validator.js';
 import { getCalculatorPyodide, getGeneratorWorker, initCalculator, initGenerator } from './modules/pyodide-init.js';
 import { appendToConsole, updateDesignSummary, handleProgress, hideProgressIndicator, handleGenerateComplete, updateGeneratorValidation, hideGeneratorValidation } from './modules/generator-ui.js';
 import { initViewer, loadMeshes, resizeViewer, pauseAnimation, resumeAnimation, isLoaded, invalidate, togglePlayPause, setSpeed } from './modules/viewer-3d.js';
-import { fmt, fmtMm, fmtDeg, PROFILE_LABELS, buildSpecRows, createDesignFilename } from './modules/format-utils.js';
+import { fmt, fmtMm, fmtDeg, escapeHtml, PROFILE_LABELS, buildSpecRows, createDesignFilename } from './modules/format-utils.js';
 
 // Global state
 let currentDesign = null;
@@ -345,10 +345,10 @@ function renderInlineMessages(messages, sectionName) {
 
     let html = '<div class="spec-messages">';
     for (const msg of sectionMsgs) {
-        html += `<div class="spec-msg spec-msg-${msg.severity}">`;
-        html += `<span class="spec-msg-text">${msg.message}</span>`;
+        html += `<div class="spec-msg spec-msg-${escapeHtml(msg.severity)}">`;
+        html += `<span class="spec-msg-text">${escapeHtml(msg.message)}</span>`;
         if (msg.suggestion) {
-            html += `<span class="spec-msg-suggestion">${msg.suggestion}</span>`;
+            html += `<span class="spec-msg-suggestion">${escapeHtml(msg.suggestion)}</span>`;
         }
         html += '</div>';
     }
@@ -379,6 +379,11 @@ function renderSpecSheet(design, output, messages = []) {
         let html = `<div class="spec-section"><h3 class="spec-section-title">${title}</h3><table class="spec-table">`;
         for (const [label, value] of sectionRows) {
             if (value === undefined || value === null) continue;
+            // Values come from buildSpecRows on the *validated* calculator output
+            // (enums/numbers) and intentionally embed trusted formatting markup
+            // (e.g. the <span class="spec-note"> on the Length/Face-Width rows),
+            // so they are written as-is. Unvalidated input reaches innerHTML only
+            // via error.message (escaped below), not here. See #250.
             html += `<tr><td class="spec-label">${label}</td><td class="spec-value">${value}</td></tr>`;
         }
         html += '</table>';
@@ -709,7 +714,7 @@ calculate(input_json)
 
     } catch (error) {
         console.error('Calculation error:', error);
-        document.getElementById('spec-sheet').innerHTML = `<p class="spec-sheet-placeholder" style="color: var(--color-error);">Error: ${error.message}</p>`;
+        document.getElementById('spec-sheet').innerHTML = `<p class="spec-sheet-placeholder" style="color: var(--color-error);">Error: ${escapeHtml(error.message)}</p>`;
     }
 }
 

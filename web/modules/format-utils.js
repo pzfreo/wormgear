@@ -20,6 +20,27 @@ export const fmtMm = (val, d = 2) => val != null ? `${Number(val).toFixed(d)} mm
 export const fmtDeg = (val, d = 1) => val != null ? `${Number(val).toFixed(d)}\u00b0` : '\u2014';
 
 // ---------------------------------------------------------------------------
+// HTML escaping (XSS protection)
+// ---------------------------------------------------------------------------
+
+/**
+ * Escape a value for safe interpolation into an innerHTML template.
+ *
+ * Any value rendered from a design (including loaded/pasted JSON) or from an
+ * error message must pass through this before being written to innerHTML, so a
+ * crafted string cannot inject markup or script. Numbers escape to themselves.
+ */
+export function escapeHtml(value) {
+    if (value == null) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ---------------------------------------------------------------------------
 // Profile labels
 // ---------------------------------------------------------------------------
 
